@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
+  <!-- An original mark, not derived from any DayZ or Enfusion logo. The blue is the one the file
+       icon's "E" uses, and it reads on light and dark themes alike, so there is no _dark variant. -->
+  <path fill="#389FD6" d="M20 2.5L34.5 7V18.5C34.5 27.5 28.5 34 20 37.5C11.5 34 5.5 27.5 5.5 18.5V7Z"/>
+  <path fill="#2A82B8" d="M20 2.5L34.5 7V18.5C34.5 27.5 28.5 34 20 37.5Z"/>
+  <path fill="none" stroke="#FFFFFF" stroke-width="3.6" d="M26.3 10.5H16.1V26H26.3M16.1 18.25H24.3"/>
+</svg>
