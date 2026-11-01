@@ -1,0 +1,13 @@
+<html><body>
+Reports a name declared twice within one method.
+<p>
+A method body is a single flat scope in Enforce Script. Two <code>if</code> branches that can never
+both run may still not each declare <code>int found;</code> &mdash; the second is
+<i>&quot;Variable 'found' is already declared&quot;</i>. Every other C-family language allows it,
+which is what makes this worth pointing out in the editor.
+</p>
+<p>
+A <code>for</code> initialiser and a <code>foreach</code> variable each scope to their own loop, so
+repeating <code>for (int i = 0; ...)</code> is legal and is not reported.
+</p>
+</body></html>

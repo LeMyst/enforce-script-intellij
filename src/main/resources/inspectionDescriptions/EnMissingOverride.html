@@ -1,0 +1,12 @@
+<html><body>
+Reports a method that redeclares one inherited from a superclass or one declared by another layer of
+the same <code>modded class</code>, without the <code>override</code> keyword.
+<p>
+The engine refuses this with <i>&quot;Function 'X' is already defined&quot;</i>, but only when the
+mod is built, which on a full DayZ mod is minutes away from the edit that caused it.
+</p>
+<p>
+A method is only reported when a base declaration of the same name takes the same number of
+parameters. Differing arity is an overload, which is legal and needs no keyword.
+</p>
+</body></html>

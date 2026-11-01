@@ -1,0 +1,12 @@
+<html><body>
+Reports a method marked <code>override</code> when nothing above it declares that name.
+<p>
+The engine refuses this with <i>&quot;No base function to override&quot;</i>. It usually means the
+base method was renamed or removed, or the signature drifted apart.
+</p>
+<p>
+Nothing is reported unless the plugin can actually see the class above &mdash; the superclass, or
+the declaration a <code>modded class</code> patches. A class whose parent lives in a mod that is not
+among the configured script roots is left alone rather than reported wholesale.
+</p>
+</body></html>

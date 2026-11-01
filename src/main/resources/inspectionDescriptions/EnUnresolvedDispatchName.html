@@ -1,0 +1,14 @@
+<html><body>
+Reports a string that names a method the receiving object does not have.
+<p>
+<code>AddTimer(5.0, this, &quot;OnTick&quot;)</code>,
+<code>AddRPC(NS, &quot;SetPlayerCount&quot;, this)</code> and
+<code>GameScript.Call(this, &quot;ProcessPlayers&quot;, NULL)</code> pass the method name as text, so
+the compiler never checks it. A typo, or a handler renamed without its registration, produces code
+that builds and links and then quietly never runs.
+</p>
+<p>
+Only calls that name their target are checked. <code>SendRPC</code> and <code>RemoveRPC</code> do
+not say which object owns the handler, so nothing is reported for them.
+</p>
+</body></html>

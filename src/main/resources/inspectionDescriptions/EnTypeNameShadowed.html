@@ -1,0 +1,9 @@
+<html><body>
+Reports a variable, parameter or field whose name is also the name of a type.
+<p>
+There is one flat global namespace and no scope operator, so a local called <code>map</code> does not
+shadow <code>class map</code> the way it would elsewhere &mdash; it collides with it, and every later
+use of the type name in that scope resolves to the variable. The build error names the type rather
+than the variable, which is why this is disproportionately slow to track down.
+</p>
+</body></html>

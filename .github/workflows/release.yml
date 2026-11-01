@@ -1,0 +1,87 @@
+# Build a release when a version tag is pushed: `git tag v0.1.0 && git push origin v0.1.0`.
+#
+# The result is a DRAFT GitHub release with the plugin zip attached. Download the zip from it,
+# upload that to JetBrains Marketplace (the first version must be uploaded by hand), then publish
+# the draft. Nothing here publishes to the Marketplace.
+#
+# Signing is optional: add the CERTIFICATE_CHAIN, PRIVATE_KEY and PRIVATE_KEY_PASSWORD repository
+# secrets and the attached zip is signed. Without them the zip is unsigned, which the Marketplace
+# accepts; the IDE then shows a warning when the plugin is installed.
+name: Release
+
+on:
+  push:
+    tags: [ 'v*' ]
+
+jobs:
+  release:
+    name: Build and draft release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      HAS_SIGNING_KEY: ${{ secrets.CERTIFICATE_CHAIN != '' && secrets.PRIVATE_KEY != '' }}
+    steps:
+      # The verifier downloads and unpacks every recommended IDE, several GB each.
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@v2.0.0
+        with:
+          preinstalled-runtimes: false
+          large-packages: false
+
+      - name: Fetch sources
+        uses: actions/checkout@v7
+
+      - name: Set up Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: zulu
+          java-version: 21
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Check the tag matches pluginVersion
+        run: |
+          VERSION=$(./gradlew properties --property version --quiet --console=plain | tail -n 1 | cut -f2- -d ' ')
+          if [ "v$VERSION" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match pluginVersion $VERSION in gradle.properties"
+            exit 1
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Build, test and verify
+        run: ./gradlew build verifyPluginProjectConfiguration verifyPlugin buildPlugin
+
+      - name: Sign the plugin
+        if: ${{ env.HAS_SIGNING_KEY == 'true' }}
+        env:
+          CERTIFICATE_CHAIN: ${{ secrets.CERTIFICATE_CHAIN }}
+          PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
+          PRIVATE_KEY_PASSWORD: ${{ secrets.PRIVATE_KEY_PASSWORD }}
+        run: ./gradlew signPlugin
+
+      # The change notes live in build.gradle.kts and are patched into plugin.xml; read them back
+      # from there so the release text and the Marketplace text never disagree.
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          perl -0ne 'print $1 if /<change-notes><!\[CDATA\[(.*?)\]\]><\/change-notes>/s' \
+            build/tmp/patchPluginXml/plugin.xml > build/release-notes.md
+          if [ -n "$(ls build/distributions/*-signed.zip 2>/dev/null)" ]; then
+            ZIP=$(ls build/distributions/*-signed.zip)
+          else
+            ZIP=$(ls build/distributions/*.zip)
+          fi
+          gh release create "$GITHUB_REF_NAME" "$ZIP" \
+            --draft \
+            --title "Enforce Script $VERSION" \
+            --notes-file build/release-notes.md
+
+      - name: Upload verifier report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: plugin-verifier-report
+          path: build/reports/pluginVerifier

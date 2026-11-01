@@ -1,0 +1,12 @@
+<html><body>
+Reports a <code>STR_…</code> key with no matching row in any <code>stringtable.csv</code>.
+<p>
+Applies to all three places a key is written: <code>SetText(&quot;#STR_BR_WIN&quot;)</code> in client
+script, <code>text &quot;#STR_BR_WIN&quot;</code> in a layout, and the bare key with no
+<code>#</code> that server script ships over a notification RPC.
+</p>
+<p>
+A missing key is displayed to the player verbatim, so the mistake shows up on screen rather than in
+any log. Nothing is reported when no stringtable is indexed at all.
+</p>
+</body></html>

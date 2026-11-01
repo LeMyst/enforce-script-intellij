@@ -1,0 +1,281 @@
+<idea-plugin>
+    <depends>com.intellij.modules.platform</depends>
+    <!-- `Inputs.xml` declares the keybind action names; resolution walks its XML PSI. -->
+    <depends>com.intellij.modules.xml</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <!-- `.es` only. `.c` is claimed contextually by the overrider below so this plugin never
+             hijacks C sources in unrelated projects. -->
+        <fileType
+                name="EnfusionScript"
+                implementationClass="io.github.lemyst.enfusion.lang.EnfusionFileType"
+                fieldName="INSTANCE"
+                language="EnfusionScript"
+                extensions="es"/>
+
+        <fileTypeOverrider
+                implementation="io.github.lemyst.enfusion.lang.EnfusionFileTypeOverrider"/>
+
+        <!-- `.layout` and `.imageset` are the same Enfusion object format. `.styles` is NOT: it
+             lives beside them but is XML, which the platform already handles. -->
+        <fileType
+                name="EnfusionObject"
+                implementationClass="io.github.lemyst.enfusion.objfmt.EnfusionObjectFileType"
+                fieldName="INSTANCE"
+                language="EnfusionObject"
+                extensions="layout;imageset"/>
+
+        <lang.parserDefinition
+                language="EnfusionObject"
+                implementationClass="io.github.lemyst.enfusion.objfmt.EnfusionObjectParserDefinition"/>
+
+        <lang.syntaxHighlighterFactory
+                language="EnfusionObject"
+                implementationClass="io.github.lemyst.enfusion.objfmt.EnfusionObjectSyntaxHighlighterFactory"/>
+
+        <lang.psiStructureViewFactory
+                language="EnfusionObject"
+                implementationClass="io.github.lemyst.enfusion.objfmt.EnfusionObjectStructureViewFactory"/>
+
+        <lang.foldingBuilder
+                language="EnfusionObject"
+                implementationClass="io.github.lemyst.enfusion.objfmt.EnfusionObjectFoldingBuilder"/>
+
+        <!-- The words scanner here is what lets renaming a widget find the script that names it. -->
+        <lang.findUsagesProvider
+                language="EnfusionObject"
+                implementationClass="io.github.lemyst.enfusion.objfmt.EnfusionObjectFindUsagesProvider"/>
+
+        <!-- `config.cpp` / `mod.cpp`. Claimed by exact **file name**, not by extension: that is what
+             keeps this plugin from ever competing with C++ over `.cpp`, and it is why this language
+             needs no FileTypeOverrider the way `.c` does. -->
+        <fileType
+                name="EnfusionConfig"
+                implementationClass="io.github.lemyst.enfusion.cfg.EnfusionConfigFileType"
+                fieldName="INSTANCE"
+                language="EnfusionConfig"
+                fileNames="config.cpp;config.cpp.disabled;mod.cpp"/>
+
+        <lang.parserDefinition
+                language="EnfusionConfig"
+                implementationClass="io.github.lemyst.enfusion.cfg.EnfusionConfigParserDefinition"/>
+
+        <lang.syntaxHighlighterFactory
+                language="EnfusionConfig"
+                implementationClass="io.github.lemyst.enfusion.cfg.EnfusionConfigSyntaxHighlighterFactory"/>
+
+        <lang.psiStructureViewFactory
+                language="EnfusionConfig"
+                implementationClass="io.github.lemyst.enfusion.cfg.EnfusionConfigStructureViewFactory"/>
+
+        <lang.foldingBuilder
+                language="EnfusionConfig"
+                implementationClass="io.github.lemyst.enfusion.cfg.EnfusionConfigFoldingBuilder"/>
+
+        <lang.findUsagesProvider
+                language="EnfusionConfig"
+                implementationClass="io.github.lemyst.enfusion.cfg.EnfusionConfigFindUsagesProvider"/>
+
+        <lang.commenter
+                language="EnfusionConfig"
+                implementationClass="io.github.lemyst.enfusion.lang.EnfusionCommenter"/>
+
+        <lang.braceMatcher
+                language="EnfusionConfig"
+                implementationClass="io.github.lemyst.enfusion.cfg.EnfusionConfigBraceMatcher"/>
+
+        <lang.parserDefinition
+                language="EnfusionScript"
+                implementationClass="io.github.lemyst.enfusion.lang.EnfusionParserDefinition"/>
+
+        <lang.syntaxHighlighterFactory
+                language="EnfusionScript"
+                implementationClass="io.github.lemyst.enfusion.highlight.EnfusionSyntaxHighlighterFactory"/>
+
+        <colorSettingsPage
+                implementation="io.github.lemyst.enfusion.highlight.EnfusionColorSettingsPage"/>
+
+        <lang.commenter
+                language="EnfusionScript"
+                implementationClass="io.github.lemyst.enfusion.lang.EnfusionCommenter"/>
+
+        <lang.braceMatcher
+                language="EnfusionScript"
+                implementationClass="io.github.lemyst.enfusion.lang.EnfusionBraceMatcher"/>
+
+        <lang.quoteHandler
+                language="EnfusionScript"
+                implementationClass="io.github.lemyst.enfusion.lang.EnfusionQuoteHandler"/>
+
+        <lang.foldingBuilder
+                language="EnfusionScript"
+                implementationClass="io.github.lemyst.enfusion.lang.EnfusionFoldingBuilder"/>
+
+        <!-- Indentation only; the settings provider is what defaults the language to tabs. -->
+        <lang.formatter
+                language="EnfusionScript"
+                implementationClass="io.github.lemyst.enfusion.format.EnfusionFormattingModelBuilder"/>
+        <langCodeStyleSettingsProvider
+                implementation="io.github.lemyst.enfusion.format.EnfusionLanguageCodeStyleSettingsProvider"/>
+
+        <lang.psiStructureViewFactory
+                language="EnfusionScript"
+                implementationClass="io.github.lemyst.enfusion.nav.EnfusionStructureViewFactory"/>
+
+        <!-- Inspections. Every one of these reports a mistake the engine only complains about at
+             build time, or not at all. -->
+        <localInspection
+                language="EnfusionScript"
+                shortName="EnMissingOverride"
+                displayName="Redeclared method without 'override'"
+                groupName="Enforce Script"
+                enabledByDefault="true"
+                level="WARNING"
+                implementationClass="io.github.lemyst.enfusion.inspections.EnMissingOverrideInspection"/>
+        <localInspection
+                language="EnfusionScript"
+                shortName="EnRedundantOverride"
+                displayName="'override' with no base declaration"
+                groupName="Enforce Script"
+                enabledByDefault="true"
+                level="WARNING"
+                implementationClass="io.github.lemyst.enfusion.inspections.EnRedundantOverrideInspection"/>
+        <localInspection
+                language="EnfusionScript"
+                shortName="EnDuplicateLocal"
+                displayName="Variable already declared in this method"
+                groupName="Enforce Script"
+                enabledByDefault="true"
+                level="WARNING"
+                implementationClass="io.github.lemyst.enfusion.inspections.EnDuplicateLocalInspection"/>
+        <localInspection
+                language="EnfusionScript"
+                shortName="EnModdedClassWithoutBase"
+                displayName="'modded class' patching nothing"
+                groupName="Enforce Script"
+                enabledByDefault="true"
+                level="WEAK WARNING"
+                implementationClass="io.github.lemyst.enfusion.inspections.EnModdedClassWithoutBaseInspection"/>
+        <localInspection
+                language="EnfusionScript"
+                shortName="EnUnresolvedDispatchName"
+                displayName="Dispatch string naming no method"
+                groupName="Enforce Script"
+                enabledByDefault="true"
+                level="WARNING"
+                implementationClass="io.github.lemyst.enfusion.inspections.EnUnresolvedDispatchNameInspection"/>
+        <localInspection
+                language="EnfusionScript"
+                shortName="EnTypeNameShadowed"
+                displayName="Variable named after a type"
+                groupName="Enforce Script"
+                enabledByDefault="true"
+                level="WARNING"
+                implementationClass="io.github.lemyst.enfusion.inspections.EnTypeNameShadowedInspection"/>
+        <!-- No language attribute: the same key is written in script and in layouts alike. -->
+        <localInspection
+                shortName="EnUnresolvedStringTableKey"
+                displayName="Localization key with no stringtable row"
+                groupName="Enforce Script"
+                enabledByDefault="true"
+                level="WARNING"
+                implementationClass="io.github.lemyst.enfusion.inspections.EnUnresolvedStringTableKeyInspection"/>
+
+        <lang.findUsagesProvider
+                language="EnfusionScript"
+                implementationClass="io.github.lemyst.enfusion.nav.EnfusionFindUsagesProvider"/>
+
+        <!-- Rename. The processor exists for the bindings that carry no reference: a `modded class`
+             layer, an `override`, and a constructor named after its class. -->
+        <lang.namesValidator
+                language="EnfusionScript"
+                implementationClass="io.github.lemyst.enfusion.rename.EnfusionNamesValidator"/>
+        <renamePsiElementProcessor
+                implementation="io.github.lemyst.enfusion.rename.EnfusionRenameProcessor"/>
+
+        <!-- A method's own name is a declaration, not a reference, so nothing else links an
+             `override` back to what it overrides: these two are what do. -->
+        <codeInsight.lineMarkerProvider
+                language="EnfusionScript"
+                implementationClass="io.github.lemyst.enfusion.nav.EnOverrideLineMarkerProvider"/>
+        <gotoDeclarationHandler
+                implementation="io.github.lemyst.enfusion.nav.EnOverrideGotoDeclarationHandler"/>
+
+        <!-- Ctrl+H. Nothing about a class says who extends it, hence the inverted index below. -->
+        <typeHierarchyProvider
+                language="EnfusionScript"
+                implementationClass="io.github.lemyst.enfusion.hierarchy.EnTypeHierarchyProvider"/>
+
+        <fileBasedIndex implementation="io.github.lemyst.enfusion.index.EnfusionTypeNameIndex"/>
+        <fileBasedIndex implementation="io.github.lemyst.enfusion.index.EnfusionSymbolNameIndex"/>
+        <fileBasedIndex implementation="io.github.lemyst.enfusion.index.EnfusionSuperTypeIndex"/>
+        <fileBasedIndex implementation="io.github.lemyst.enfusion.index.EnfusionStringTableIndex"/>
+        <fileBasedIndex implementation="io.github.lemyst.enfusion.index.EnfusionWidgetNameIndex"/>
+        <fileBasedIndex implementation="io.github.lemyst.enfusion.index.EnfusionImageSetNameIndex"/>
+        <fileBasedIndex implementation="io.github.lemyst.enfusion.index.EnfusionImageNameIndex"/>
+        <fileBasedIndex implementation="io.github.lemyst.enfusion.index.EnfusionInputNameIndex"/>
+        <fileBasedIndex implementation="io.github.lemyst.enfusion.index.EnfusionConfigClassIndex"/>
+        <fileBasedIndex implementation="io.github.lemyst.enfusion.index.EnfusionConfigAddonIndex"/>
+
+        <!-- Reached only because EnLiteralExprMixin implements ContributedReferenceHost: the
+             registry is not consulted for ordinary Grammar-Kit PSI. -->
+        <psi.referenceContributor
+                language="EnfusionScript"
+                implementation="io.github.lemyst.enfusion.refs.EnfusionReferenceContributor"/>
+
+        <psi.referenceContributor
+                language="EnfusionObject"
+                implementation="io.github.lemyst.enfusion.refs.EnfusionObjectReferenceContributor"/>
+
+        <psi.referenceContributor
+                language="EnfusionConfig"
+                implementation="io.github.lemyst.enfusion.refs.EnfusionConfigReferenceContributor"/>
+
+        <!-- Required by every reference that occupies a sub-range of its literal. -->
+        <lang.elementManipulator
+                forClass="io.github.lemyst.enfusion.psi.impl.EnLiteralExprMixin"
+                implementationClass="io.github.lemyst.enfusion.refs.EnStringLiteralManipulator"/>
+        <lang.elementManipulator
+                forClass="io.github.lemyst.enfusion.objfmt.psi.impl.EnObjValueMixin"
+                implementationClass="io.github.lemyst.enfusion.refs.EnObjValueManipulator"/>
+        <lang.elementManipulator
+                forClass="io.github.lemyst.enfusion.cfg.psi.impl.EnCfgValueMixin"
+                implementationClass="io.github.lemyst.enfusion.refs.EnCfgValueManipulator"/>
+
+        <!-- The engine's flags plus every `defines[]` the project's own config.cpp declares. -->
+        <completion.contributor
+                language="EnfusionScript"
+                implementationClass="io.github.lemyst.enfusion.lang.EnfusionDirectiveCompletionContributor"/>
+
+        <gotoClassContributor
+                implementation="io.github.lemyst.enfusion.nav.EnfusionGotoClassContributor"/>
+        <gotoSymbolContributor
+                implementation="io.github.lemyst.enfusion.nav.EnfusionGotoSymbolContributor"/>
+        <!-- Config classes go in Go to Symbol, not Go to Class: there are far more of them than
+             there are script types, and they are a different kind of thing. -->
+        <gotoSymbolContributor
+                implementation="io.github.lemyst.enfusion.nav.EnfusionConfigGotoSymbolContributor"/>
+
+        <!-- Puts the configured script roots into the index and into allScope, which is what makes
+             Ctrl+Click on a vanilla type resolve from mod code. -->
+        <additionalLibraryRootsProvider
+                implementation="io.github.lemyst.enfusion.roots.EnfusionLibraryRootsProvider"/>
+
+        <!-- .claude/worktrees holds duplicate checkouts; without this every class indexes twice. -->
+        <directoryIndexExcludePolicy
+                implementation="io.github.lemyst.enfusion.roots.EnfusionExcludePolicy"/>
+
+        <projectConfigurable
+                parentId="language"
+                id="enfusion.settings"
+                displayName="Enforce Script"
+                instance="io.github.lemyst.enfusion.settings.EnfusionConfigurable"/>
+
+        <postStartupActivity
+                implementation="io.github.lemyst.enfusion.startup.EnfusionAutoDetect"/>
+
+        <notificationGroup
+                id="Enforce Script"
+                displayType="BALLOON"/>
+    </extensions>
+</idea-plugin>

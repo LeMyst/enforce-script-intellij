@@ -1,0 +1,67 @@
+{
+  parserClass            = "io.github.lemyst.enfusion.objfmt.parser.EnfusionObjectParser"
+
+  psiPackage             = "io.github.lemyst.enfusion.objfmt.psi"
+  psiImplPackage         = "io.github.lemyst.enfusion.objfmt.psi.impl"
+  psiClassPrefix         = "EnObj"
+  psiImplClassSuffix     = "Impl"
+  psiVisitorName         = "EnfusionObjectVisitor"
+
+  elementTypeHolderClass = "io.github.lemyst.enfusion.objfmt.psi.EnfusionObjectTypes"
+  elementTypeClass       = "io.github.lemyst.enfusion.objfmt.psi.EnfusionObjectElementType"
+  tokenTypeClass         = "io.github.lemyst.enfusion.objfmt.psi.EnfusionObjectTokenType"
+
+  generateTokenAccessors = true
+
+  // Documentation only: the lexer is the hand-written EnfusionObjectLexer.flex.
+  tokens = [
+    LBRACE        = '{'
+    RBRACE        = '}'
+    IDENT         = 'IDENT'
+    STRING        = 'STRING'
+    NUMBER        = 'NUMBER'
+    EOL           = 'EOL'
+    LINE_COMMENT  = 'LINE_COMMENT'
+    BLOCK_COMMENT = 'BLOCK_COMMENT'
+  ]
+}
+
+// One grammar serves `.layout` and `.imageset`: they are the same Enfusion object format, differing
+// only in which class names appear. A widget tree and an imageset are structurally identical.
+objFile ::= item*
+private item ::= EOL | objectDecl
+
+// `PanelWidgetClass RowRoot {`, and also `Textures {` and `ImageSetTextureClass {` -- the instance
+// name is genuinely optional, and container blocks in an imageset never carry one.
+//
+// `pin` is on the brace rather than on the first identifier, which is what lets a failed attempt
+// roll back and be re-parsed as a property: `halign center_ref` and `PanelWidgetClass RowRoot`
+// are the same two-identifier shape, and only the brace tells them apart.
+//
+// The instance slot may also be a quoted resource GUID: `FrameWidgetClass "{00000000EE70746B}" {`
+// followed by a `Name "HudDebugFrameWidget"` property. Ten vanilla layouts use that form
+// (gui/layouts/debug/day_z_debug_monitor.layout among them), straight out of the shipped gui.pbo.
+objectDecl ::= IDENT (IDENT | STRING)? LBRACE entry* RBRACE EOL? {
+  pin = 3
+  mixin = "io.github.lemyst.enfusion.objfmt.psi.impl.EnObjDeclMixin"
+  implements = "io.github.lemyst.enfusion.psi.EnNamedElement"
+}
+
+private entry ::= EOL | objectDecl | childBlock | property
+
+// The anonymous `{ ... }` that holds a widget's children. It has no class name of its own.
+childBlock ::= LBRACE entry* RBRACE EOL? { pin = 1 }
+
+// The trailing EOL is optional only so a property at the very end of a file still parses. It is
+// never *consumed* early: `value` cannot match EOL, so `value*` always stops at the line break.
+property ::= propKey value* EOL? {
+  pin = 1
+  mixin = "io.github.lemyst.enfusion.objfmt.psi.impl.EnObjPropertyMixin"
+}
+
+// A quoted key is real and not rare: `"Size To Content V" 1`, `"no focus" 1`.
+private propKey ::= IDENT | STRING
+
+value ::= STRING | NUMBER | IDENT {
+  mixin = "io.github.lemyst.enfusion.objfmt.psi.impl.EnObjValueMixin"
+}

@@ -1,0 +1,86 @@
+# Build, test and verify on every push to master and every pull request.
+#
+# The corpus tests skip here: they need the vanilla DayZ scripts, which are proprietary and never
+# leave a developer's machine. Run them locally before a release (see AGENTS.md).
+name: Build
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build and test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch sources
+        uses: actions/checkout@v7
+
+      - name: Set up Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: zulu
+          java-version: 21
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      # `build` compiles and runs every test; the configuration check fails on a JVM target that
+      # the oldest supported IDE could not load, which the Plugin Verifier does not catch.
+      - name: Build and test
+        run: ./gradlew build verifyPluginProjectConfiguration buildPlugin
+
+      - name: Upload plugin zip
+        uses: actions/upload-artifact@v7
+        with:
+          name: plugin-zip
+          path: build/distributions/*.zip
+
+      - name: Upload test reports
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-reports
+          path: build/reports/tests
+
+  verify:
+    name: Plugin Verifier
+    needs: [ build ]
+    runs-on: ubuntu-latest
+    steps:
+      # The verifier downloads and unpacks every recommended IDE, several GB each.
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@v2.0.0
+        with:
+          preinstalled-runtimes: false
+          large-packages: false
+
+      - name: Fetch sources
+        uses: actions/checkout@v7
+
+      - name: Set up Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: zulu
+          java-version: 21
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-read-only: true
+
+      - name: Verify against recommended IDEs
+        run: ./gradlew verifyPlugin
+
+      - name: Upload verifier report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: plugin-verifier-report
+          path: build/reports/pluginVerifier

@@ -1,0 +1,375 @@
+{
+  parserClass            = "io.github.lemyst.enfusion.parser.EnfusionParser"
+  parserUtilClass        = "io.github.lemyst.enfusion.parser.EnfusionParserUtil"
+
+  psiPackage             = "io.github.lemyst.enfusion.psi"
+  psiImplPackage         = "io.github.lemyst.enfusion.psi.impl"
+  psiClassPrefix         = "En"
+  psiImplClassSuffix     = "Impl"
+  psiVisitorName         = "EnfusionVisitor"
+
+  elementTypeHolderClass = "io.github.lemyst.enfusion.psi.EnfusionTypes"
+  elementTypeClass       = "io.github.lemyst.enfusion.psi.EnfusionElementType"
+  tokenTypeClass         = "io.github.lemyst.enfusion.psi.EnfusionTokenType"
+
+  extends(".*Expr")      = expr
+  generateTokenAccessors = true
+
+  // Token values are documentation only: the lexer is the hand-written EnfusionLexer.flex.
+  tokens = [
+    CLASS_KW       = 'class'
+    ENUM        = 'enum'
+    TYPEDEF     = 'typedef'
+    NEW         = 'new'
+    DELETE      = 'delete'
+    RETURN      = 'return'
+    IF          = 'if'
+    ELSE        = 'else'
+    FOR         = 'for'
+    FOREACH     = 'foreach'
+    WHILE       = 'while'
+    SWITCH      = 'switch'
+    CASE        = 'case'
+    DEFAULT     = 'default'
+    BREAK       = 'break'
+    CONTINUE    = 'continue'
+    NULL        = 'null'
+    THIS        = 'this'
+    SUPER       = 'super'
+    TRUE        = 'true'
+    FALSE       = 'false'
+
+    VOID        = 'void'
+    INT         = 'int'
+    FLOAT       = 'float'
+    BOOL        = 'bool'
+    STRING_TYPE = 'string'
+    VECTOR      = 'vector'
+    TYPENAME    = 'typename'
+    FUNC        = 'func'
+
+    REF         = 'ref'
+    AUTOPTR     = 'autoptr'
+    STATIC      = 'static'
+    CONST       = 'const'
+    PRIVATE     = 'private'
+    PROTECTED   = 'protected'
+    OVERRIDE    = 'override'
+    PROTO       = 'proto'
+    NATIVE      = 'native'
+    NOTNULL     = 'notnull'
+    OUT         = 'out'
+    INOUT       = 'inout'
+    VOLATILE    = 'volatile'
+
+    IDENT         = 'IDENT'
+    STRING        = 'STRING'
+    INT_LITERAL   = 'INT_LITERAL'
+    FLOAT_LITERAL = 'FLOAT_LITERAL'
+
+    LINE_COMMENT      = 'LINE_COMMENT'
+    BLOCK_COMMENT     = 'BLOCK_COMMENT'
+    LINE_DOC_COMMENT  = 'LINE_DOC_COMMENT'
+    BLOCK_DOC_COMMENT = 'BLOCK_DOC_COMMENT'
+    PP_DIRECTIVE      = 'PP_DIRECTIVE'
+    INACTIVE_CODE     = 'INACTIVE_CODE'
+
+    LBRACE      = '{'
+    RBRACE      = '}'
+    LPAREN      = '('
+    RPAREN      = ')'
+    LBRACKET    = '['
+    RBRACKET    = ']'
+    SEMICOLON   = ';'
+    COMMA       = ','
+    DOT         = '.'
+    COLON       = ':'
+
+    EQ          = '='
+    PLUS        = '+'
+    MINUS       = '-'
+    STAR        = '*'
+    SLASH       = '/'
+    PERCENT     = '%'
+    BANG        = '!'
+    TILDE       = '~'
+    AMP         = '&'
+    PIPE        = '|'
+    CARET       = '^'
+    LT          = '<'
+    GT          = '>'
+    LTLT        = '<<'
+    ANDAND      = '&&'
+    OROR        = '||'
+    EQEQ        = '=='
+    NEQ         = '!='
+    LE          = '<='
+    GE          = '>='
+    PLUS_EQ     = '+='
+    MINUS_EQ    = '-='
+    STAR_EQ     = '*='
+    SLASH_EQ    = '/='
+    AMP_EQ      = '&='
+    PIPE_EQ     = '|='
+    PLUSPLUS    = '++'
+    MINUSMINUS  = '--'
+  ]
+}
+
+// ===========================================================================================
+// Declarations
+//
+// File scope and class body accept the same member forms, which is also why file-scope
+// functions, variables and typedefs come out for free.
+// ===========================================================================================
+
+file ::= item*
+
+// NOTE ON ERROR RECOVERY
+// `recoverWhile` consumes tokens while its predicate holds, and it runs after the rule completes
+// -- including after it SUCCEEDS. A predicate such as `!(CLASS_KW | ENUM | TYPEDEF)` therefore
+// swallowed everything up to the next class/enum/typedef after each successful item, so only the
+// first declaration in any list survived. Because almost any token can begin an item, a correct
+// predicate would have to negate the entire FIRST set of `item`; getting one token wrong
+// reintroduces the same silent over-consumption.
+// Recovery is left off until the grammar parses the corpus cleanly, then reinstated with
+// explicitly enumerated FIRST sets. It only affects half-typed code in the editor, not
+// well-formed files.
+private item ::= SEMICOLON | classDecl | enumDecl | typedefDecl | memberDecl | danglingAttribute
+
+// The name is not just IDENT: the engine declares `class bool`, `class string`, `class int`,
+// `class vector`, `class func` and `class typename` in 1_core/proto, so a primitive type keyword
+// is a legal class name.
+classDecl ::= attributeList? classModifier* CLASS_KW className typeParamList? superClause? classBody SEMICOLON?
+  { pin = 3 mixin="io.github.lemyst.enfusion.psi.impl.EnClassDeclMixin" implements="io.github.lemyst.enfusion.psi.EnNamedElement" }
+private className ::= IDENT | INT | FLOAT | BOOL | STRING_TYPE | VECTOR | VOID | TYPENAME | FUNC
+
+private classModifier ::= <<contextual "modded">> | <<contextual "sealed">>
+
+typeParamList ::= LT typeParam (COMMA typeParam)* GT { pin = 1 }
+typeParam     ::= <<contextual "Class">> IDENT
+superClause   ::= (COLON | <<contextual "extends">>) typeRef { pin = 1 }
+
+classBody ::= LBRACE classMember* RBRACE { pin = 1 }
+private classMember ::= SEMICOLON | typedefDecl | enumDecl | memberDecl | danglingAttribute
+
+// `[Obsolete("no replacement")];` -- 3_game/vehicles/car.c:454 has a stray semicolon between an
+// attribute and the declaration it annotates. Listed after memberDecl so a real annotated
+// declaration always wins.
+danglingAttribute ::= attributeList SEMICOLON
+
+private memberDecl ::= <<methodAhead>> methodDecl | varDecl
+
+// The body/semicolon is optional: 1_core/proto/proto.c declares `proto native int
+// SetSoundVolume(HSOUND sound, float volume)` with neither, twice in a row, and it compiles.
+methodDecl ::= attributeList? modifier* typeRef TILDE? IDENT paramList (blockStmt | SEMICOLON)?
+  { pin = 6 mixin="io.github.lemyst.enfusion.psi.impl.EnMethodDeclMixin" implements="io.github.lemyst.enfusion.psi.EnNamedElement" }
+
+paramList ::= LPAREN (param (COMMA param)*)? RPAREN { pin = 1 }
+param     ::= modifier* typeRef IDENT arrayExtent* (EQ expr)? { mixin="io.github.lemyst.enfusion.psi.impl.EnSimpleNamedMixin" implements="io.github.lemyst.enfusion.psi.EnNamedElement" }
+
+varDecl       ::= attributeList? modifier* typeRef varDeclarator (COMMA varDeclarator)* SEMICOLON?
+varDeclarator ::= IDENT arrayExtent* (EQ expr)? { mixin="io.github.lemyst.enfusion.psi.impl.EnSimpleNamedMixin" implements="io.github.lemyst.enfusion.psi.EnNamedElement" }
+
+// Fixed, variable and multi-dimensional extents: `[4]`, `[numInds]`, `[4][2]`.
+arrayExtent ::= LBRACKET expr? RBRACKET
+
+// Terminators are optional throughout: vanilla omits them in several shipped files and the
+// engine compiler accepts it (`typedef map<InventoryItem, vector> TItemsMap` with no `;`,
+// `int Mask[8]` as a class member, `m_Count++` as the last statement in a block).
+typedefDecl ::= TYPEDEF typeRef IDENT SEMICOLON? { pin = 1 mixin="io.github.lemyst.enfusion.psi.impl.EnSimpleNamedMixin" implements="io.github.lemyst.enfusion.psi.EnNamedElement" }
+
+// `enum X : Y` is enum-to-enum inheritance (a numbering continuation), not an integral base type.
+// `[Obsolete("...")]` appears on enums as well as on classes and members.
+// The comma between constants is optional because vanilla omits one and still compiles
+// (edayzprofilesoptions.c: `AMBIENT_MUSIC_MODE` then `MAX` on the next line, no separator).
+enumDecl ::= attributeList? ENUM IDENT (COLON typeRef)? LBRACE (enumConstant (COMMA? enumConstant)* COMMA?)? RBRACE SEMICOLON?
+  { pin = 2 mixin="io.github.lemyst.enfusion.psi.impl.EnSimpleNamedMixin" implements="io.github.lemyst.enfusion.psi.EnNamedElement" }
+// The COMMA? before `=` is a stray separator the engine accepts: 4_world/classes/environment/
+// environment.c writes `GROUND, = 1,` and `PLAYER_HEATSOURCE, = 2,`. The group is atomic, so a
+// plain `A, B` still rolls back to a separator between two constants.
+enumConstant ::= IDENT (COMMA? EQ expr)? { mixin="io.github.lemyst.enfusion.psi.impl.EnSimpleNamedMixin" implements="io.github.lemyst.enfusion.psi.EnNamedElement" }
+
+attributeList ::= attribute+
+attribute     ::= LBRACKET IDENT argList? RBRACKET { pin = 1 }
+
+// An unordered set, which is what the corpus needs: `override protected void`,
+// `proto static float`, `static proto native bool` and `proto external volatile void` all occur.
+// `auto` is deliberately NOT here -- it occupies the type slot (`auto p = new Param1<int>(...)`).
+// `sealed` is a member modifier as well as a class one: `sealed void WeatherSandstormStart(...)`
+// (3_game/worlddata.c) and `sealed protected void ErrorConfigUndefined(...)` (constructionparttyped.c).
+// Keep this list in step with CONTEXTUAL_MODIFIERS in EnfusionParserUtil, which the lookahead uses.
+private modifier ::= REF | AUTOPTR | STATIC | CONST | PRIVATE | PROTECTED | OVERRIDE
+                   | PROTO | NATIVE | NOTNULL | OUT | INOUT | VOLATILE
+                   | <<contextual "local">>    | <<contextual "owned">>
+                   | <<contextual "reference">> | <<contextual "external">>
+                   | <<contextual "event">>    | <<contextual "sealed">>
+
+// ===========================================================================================
+// Types
+// ===========================================================================================
+
+typeRef ::= typeName typeArgList? arraySuffix* { mixin="io.github.lemyst.enfusion.psi.impl.EnTypeRefMixin" }
+private typeName ::= INT | FLOAT | BOOL | STRING_TYPE | VECTOR | VOID | TYPENAME | FUNC | CLASS_KW | IDENT
+typeArgList ::= LT typeArg (COMMA typeArg)* GT { pin = 1 }
+// `Class` is two different things inside angle brackets, and only the *following* token tells them
+// apart: a type-parameter marker in `map<Class TKey, Class TValue>`, and an ordinary type name in
+// `typedef array<Class> TClassArray;`. Written as one sequence with an optional marker this was
+// wrong, because Grammar-Kit compiles an optional without backtracking -- `array<Class>` consumed
+// `Class` as the marker, found `>` where a type had to be, and silently derailed every declaration
+// after it in the file, with no error element to show for it. Alternatives *do* backtrack.
+typeArg     ::= typeParamArg | REF? typeRef
+private typeParamArg ::= <<contextual "Class">> IDENT
+arraySuffix ::= LBRACKET RBRACKET               // `typedef int[] Physics;`
+
+// ===========================================================================================
+// Statements
+// ===========================================================================================
+
+blockStmt ::= LBRACE statement* RBRACE { pin = 1 }
+
+statement ::= blockStmt | ifStmt | forStmt | foreachStmt | whileStmt | switchStmt
+            | breakStmt | continueStmt | returnStmt | deleteStmt
+            | localVarDeclStmt | exprStmt | SEMICOLON
+
+// The body is optional: weapon_utils.c has `if (!g_Game.IsMultiplayer() || g_Game.IsServer())`
+// immediately followed by the closing brace of the enclosing block. The `else` body is optional
+// for the same reason: in 4_world/classes/constructionbase.c an `else` is followed by
+// `#else return true; #endif }`, so with DIAG_DEVELOPER defined it runs straight into a `}`.
+ifStmt      ::= IF LPAREN expr RPAREN statement? (ELSE statement?)? { pin = 1 }
+// The trailing SEMICOLON? absorbs `for (i = a; i != b;;)` -- a stray fourth clause that ships in
+// 4_world/classes/useractionscomponent/actionmanagerclient.c.
+forStmt     ::= FOR LPAREN forInit? SEMICOLON expr? SEMICOLON exprList? SEMICOLON? RPAREN statement { pin = 1 }
+private forInit ::= <<localVarDeclAhead>> localVarDeclNoSemi | exprList
+foreachStmt ::= FOREACH LPAREN foreachVar (COMMA foreachVar)? COLON expr RPAREN statement { pin = 1 }
+// `foreach (int hash, ref ActionInfoDebugData data : m_ActionInfoDebug)` -- an ownership modifier
+// on the loop variable (4_world/classes/basebuilding/constructiondebugs.c and five other files).
+foreachVar  ::= REF? typeRef IDENT | IDENT { mixin="io.github.lemyst.enfusion.psi.impl.EnSimpleNamedMixin" implements="io.github.lemyst.enfusion.psi.EnNamedElement" }
+whileStmt   ::= WHILE LPAREN expr RPAREN statement { pin = 1 }
+// Statements may precede the first label, and the engine accepts it: plugintransmissionagents.c
+// declares `float protectionLevel = 0.0;` there, and motorbikescript.c has a `switch (gear)` whose
+// body is an if/else with no `case` at all. `statement*` cannot eat a label: CASE and DEFAULT start
+// no statement.
+switchStmt  ::= SWITCH LPAREN expr RPAREN LBRACE statement* switchCase* RBRACE { pin = 1 }
+switchCase  ::= (CASE expr COLON | DEFAULT COLON) statement* { pin = 1 }
+returnStmt  ::= RETURN expr? SEMICOLON? { pin = 1 }
+deleteStmt  ::= DELETE expr SEMICOLON { pin = 1 }
+breakStmt   ::= BREAK SEMICOLON? { pin = 1 }
+continueStmt ::= CONTINUE SEMICOLON? { pin = 1 }
+
+localVarDeclStmt   ::= <<localVarDeclAhead>> localVarDeclNoSemi SEMICOLON
+private localVarDeclNoSemi ::= modifier* typeRef varDeclarator (COMMA varDeclarator)*
+exprStmt ::= expr SEMICOLON?
+
+// ===========================================================================================
+// Expressions -- lowest precedence first; Grammar-Kit generates a Pratt parser.
+// ===========================================================================================
+
+// Every alternative is listed directly, and every one of them matches `.*Expr` so the
+// `extends(".*Expr") = expr` rule above actually applies to it.
+//
+// Grammar-Kit analyses this rule to build a Pratt parser, classifying each alternative as
+// prefix / binary / postfix / atom from its own shape. Wrapping groups of alternatives in
+// `private` helper rules hides that shape: the helper is treated as an opaque atom, the operator
+// alternatives inside it are never registered, and parsing an expression degenerates into
+// unbounded recursion. That is what made a single file never finish.
+expr ::= assignExpr
+       | orExpr
+       | andExpr
+       | bitOrExpr
+       | bitXorExpr
+       | bitAndExpr
+       | eqExpr
+       | relExpr
+       | shiftExpr
+       | addExpr
+       | mulExpr
+       | unaryExpr
+       | castExpr
+       | callExpr
+       | indexExpr
+       | memberExpr
+       | postIncExpr
+       | newExpr
+       | parenExpr
+       | literalExpr
+       | arrayLiteralExpr
+       | thisExpr
+       | superExpr
+       | typeLiteralExpr
+       | genericQualifierExpr
+       | refExpr
+
+assignExpr ::= expr assignOp expr { rightAssociative = true }
+// `bit <<= 1` (1_core/proto/enconvert.c). Neither `<<=` nor `>>=` is a token: they arrive as
+// LTLT EQ and GT GE, and the predicate requires each pair to be physically adjacent.
+private assignOp ::= EQ | PLUS_EQ | MINUS_EQ | STAR_EQ | SLASH_EQ | AMP_EQ | PIPE_EQ | <<shiftAssign>>
+orExpr     ::= expr OROR expr
+andExpr    ::= expr ANDAND expr
+bitOrExpr  ::= expr PIPE expr
+bitXorExpr ::= expr CARET expr
+bitAndExpr ::= expr AMP expr
+eqExpr     ::= expr (EQEQ | NEQ) expr
+// `>` must not match the first half of a shift: `c1 >> 8 & cmask` (1_core/proto/proto.c).
+// relExpr sits at a lower priority than shiftExpr and would otherwise consume one `>` and then
+// fail on the second, so the predicate rejects a `>` that is immediately followed by another.
+relExpr    ::= expr (LT | <<singleGt>> | LE | GE) expr
+// `>>` is never a token, so shift-right is two adjacent GTs proven adjacent by the predicate.
+shiftExpr  ::= expr (LTLT | <<adjacentGtGt>>) expr
+addExpr    ::= expr (PLUS | MINUS) expr
+mulExpr    ::= expr (STAR | SLASH | PERCENT) expr
+
+unaryExpr  ::= (BANG | TILDE | MINUS | PLUS | PLUSPLUS | MINUSMINUS) expr
+// Restricted to primitive keywords on purpose: it kills the `(Foo)x` / `(Foo)` ambiguity dead.
+// Class downcasts are `Type.Cast(x)` / `Class.CastTo(out, in)`, which are ordinary calls.
+// pin is 3, not 2: `vector` is itself a primitive type keyword, so `(vector.Dot(a, b))` matches
+// LPAREN + primitiveTypeKw and must still be able to fall back to parenExpr. Committing before
+// the closing paren is confirmed would turn every `(vector.X)` and `(string.Y)` into an error.
+castExpr   ::= LPAREN primitiveTypeKw RPAREN operand { pin = 3 }
+private primitiveTypeKw ::= INT | FLOAT | BOOL | STRING_TYPE | VECTOR
+
+// Postfix operators.
+callExpr    ::= expr argList
+indexExpr   ::= expr LBRACKET operand RBRACKET
+memberExpr  ::= expr DOT IDENT { mixin="io.github.lemyst.enfusion.psi.impl.EnMemberExprMixin" }
+postIncExpr ::= expr (PLUSPLUS | MINUSMINUS)
+
+// Atoms.
+// `new array<ref array<PIXEL>>;` -- the argument list is genuinely optional.
+newExpr          ::= NEW typeRef argList? { pin = 1 }
+parenExpr        ::= LPAREN operand RPAREN
+// The mixin makes a string literal a reference host. A large amount of this language's wiring is
+// done by name-in-a-string -- widget names, stringtable keys, RPC handler names, layout paths --
+// so these literals carry most of the navigation that is not a plain identifier.
+literalExpr      ::= STRING | INT_LITERAL | FLOAT_LITERAL | TRUE | FALSE | NULL { mixin="io.github.lemyst.enfusion.psi.impl.EnLiteralExprMixin" }
+// Serves `= { ... }` initialisers, `PhysicsGeomDef geoms[] = { ... }`, and brace arguments
+// inside attributes such as `[Attribute("0","combobox","", { ParamEnum("No","0") })]`.
+// The separator is optional for the same reason it is in enumDecl: vanilla omits one and still
+// compiles (dynamicmusicplayerregistrysakhal.c line 108 ends an element with no comma and the
+// list continues on line 110).
+arrayLiteralExpr ::= LBRACE (operand (COMMA? operand)*)? COMMA? RBRACE { pin = 1 }
+thisExpr         ::= THIS
+superExpr       ::= SUPER
+// Types are first-class values: `if (e.GetVariableType(i) == int)`, `inst.IsInherited(Widget)`.
+typeLiteralExpr ::= INT | FLOAT | BOOL | STRING_TYPE | VECTOR | TYPENAME | FUNC | VOID
+// `JsonFileLoader<AutotestConfigJson>.LoadFile(path, m_Data, err)` -- a generic instantiation
+// used as a static qualifier. Guarded by a predicate so `a < b` is never mistaken for one: the
+// predicate requires a balanced `<...>` followed immediately by `.`.
+genericQualifierExpr ::= <<genericQualifierAhead>> IDENT typeArgList
+refExpr         ::= IDENT { mixin="io.github.lemyst.enfusion.psi.impl.EnRefExprMixin" }
+
+argList  ::= LPAREN (expr (COMMA expr)*)? COMMA? RPAREN { pin = 1 }
+exprList ::= expr (COMMA expr)*
+
+// A complete expression appearing inside brackets.
+//
+// This rule exists solely to keep a bare `expr` reference out of parenExpr / indexExpr /
+// castExpr / arrayLiteralExpr. Grammar-Kit classifies an expression rule by its first and last
+// *rule references*, ignoring tokens, so `LPAREN expr RPAREN` was read as a PREFIX operator whose
+// operand is the trailing expr -- and that operand was then parsed at the enclosing priority (18),
+// which is above every real operator. The result was that no binary operator could appear inside
+// parentheses at all: `(a * b)`, `(a | b)` and `(a != b)` were all parse errors.
+//
+// Routing through a rule outside the `.*Expr` hierarchy makes those rules ATOM/POSTFIX again and
+// parses the inner expression at priority -1, which admits the full operator set.
+operand ::= expr

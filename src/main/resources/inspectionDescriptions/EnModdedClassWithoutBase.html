@@ -1,0 +1,13 @@
+<html><body>
+Reports a <code>modded class</code> for which no ordinary declaration of the same name is visible.
+<p>
+A layer names no supertype: it is bound to the class it patches by spelling alone. When the spelling
+is wrong the engine does not complain &mdash; it simply compiles the layer as a new class, so the mod
+builds, loads, and does nothing.
+</p>
+<p>
+The other cause is harmless: the base exists but lives in a dependency mod whose sources are not
+among the configured script roots. Add it under
+<b>Settings | Languages &amp; Frameworks | Enforce Script</b> and the report goes away.
+</p>
+</body></html>

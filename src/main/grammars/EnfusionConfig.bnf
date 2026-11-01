@@ -1,0 +1,100 @@
+{
+  parserClass            = "io.github.lemyst.enfusion.cfg.parser.EnfusionConfigParser"
+
+  psiPackage             = "io.github.lemyst.enfusion.cfg.psi"
+  psiImplPackage         = "io.github.lemyst.enfusion.cfg.psi.impl"
+  psiClassPrefix         = "EnCfg"
+  psiImplClassSuffix     = "Impl"
+  psiVisitorName         = "EnfusionConfigVisitor"
+
+  elementTypeHolderClass = "io.github.lemyst.enfusion.cfg.psi.EnfusionConfigTypes"
+  elementTypeClass       = "io.github.lemyst.enfusion.cfg.psi.EnfusionConfigElementType"
+  tokenTypeClass         = "io.github.lemyst.enfusion.cfg.psi.EnfusionConfigTokenType"
+
+  generateTokenAccessors = true
+
+  // Documentation only: the lexer is the hand-written EnfusionConfigLexer.flex.
+  tokens = [
+    CLASS_KW      = 'class'
+    LBRACE        = '{'
+    RBRACE        = '}'
+    LBRACKET      = '['
+    RBRACKET      = ']'
+    EQ            = '='
+    PLUS_EQ       = '+='
+    MINUS_EQ      = '-='
+    SEMICOLON     = ';'
+    COLON         = ':'
+    COMMA         = ','
+    IDENT         = 'IDENT'
+    STRING        = 'STRING'
+    NUMBER        = 'NUMBER'
+    LINE_COMMENT  = 'LINE_COMMENT'
+    BLOCK_COMMENT = 'BLOCK_COMMENT'
+    PP_DIRECTIVE  = 'PP_DIRECTIVE'
+  ]
+}
+
+// The Bohemia config format, as it appears in `config.cpp` and `mod.cpp`.
+//
+// Deliberately small, because the format is: measured across 377 config.cpp in this project and its
+// dependency mods plus the 207 unpacked vanilla configs, there is not one `#include`, `#ifdef`,
+// `enum` or `delete`. Vanilla's are de-rapified from `config.bin` and are already flat, so there is
+// no preprocessor on this side at all -- the single biggest difference from the `.c` grammar.
+cfgFile ::= item*
+
+// A stray `;` at file or class scope is common enough to swallow here rather than let it fail a
+// class body.
+private item ::= classDecl | forwardDecl | property | SEMICOLON
+
+// `class EffectArea;` -- a forward declaration, in 226 of the 377 files. It introduces the name so a
+// later `class X : EffectArea` has something to bind to, without redefining it.
+//
+// Pinned on the semicolon, not the keyword: `class X;` and `class X { ... }` share their first two
+// tokens, so pinning earlier would commit to the wrong alternative and report an error on every
+// ordinary class in the file.
+forwardDecl ::= CLASS_KW IDENT SEMICOLON {
+  pin = 3
+  mixin = "io.github.lemyst.enfusion.cfg.psi.impl.EnCfgClassMixin"
+  implements = "io.github.lemyst.enfusion.psi.EnNamedElement"
+}
+
+// The trailing `;` really is optional -- `Scripts/Client/config.cpp` closes its last class without
+// one and the engine accepts it, so the parser must not care either.
+classDecl ::= CLASS_KW IDENT superClause? LBRACE item* RBRACE SEMICOLON? {
+  pin = 4
+  mixin = "io.github.lemyst.enfusion.cfg.psi.impl.EnCfgClassMixin"
+  implements = "io.github.lemyst.enfusion.psi.EnNamedElement"
+}
+
+// The mixin exists to host the reference from `: Parent` back to the parent's declaration. It sits
+// on the clause rather than on the identifier because a Grammar-Kit token has no PSI class of its
+// own; the reference then occupies the identifier's sub-range within the clause.
+superClause ::= COLON IDENT {
+  pin = 1
+  mixin = "io.github.lemyst.enfusion.cfg.psi.impl.EnCfgSuperClauseMixin"
+}
+
+// `scope = 2;`, `requiredAddons[] = {...}`, `attachments[] += {...}` and `doors[] -= {...}`.
+//
+// The append and remove forms are how a mod edits an inherited array instead of replacing it. `+=`
+// is in 17 files and `-=` in exactly one -- Expansion's `NamalskAdventure/Vehicles/config.cpp` --
+// which is precisely the kind of construct a survey misses and a corpus test does not.
+//
+// Pinned on the assignment operator, the first token that cannot belong to a class declaration.
+property ::= propKey arrayMarker? assign value SEMICOLON? {
+  pin = 3
+  mixin = "io.github.lemyst.enfusion.cfg.psi.impl.EnCfgPropertyMixin"
+}
+
+private propKey     ::= IDENT
+private arrayMarker ::= LBRACKET RBRACKET
+private assign      ::= EQ | PLUS_EQ | MINUS_EQ
+
+// Arrays nest: vanilla writes `{ {...}, {...} }` for tables of values. A trailing comma before the
+// closing brace is accepted, since hand-written configs contain them.
+value ::= STRING | NUMBER | IDENT | arrayValue {
+  mixin = "io.github.lemyst.enfusion.cfg.psi.impl.EnCfgValueMixin"
+}
+
+arrayValue ::= LBRACE (value (COMMA value)*)? COMMA? RBRACE { pin = 1 }
