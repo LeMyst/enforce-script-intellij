@@ -79,7 +79,7 @@ intellijPlatform {
             DayZ and Enfusion are trademarks of Bohemia Interactive a.s.
         """.trimIndent()
         changeNotes = """
-            Initial release.
+            Adds a plugin logo to the Plugins page and the Marketplace listing.
         """.trimIndent()
         vendor {
             name = "Myst"
