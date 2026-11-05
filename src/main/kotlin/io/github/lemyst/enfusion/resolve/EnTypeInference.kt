@@ -376,6 +376,50 @@ object EnTypeInference {
         return findMembers(parent, name, project).toList()
     }
 
+    /**
+     * Every member [owner] can reach, for completion: the same walk as [findMembers] — every
+     * `modded class` layer, then the superclass chain — without a name to filter on.
+     *
+     * Ordered nearest first, so a caller that keeps the first declaration of each signature keeps
+     * the most derived one.
+     */
+    fun allMembers(
+        owner: EnClassDeclMixin,
+        project: Project,
+        out: MutableList<EnNamedElement> = ArrayList(),
+        depth: Int = 0,
+        visited: MutableSet<String> = HashSet(),
+    ): MutableList<EnNamedElement> {
+        if (depth > MAX_DEPTH) return out
+        val className = owner.name
+        if (className != null && !visited.add(className)) return out
+        val layers = if (className != null) classesNamed(className, project) else listOf(owner)
+
+        var superName: String? = null
+        for (layer in layers) {
+            layer.node.findChildByType(EnfusionTypes.CLASS_BODY)?.psi?.let { body ->
+                PsiTreeUtil.findChildrenOfType(body, EnNamedElement::class.java)
+                    .filterTo(out) { EnfusionIndexes.isSymbolDeclaration(it) }
+            }
+            if (superName == null) superName = layer.getSuperName()?.let { baseTypeName(it) }
+        }
+
+        val parent = superName?.let { classesNamed(it, project).firstOrNull() } ?: return out
+        return allMembers(parent, project, out, depth + 1, visited)
+    }
+
+    /** What `super.` reaches from inside [owner]; the rules are [findSuperMembers]'s. */
+    fun allSuperMembers(owner: EnClassDeclMixin, project: Project): List<EnNamedElement> {
+        if (owner.isModded()) {
+            val ownBody = owner.node.findChildByType(EnfusionTypes.CLASS_BODY)?.psi
+            return allMembers(owner, project)
+                .filter { ownBody == null || !PsiTreeUtil.isAncestor(ownBody, it, true) }
+        }
+        val superName = owner.getSuperName()?.let { baseTypeName(it) } ?: return emptyList()
+        val parent = classesNamed(superName, project).firstOrNull() ?: return emptyList()
+        return allMembers(parent, project)
+    }
+
     private fun firstExprChild(element: PsiElement?): PsiElement? =
         element?.children?.firstOrNull { it !is com.intellij.psi.PsiWhiteSpace }
 

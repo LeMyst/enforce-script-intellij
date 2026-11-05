@@ -209,6 +209,7 @@
         <fileBasedIndex implementation="io.github.lemyst.enfusion.index.EnfusionTypeNameIndex"/>
         <fileBasedIndex implementation="io.github.lemyst.enfusion.index.EnfusionSymbolNameIndex"/>
         <fileBasedIndex implementation="io.github.lemyst.enfusion.index.EnfusionSuperTypeIndex"/>
+        <fileBasedIndex implementation="io.github.lemyst.enfusion.index.EnfusionGlobalIndex"/>
         <fileBasedIndex implementation="io.github.lemyst.enfusion.index.EnfusionStringTableIndex"/>
         <fileBasedIndex implementation="io.github.lemyst.enfusion.index.EnfusionWidgetNameIndex"/>
         <fileBasedIndex implementation="io.github.lemyst.enfusion.index.EnfusionImageSetNameIndex"/>
@@ -246,6 +247,11 @@
         <completion.contributor
                 language="EnfusionScript"
                 implementationClass="io.github.lemyst.enfusion.lang.EnfusionDirectiveCompletionContributor"/>
+        <!-- Members after a dot, names in scope, and type names. -->
+        <completion.contributor
+                language="EnfusionScript"
+                implementationClass="io.github.lemyst.enfusion.completion.EnfusionCompletionContributor"/>
+        <typedHandler implementation="io.github.lemyst.enfusion.completion.EnfusionDotAutoPopup"/>
 
         <gotoClassContributor
                 implementation="io.github.lemyst.enfusion.nav.EnfusionGotoClassContributor"/>

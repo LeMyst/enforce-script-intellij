@@ -7,8 +7,9 @@ import com.intellij.testFramework.fixtures.BasePlatformTestCase
  *
  * It is driven entirely by `getVariants()` on the references, which the platform's own
  * `LegacyCompletionContributor` collects for any language. This test exists to hold that
- * arrangement in place: nothing in the plugin registers a completion contributor, so if that
- * platform behaviour ever stops applying the feature would vanish with no other signal.
+ * arrangement in place: the plugin's own completion contributors handle identifiers and
+ * directives only, never a string, so if that platform behaviour ever stops applying the feature
+ * would vanish with no other signal.
  */
 class EnfusionStringCompletionTest : BasePlatformTestCase() {
 
