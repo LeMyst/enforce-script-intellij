@@ -2,7 +2,7 @@ package io.github.lemyst.enfusion.roots
 
 import com.intellij.navigation.ItemPresentation
 import com.intellij.openapi.roots.SyntheticLibrary
-import com.intellij.openapi.util.Condition
+import com.intellij.openapi.roots.SyntheticLibrary.ExcludeFileCondition
 import com.intellij.openapi.vfs.VirtualFile
 import io.github.lemyst.enfusion.lang.EnfusionIcons
 import javax.swing.Icon
@@ -19,14 +19,10 @@ import javax.swing.Icon
  * has to traverse the tree once to discover the configs — and that walk is why the folder is never
  * added automatically, and why the settings page asks before adding it.
  */
-class EnfusionVanillaConfigLibrary(private val roots: List<VirtualFile>) : SyntheticLibrary(), ItemPresentation {
+class EnfusionVanillaConfigLibrary(private val roots: List<VirtualFile>) :
+    SyntheticLibrary(null, ONLY_CONFIGS), ItemPresentation {
 
     override fun getSourceRoots(): Collection<VirtualFile> = roots
-
-    /** Directories pass so the walk can continue; every file but a config is dropped. */
-    override fun getExcludeFileCondition(): Condition<VirtualFile> = Condition { file ->
-        !file.isDirectory && !CONFIG_NAMES.any { file.name.equals(it, ignoreCase = true) }
-    }
 
     override fun getPresentableText(): String = LIBRARY_NAME
 
@@ -40,6 +36,17 @@ class EnfusionVanillaConfigLibrary(private val roots: List<VirtualFile>) : Synth
         const val LIBRARY_NAME = "Vanilla Configs"
 
         private val CONFIG_NAMES = listOf("config.cpp", "mod.cpp")
+
+        /**
+         * Directories pass so the walk can continue; every file but a config is dropped.
+         *
+         * Passed to the constructor rather than overriding `getExcludeFileCondition()`, which is
+         * deprecated: this form sees only the name and the directory flag, never a `VirtualFile`,
+         * which is all this condition needs.
+         */
+        private val ONLY_CONFIGS = ExcludeFileCondition { isDir, name, _, _, _ ->
+            !isDir && CONFIG_NAMES.none { name.equals(it, ignoreCase = true) }
+        }
 
         /**
          * Whether [dir] is the unpacked game data rather than a script or mod root.

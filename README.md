@@ -23,6 +23,18 @@ inputs.
 - **Go to Declaration and a gutter icon on `override` methods**, linking back to what they override —
   another `modded class` layer of the same class, or a superclass. A method's own name is a
   declaration rather than a reference, so without this Ctrl+Click on it did nothing at all.
+- **Code completion** for identifiers, answered by the same type inference as Go to Declaration, so
+  a name is offered exactly where Ctrl+Click on it would resolve. After a dot it lists the
+  receiver's members from every `modded class` layer and the superclass chain, once per signature,
+  so an override redeclared by four layers appears once while overloads each stay. The popup opens
+  on `.` without Ctrl+Space. Through a class name (`Math.`) only statics and constants appear,
+  through an enum only its constants, and `super.` in a `modded class` reaches the other layers but
+  never its own. A bare name offers, innermost first: parameters and the locals declared above
+  the caret in an enclosing block, then the class's members, then file-scope functions and globals
+  (`GetGame`, `g_Game`), then type names. A type position, including a half-written field at the
+  top of a class body, offers types only. Methods insert their parentheses. **Not offered:**
+  keywords (`return`, `new`, `this`), a generic class's own type parameters (`T`), and named
+  arguments or parameter hints.
 - **Code folding** (`Ctrl+.` / the gutter `-`/`+`) on every brace-delimited block that spans more than
   one line: class bodies, method/statement bodies, enum and switch bodies, array literals in
   Enforce Script; widget declarations and their children blocks in `.layout`/`.imageset`. Also on
@@ -218,6 +230,22 @@ Navigation, opening a real DayZ mod:
   [DayZ-CommunityFramework](https://github.com/Arkensor/DayZ-CommunityFramework) as a root and apply:
   **Community Framework Stubs** disappears and both now open the real source, with no second
   candidate. Remove the root again and the stub comes back.
+
+Code completion, opening a real DayZ mod:
+
+- Inside a method of a `modded class PlayerBase`, type `GetIdentity().` → the popup opens by itself
+  on the dot and lists `PlayerIdentity`'s methods. Do the same on a local
+  `array<ref PlayerBase> players;` with `players.Get(0).` → `PlayerBase`'s members, including those
+  of the mod's own layers.
+- `Math.` → statics such as `Clamp` and `PI`, no instance members. `CallType.` (bundled CF stub) →
+  `Server` and `Client` only.
+- Start a bare name with `Get` → locals and members come first, then `GetGame` and the other free
+  functions from vanilla `1_core/proto`, then types. The popup must open with no visible delay on
+  the full vanilla corpus; a stall here means the global or type lookup has started parsing files.
+- At the top of a class body type `Play` → type names (`PlayerBase`, `PlayerIdentity`); then after
+  `PlayerBase ` type a field name → nothing is offered.
+- Accept a method with parameters → the caret lands inside `(` `)`; one without → after `()`.
+- During indexing → completion simply offers nothing, and **no `IndexNotReadyException`**.
 
 Navigation from string literals, opening a real DayZ mod (the examples below use a
 mod called BattleRoyale):

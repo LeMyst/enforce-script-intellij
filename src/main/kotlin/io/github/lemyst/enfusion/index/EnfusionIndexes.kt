@@ -68,6 +68,19 @@ object EnfusionIndexes {
         }
     }
 
+    /**
+     * File scope only: a free function such as `GetGame()` or a global such as `g_Game`. A class
+     * member belongs to its class, not to everyone.
+     */
+    fun isFileScopeDeclaration(element: PsiElement): Boolean =
+        when (element.node?.elementType) {
+            // A free function is a direct child of the file.
+            EnfusionTypes.METHOD_DECL -> element.parent is com.intellij.psi.PsiFile
+            // A declarator sits inside its varDecl, which is the file's child.
+            EnfusionTypes.VAR_DECLARATOR -> element.parent?.parent is com.intellij.psi.PsiFile
+            else -> false
+        }
+
     fun collectNames(file: com.intellij.psi.PsiFile, accept: (PsiElement) -> Boolean): Map<String, Void?> {
         val names = HashMap<String, Void?>()
         PsiTreeUtil.processElements(file) { element ->

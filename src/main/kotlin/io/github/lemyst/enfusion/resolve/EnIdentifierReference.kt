@@ -115,20 +115,10 @@ class EnIdentifierReference(element: PsiElement, rangeInElement: TextRange) :
                 val psiFile = psiManager.findFile(file) ?: continue
                 for (candidate in PsiTreeUtil.findChildrenOfType(psiFile, EnNamedElement::class.java)) {
                     if (candidate.name != name) continue
-                    if (isFileScopeDeclaration(candidate)) found += candidate
+                    if (EnfusionIndexes.isFileScopeDeclaration(candidate)) found += candidate
                 }
             }
             return found
         }
-
-        /** File scope only: a class member belongs to its class, not to everyone. */
-        private fun isFileScopeDeclaration(candidate: EnNamedElement): Boolean =
-            when (candidate.node?.elementType) {
-                // A free function is a direct child of the file.
-                EnfusionTypes.METHOD_DECL -> candidate.parent is com.intellij.psi.PsiFile
-                // A declarator sits inside its varDecl, which is the file's child.
-                EnfusionTypes.VAR_DECLARATOR -> candidate.parent?.parent is com.intellij.psi.PsiFile
-                else -> false
-            }
     }
 }
