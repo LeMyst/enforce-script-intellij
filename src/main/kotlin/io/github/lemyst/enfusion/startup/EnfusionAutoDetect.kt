@@ -1,11 +1,13 @@
 package io.github.lemyst.enfusion.startup
 
+import com.intellij.ide.trustedProjects.TrustedProjects
 import com.intellij.notification.NotificationAction
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.startup.ProjectActivity
+import com.intellij.openapi.util.text.StringUtil
 import io.github.lemyst.enfusion.roots.EnfusionRoots
 import io.github.lemyst.enfusion.settings.EnfusionProjectSettings
 import java.io.File
@@ -30,6 +32,11 @@ class EnfusionAutoDetect : ProjectActivity {
         // which would pollute every fixture that only meant to index its own scratch files.
         if (ApplicationManager.getApplication().isUnitTestMode) return
 
+        // Nothing at all in Safe Mode: the steps below resolve the root list, which an untrusted
+        // project supplies itself (see EnfusionRoots.configuredRoots). Returning before
+        // `autoDetected` is set means detection still runs once the project is opened trusted.
+        if (!TrustedProjects.isProjectTrusted(project)) return
+
         // Only for projects that are actually DayZ addons. Without this, opening any unrelated
         // project would silently attach the vanilla script tree to it.
         if (!looksLikeAddon(project)) return
@@ -39,14 +46,7 @@ class EnfusionAutoDetect : ProjectActivity {
         // Without this a vanilla root only takes effect once some unrelated refresh happens to
         // reach it, which presents as navigation that works intermittently.
         val missing = EnfusionRoots.refreshAndReportMissing(project)
-        if (missing.isNotEmpty()) {
-            notify(
-                project,
-                "These Enforce Script roots could not be found and are being ignored: " +
-                    missing.joinToString(", ") + ".",
-                emptyList(),
-            )
-        }
+        if (missing.isNotEmpty()) notify(project, missingRootsMessage(missing), emptyList())
 
         val settings = EnfusionProjectSettings.getInstance(project)
         if (settings.state.autoDetected) return
@@ -120,3 +120,12 @@ class EnfusionAutoDetect : ProjectActivity {
         notification.notify(project)
     }
 }
+
+/**
+ * Notification content is HTML, and these paths are the root list's text verbatim, so each one is
+ * escaped: unescaped, a root such as `<img src=…>` became markup in the balloon, and an ordinary
+ * path containing `&` rendered wrong.
+ */
+internal fun missingRootsMessage(missing: List<String>): String =
+    "These Enforce Script roots could not be found and are being ignored: " +
+        missing.joinToString(", ") { StringUtil.escapeXmlEntities(it) } + "."

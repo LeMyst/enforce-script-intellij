@@ -1,11 +1,11 @@
 package io.github.lemyst.enfusion.roots
 
+import com.intellij.ide.trustedProjects.TrustedProjects
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.AdditionalLibraryRootsProvider
 import com.intellij.openapi.roots.SyntheticLibrary
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VirtualFile
-import io.github.lemyst.enfusion.settings.EnfusionProjectSettings
 
 /**
  * Puts the configured script roots into the project's index and search scopes.
@@ -18,10 +18,18 @@ import io.github.lemyst.enfusion.settings.EnfusionProjectSettings
  */
 class EnfusionLibraryRootsProvider : AdditionalLibraryRootsProvider() {
 
-    override fun getAdditionalProjectLibraries(project: Project): Collection<SyntheticLibrary> {
+    override fun getAdditionalProjectLibraries(project: Project): Collection<SyntheticLibrary> =
+        librariesFor(project, TrustedProjects.isProjectTrusted(project))
+
+    /** These roots live outside project content, so VFS events only fire if they are watched. */
+    override fun getRootsToWatch(project: Project): Collection<VirtualFile> =
+        rootsToWatchFor(project, TrustedProjects.isProjectTrusted(project))
+
+    /** Split out so tests, which run with the platform's trust check disabled, can pass [trusted]. */
+    internal fun librariesFor(project: Project, trusted: Boolean): Collection<SyntheticLibrary> {
         // A game-data folder in the root list becomes a library of its own: it is the only root
         // that needs an exclude condition, because it is the whole 24 GB unpacked game.
-        val (gameData, scriptRoots) = EnfusionRoots.splitGameData(resolveRoots(project))
+        val (gameData, scriptRoots) = EnfusionRoots.splitGameData(resolveRoots(project, trusted))
         val libraries = ArrayList<SyntheticLibrary>(3)
         if (scriptRoots.isNotEmpty()) libraries += EnfusionScriptLibrary(scriptRoots)
         CfStubs.rootsFor(scriptRoots).forEach { libraries += CfStubsLibrary(it) }
@@ -29,18 +37,18 @@ class EnfusionLibraryRootsProvider : AdditionalLibraryRootsProvider() {
         return libraries
     }
 
-    /** These roots live outside project content, so VFS events only fire if they are watched. */
-    override fun getRootsToWatch(project: Project): Collection<VirtualFile> {
+    internal fun rootsToWatchFor(project: Project, trusted: Boolean): Collection<VirtualFile> {
         // Game-data folders are deliberately *not* watched. Watching means the platform keeps
         // 113,000 files under file system notification for the sake of 207 configs that never
         // change unless the game updates.
-        val scriptRoots = EnfusionRoots.splitGameData(resolveRoots(project)).second
+        val scriptRoots = EnfusionRoots.splitGameData(resolveRoots(project, trusted)).second
         return scriptRoots + CfStubs.rootsFor(scriptRoots)
     }
 
-    private fun resolveRoots(project: Project): List<VirtualFile> {
+    /** Untrusted projects resolve nothing from their root list: see [EnfusionRoots.configuredRoots]. */
+    private fun resolveRoots(project: Project, trusted: Boolean): List<VirtualFile> {
         val fs = LocalFileSystem.getInstance()
-        return EnfusionProjectSettings.getInstance(project).roots
+        return EnfusionRoots.configuredRoots(project, trusted)
             .mapNotNull { fs.findFileByPath(it.replace('\\', '/')) }
             .filter { it.isDirectory }
     }

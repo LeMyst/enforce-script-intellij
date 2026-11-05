@@ -1,5 +1,6 @@
 package io.github.lemyst.enfusion.roots
 
+import com.intellij.ide.trustedProjects.TrustedProjects
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.project.Project
@@ -41,10 +42,25 @@ object EnfusionRoots {
         "VPP-Admin-Tools",
     )
 
+    /**
+     * The configured roots, or none while the project is untrusted.
+     *
+     * The list is stored in `.idea/enfusion.xml`, which a cloned repository can ship, so until the
+     * user trusts the project it is the repository's word, not theirs. Resolving a root touches the
+     * disk, and a UNC root (`\\host\share`) makes Windows contact that host over SMB, which can send
+     * the user's NTLM hash to it. Safe Mode promises that opening a project does nothing of the kind,
+     * so nothing from the list is resolved or indexed until the project is trusted.
+     *
+     * [trusted] is a parameter only because tests run with the platform's trust check disabled.
+     */
+    fun configuredRoots(
+        project: Project,
+        trusted: Boolean = TrustedProjects.isProjectTrusted(project),
+    ): List<String> = if (trusted) EnfusionProjectSettings.getInstance(project).roots else emptyList()
+
     fun currentRootFiles(project: Project): List<VirtualFile> {
         val fs = LocalFileSystem.getInstance()
-        return EnfusionProjectSettings.getInstance(project).roots
-            .mapNotNull { fs.findFileByPath(it.replace('\\', '/')) }
+        return configuredRoots(project).mapNotNull { fs.findFileByPath(it.replace('\\', '/')) }
     }
 
     /**
@@ -64,6 +80,11 @@ object EnfusionRoots {
         // and `isModified()` goes false immediately.
         settings.roots = newRoots
         EnfusionFileTypeOverrider.clearCache()
+
+        // The old list may be the repository's (see configuredRoots), and resolving it below would
+        // touch every path in it. While untrusted the provider offers no roots anyway, so there is
+        // nothing to rescan: the saved list takes effect when the project is next opened trusted.
+        if (!TrustedProjects.isProjectTrusted(project)) return
 
         // Resolving paths to VirtualFiles is a slow operation and the platform asserts against
         // those on the EDT -- and the settings dialog's apply() is on the EDT. So the VFS work and
@@ -132,7 +153,7 @@ object EnfusionRoots {
      */
     fun refreshAndReportMissing(project: Project): List<String> {
         val fs = LocalFileSystem.getInstance()
-        return EnfusionProjectSettings.getInstance(project).roots.filter { path ->
+        return configuredRoots(project).filter { path ->
             val file = fs.refreshAndFindFileByPath(path.replace('\\', '/'))
             file == null || !file.isDirectory
         }

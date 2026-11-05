@@ -141,6 +141,11 @@ more than one root. The unpacked game data (`P:\DZ`) is never added automaticall
 navigate into vanilla configs. Only its `config.cpp` files are indexed, and the settings page warns
 first, because finding them means walking the whole folder once.
 
+The root list is saved in the project (`.idea/enfusion.xml`), so a cloned repository can ship one.
+In a project opened in **Safe Mode** the plugin therefore uses none of it: no root is indexed and
+auto-detection does not run, so navigation into vanilla and dependency sources stays empty. Trust the
+project and reopen it to enable them.
+
 ## Error reports
 
 When the plugin throws, the IDE's *Internal Errors* dialog offers **Report to third-party plugin**.
@@ -243,6 +248,12 @@ Navigation, opening a real DayZ mod:
   that is the `DumbService` guard behaving correctly.
 - No red error notification on project open. A `SlowOperations` assertion there means VFS work has
   crept back onto the EDT.
+- Untrusted project: copy the mod into a fresh folder outside any trusted location, give its
+  `.idea/enfusion.xml` the roots `\\127.0.0.1\enfusion-probe` and `<b>bold</b>` (written
+  `&lt;b&gt;bold&lt;/b&gt;` in the XML), and open it
+  choosing **Preview in Safe Mode**. Nothing appears under *External Libraries*, no balloon shows,
+  and Process Monitor shows no access to `\\127.0.0.1`. Trust it and reopen: the warning names both
+  roots, and `<b>bold</b>` is shown as text, not as bold.
 - Find a `modded class` with an `override` method (e.g. `PartyHud`, or any state's
   `IsComplete`/`Activate`) → a green circular-arrow gutter icon appears on the method name; clicking
   it, and separately Ctrl+Clicking the method name itself, both land on the vanilla or superclass
