@@ -129,6 +129,13 @@ more than one root. The unpacked game data (`P:\DZ`) is never added automaticall
 navigate into vanilla configs. Only its `config.cpp` files are indexed, and the settings page warns
 first, because finding them means walking the whole folder once.
 
+## Error reports
+
+When the plugin throws, the IDE's *Internal Errors* dialog offers **Report to third-party plugin**.
+The report (stack trace, OS, IDE and plugin versions) goes to the plugin's JetBrains Marketplace page,
+where only the author sees it. Nothing is sent unless you submit it, or have turned on *Send error
+reports to JetBrains automatically*. The plugin collects nothing else.
+
 ## Why this exists
 
 Enforce Script has **no `#include` and no namespaces**. Every symbol lives in one flat global

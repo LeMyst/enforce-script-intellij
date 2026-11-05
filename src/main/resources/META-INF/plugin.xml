@@ -283,5 +283,13 @@
         <notificationGroup
                 id="Enforce Script"
                 displayType="BALLOON"/>
+
+        <!-- Sends exceptions and freezes attributed to this plugin to its Marketplace page
+             (Exceptions / Freezes tabs) instead of leaving users nowhere to report them. The class
+             is the platform's own; it is referenced here only, never from code, so it adds no API
+             usage for the verifier to flag. Nothing is sent without the user's consent in the IDE
+             Internal Errors dialog, or their "send automatically" setting. -->
+        <errorHandler
+                implementation="com.intellij.diagnostic.JetBrainsMarketplaceErrorReportSubmitter"/>
     </extensions>
 </idea-plugin>
