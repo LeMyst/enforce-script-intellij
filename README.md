@@ -32,9 +32,16 @@ inputs.
   never its own. A bare name offers, innermost first: parameters and the locals declared above
   the caret in an enclosing block, then the class's members, then file-scope functions and globals
   (`GetGame`, `g_Game`), then type names. A type position, including a half-written field at the
-  top of a class body, offers types only. Methods insert their parentheses. **Not offered:**
-  keywords (`return`, `new`, `this`), a generic class's own type parameters (`T`), and named
-  arguments or parameter hints.
+  top of a class body, offers types only. Methods insert their parentheses.
+  **Keywords** are offered by position rather than all at once: statements and local modifiers at
+  the start of a statement (`else` only after an `if` without one, `case` and `default` only in
+  a `switch`), `null` / `true` / `this` / `new` inside an expression, `out` / `inout` / `notnull`
+  in a parameter list, member modifiers in a class body, `class` / `modded` / `enum` / `typedef`
+  at file scope, `class` after `modded`, and `extends` after a class name. A keyword that is
+  followed by something inserts its space; `return` does so only when the method returns a
+  value. The engine-binding modifiers (`owned`, `external`) are left out, since only vanilla's
+  `proto` declarations use them. **Not offered:** a generic class's own type parameters (`T`),
+  and parameter hints.
 - **Code folding** (`Ctrl+.` / the gutter `-`/`+`) on every brace-delimited block that spans more than
   one line: class bodies, method/statement bodies, enum and switch bodies, array literals in
   Enforce Script; widget declarations and their children blocks in `.layout`/`.imageset`. Also on
@@ -245,6 +252,10 @@ Code completion, opening a real DayZ mod:
 - At the top of a class body type `Play` → type names (`PlayerBase`, `PlayerIdentity`); then after
   `PlayerBase ` type a field name → nothing is offered.
 - Accept a method with parameters → the caret lands inside `(` `)`; one without → after `()`.
+- Keywords: at the start of a statement `ret` → `return`, followed by a space only when the method
+  returns a value. After an `if (...) { }` block, `el` → `else`; at the top of a class body
+  `ov` → `override`; at file scope `mod` → `modded`, then `cl` → `class`; and in `class X ext`
+  → `extends`. Inside a call's parentheses `nu` → `null`, but `if` and `return` are not offered.
 - During indexing → completion simply offers nothing, and **no `IndexNotReadyException`**.
 
 Navigation from string literals, opening a real DayZ mod (the examples below use a

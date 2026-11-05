@@ -1,5 +1,6 @@
 package io.github.lemyst.enfusion.completion
 
+import com.intellij.codeInsight.completion.AddSpaceInsertHandler
 import com.intellij.codeInsight.completion.CompletionContributor
 import com.intellij.codeInsight.completion.CompletionParameters
 import com.intellij.codeInsight.completion.CompletionResultSet
@@ -49,36 +50,27 @@ class EnfusionCompletionContributor : CompletionContributor() {
         val position = parameters.position
         if (position.node?.elementType !== EnfusionTypes.IDENT) return
         val parent = position.parent ?: return
+
+        // Keywords first, and recorded as seen: vanilla declares the primitives as real classes
+        // (`class int`), so `int` would otherwise be offered twice, once from the type index.
+        val keywords = EnfusionKeywords.at(position)
+        val seen = HashSet<String>()
+        for (keyword in keywords) {
+            if (!seen.add(keyword.text)) continue
+            result.addElement(PrioritizedLookupElement.withPriority(keywordLookup(keyword), KEYWORD_PRIORITY))
+        }
+
         when (parent.node?.elementType) {
             EnfusionTypes.MEMBER_EXPR -> if (isAfterDot(parent, position)) completeMembers(parent, result)
-            EnfusionTypes.REF_EXPR -> completeScope(position, result)
-            EnfusionTypes.TYPE_REF -> completeTypes(position.project, result, emptySet())
-            else -> if (isUnparsedMemberStart(position)) completeTypes(position.project, result, emptySet())
+            EnfusionTypes.REF_EXPR -> completeScope(position, result, seen)
+            EnfusionTypes.TYPE_REF -> completeTypes(position.project, result, seen)
+            else -> if (isUnparsedMemberStart(position)) completeTypes(position.project, result, seen)
         }
     }
 
-    /**
-     * A half-written field or method in a class body or at file scope: `Play<caret>` followed by
-     * the next member.
-     *
-     * That is the most common place a type gets typed, and it never reaches a `typeRef`: a member
-     * declaration needs a type *and* a name before it parses, so the lone identifier lands in an
-     * error element, or directly in the class body. Whatever an identifier there can start, it is
-     * a type. Inside a method body the statement parser already yields a `refExpr` or `typeRef`,
-     * so this does not apply there.
-     */
-    private fun isUnparsedMemberStart(position: PsiElement): Boolean {
-        val parent = position.parent
-        val loose = parent is PsiErrorElement || parent is PsiFile ||
-            parent.node?.elementType === EnfusionTypes.CLASS_BODY
-        if (!loose) return false
-        if (PsiTreeUtil.getParentOfType(position, EnMethodDeclMixin::class.java) != null) return false
-        // After a dot it is a member name, however the expression around it failed to parse; after
-        // a type (`PlayerBase m_<caret>`, `array<int> m_<caret>`) it is the name being declared.
-        val previous = PsiTreeUtil.prevVisibleLeaf(position)?.node?.elementType ?: return true
-        return previous !== EnfusionTypes.DOT && previous !== EnfusionTypes.IDENT &&
-            previous !== EnfusionTypes.GT && previous !== EnfusionTypes.RBRACKET &&
-            !EnfusionTokenSets.PRIMITIVE_TYPES.contains(previous)
+    private fun keywordLookup(keyword: EnfusionKeywords.Keyword): LookupElement {
+        val element = LookupElementBuilder.create(keyword.text).bold()
+        return if (keyword.addsSpace) element.withInsertHandler(AddSpaceInsertHandler.INSTANCE) else element
     }
 
     private fun isAfterDot(memberExpr: PsiElement, position: PsiElement): Boolean {
@@ -172,9 +164,8 @@ class EnfusionCompletionContributor : CompletionContributor() {
      * in. Types come last: a bare name at the start of a statement may equally begin a declaration
      * (`PlayerBase p`) or a static call (`Math.Clamp`).
      */
-    private fun completeScope(position: PsiElement, result: CompletionResultSet) {
+    private fun completeScope(position: PsiElement, result: CompletionResultSet, seen: MutableSet<String>) {
         val project = position.project
-        val seen = HashSet<String>()
 
         val method = PsiTreeUtil.getParentOfType(position, EnMethodDeclMixin::class.java)
         if (method != null) {
@@ -296,11 +287,35 @@ class EnfusionCompletionContributor : CompletionContributor() {
             ?.text?.trim()
     }
 
-    private companion object {
-        val STATIC_OR_CONST = TokenSet.create(EnfusionTypes.STATIC, EnfusionTypes.CONST)
+    internal companion object {
+        /**
+         * A half-written field or method in a class body or at file scope: `Play<caret>` followed by
+         * the next member.
+         *
+         * That is the most common place a type gets typed, and it never reaches a `typeRef`: a member
+         * declaration needs a type *and* a name before it parses, so the lone identifier lands in an
+         * error element, or directly in the class body. Whatever an identifier there can start, it is
+         * a type. Inside a method body the statement parser already yields a `refExpr` or `typeRef`,
+         * so this does not apply there.
+         */
+        internal fun isUnparsedMemberStart(position: PsiElement): Boolean {
+            val parent = position.parent
+            val loose = parent is PsiErrorElement || parent is PsiFile ||
+                parent.node?.elementType === EnfusionTypes.CLASS_BODY
+            if (!loose) return false
+            if (PsiTreeUtil.getParentOfType(position, EnMethodDeclMixin::class.java) != null) return false
+            // After a dot it is a member name, however the expression around it failed to parse; after
+            // a type (`PlayerBase m_<caret>`, `array<int> m_<caret>`) it is the name being declared.
+            val previous = PsiTreeUtil.prevVisibleLeaf(position)?.node?.elementType ?: return true
+            return previous !== EnfusionTypes.DOT && previous !== EnfusionTypes.IDENT &&
+                previous !== EnfusionTypes.GT && previous !== EnfusionTypes.RBRACKET &&
+                !EnfusionTokenSets.PRIMITIVE_TYPES.contains(previous)
+        }
+
+        private val STATIC_OR_CONST = TokenSet.create(EnfusionTypes.STATIC, EnfusionTypes.CONST)
 
         /** What a local's visibility ends with: its block, or the loop that declares it. */
-        val LOCAL_SCOPES = setOf(
+        private val LOCAL_SCOPES = setOf(
             EnfusionTypes.BLOCK_STMT,
             EnfusionTypes.FOR_STMT,
             EnfusionTypes.FOREACH_STMT,
@@ -308,8 +323,11 @@ class EnfusionCompletionContributor : CompletionContributor() {
             EnfusionTypes.METHOD_DECL,
         )
 
-        const val LOCAL_PRIORITY = 30.0
-        const val MEMBER_PRIORITY = 20.0
-        const val GLOBAL_PRIORITY = 10.0
+        private const val LOCAL_PRIORITY = 30.0
+
+        /** Just under locals: `re` should offer `return` ahead of a field named `m_Result`. */
+        private const val KEYWORD_PRIORITY = 25.0
+        private const val MEMBER_PRIORITY = 20.0
+        private const val GLOBAL_PRIORITY = 10.0
     }
 }
