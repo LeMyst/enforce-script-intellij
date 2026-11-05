@@ -251,7 +251,16 @@
         <completion.contributor
                 language="EnfusionScript"
                 implementationClass="io.github.lemyst.enfusion.completion.EnfusionCompletionContributor"/>
+        <!-- The lexer lets an unclosed string run to end of line so quotes pair; this flags it. -->
+        <annotator
+                language="EnfusionScript"
+                implementationClass="io.github.lemyst.enfusion.highlight.EnfusionUnclosedStringAnnotator"/>
         <typedHandler implementation="io.github.lemyst.enfusion.completion.EnfusionDotAutoPopup"/>
+        <typedHandler implementation="io.github.lemyst.enfusion.completion.EnfusionParenAutoPopup"/>
+        <!-- Ctrl+P: every overload a call may mean, the current argument highlighted. -->
+        <codeInsight.parameterInfo
+                language="EnfusionScript"
+                implementationClass="io.github.lemyst.enfusion.nav.EnfusionParameterInfoHandler"/>
 
         <gotoClassContributor
                 implementation="io.github.lemyst.enfusion.nav.EnfusionGotoClassContributor"/>

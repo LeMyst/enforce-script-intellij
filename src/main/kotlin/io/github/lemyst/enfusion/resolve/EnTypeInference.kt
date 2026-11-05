@@ -8,6 +8,7 @@ import com.intellij.psi.PsiPolyVariantReference
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.tree.TokenSet
 import com.intellij.psi.util.PsiTreeUtil
+import io.github.lemyst.enfusion.index.EnfusionGlobalIndex
 import io.github.lemyst.enfusion.index.EnfusionIndexes
 import io.github.lemyst.enfusion.psi.EnNamedElement
 import io.github.lemyst.enfusion.psi.EnfusionTypes
@@ -28,6 +29,18 @@ import io.github.lemyst.enfusion.psi.impl.EnMethodDeclMixin
  * dead-ends. See [EnType] and [substitutionsOf].
  */
 object EnTypeInference {
+
+    /**
+     * Vanilla's "super root of all classes" (`1_core/proto/enscript.c`). A class that names no
+     * superclass still derives from it, which is where `Cast`, `CastTo`, `ClassName` and `Type` are
+     * declared: `class Managed` states no `extends`, so without this `Widget.Cast(w)` (Widget
+     * extends Managed) reached nothing.
+     */
+    private const val IMPLICIT_ROOT = "Class"
+
+    /** The class above [className]: the one it names, or the implicit root, or none for the root itself. */
+    private fun parentNameOf(className: String?, explicit: String?): String? =
+        explicit ?: IMPLICIT_ROOT.takeIf { className != null && className != IMPLICIT_ROOT }
 
     /** Depth cap for chained calls such as `a.b().c().d()` and for superclass walks. */
     private const val MAX_DEPTH = 12
@@ -351,7 +364,7 @@ object EnTypeInference {
             if (superName == null) superName = layer.getSuperName()?.let { baseTypeName(it) }
         }
 
-        val parent = superName?.let { classesNamed(it, project).firstOrNull() } ?: return out
+        val parent = parentNameOf(className, superName)?.let { classesNamed(it, project).firstOrNull() } ?: return out
         return findMembers(parent, name, project, out, depth + 1, visited)
     }
 
@@ -371,9 +384,40 @@ object EnTypeInference {
             return findMembers(owner, name, project)
                 .filter { ownBody == null || !PsiTreeUtil.isAncestor(ownBody, it, true) }
         }
-        val superName = owner.getSuperName()?.let { baseTypeName(it) } ?: return emptyList()
+        val superName = parentNameOf(owner.name, owner.getSuperName()?.let { baseTypeName(it) }) ?: return emptyList()
         val parent = classesNamed(superName, project).firstOrNull() ?: return emptyList()
         return findMembers(parent, name, project).toList()
+    }
+
+    /**
+     * File-scope declarations named [name], reachable from anywhere: globals such as
+     * `DayZGame g_Game;` and, just as importantly, **free functions**.
+     *
+     * The language leans heavily on free functions: `GetGame()`, `Print()`, `Error()`, `Vector()`
+     * are all declared at file scope in `1_core/proto` rather than on a class, and unqualified
+     * calls to them are among the most common expressions in real code.
+     *
+     * [EnfusionGlobalIndex] names the files, and only the file's direct children are examined:
+     * that is where every file-scope declaration sits, so no class or method body is walked.
+     */
+    fun fileScopeDeclarationsNamed(name: String, project: Project): List<EnNamedElement> {
+        val psiManager = PsiManager.getInstance(project)
+        val found = ArrayList<EnNamedElement>()
+        val files = com.intellij.util.indexing.FileBasedIndex.getInstance()
+            .getContainingFiles(EnfusionGlobalIndex.NAME, name, GlobalSearchScope.allScope(project))
+        for (file in files) {
+            val psiFile = psiManager.findFile(file) ?: continue
+            for (child in psiFile.children) {
+                val candidates = when (child.node?.elementType) {
+                    EnfusionTypes.METHOD_DECL -> listOf(child)
+                    EnfusionTypes.VAR_DECL -> child.children.toList()
+                    else -> continue
+                }
+                candidates.filterIsInstance<EnNamedElement>()
+                    .filterTo(found) { it.name == name && EnfusionIndexes.isFileScopeDeclaration(it) }
+            }
+        }
+        return found
     }
 
     /**
@@ -404,7 +448,7 @@ object EnTypeInference {
             if (superName == null) superName = layer.getSuperName()?.let { baseTypeName(it) }
         }
 
-        val parent = superName?.let { classesNamed(it, project).firstOrNull() } ?: return out
+        val parent = parentNameOf(className, superName)?.let { classesNamed(it, project).firstOrNull() } ?: return out
         return allMembers(parent, project, out, depth + 1, visited)
     }
 
@@ -415,7 +459,7 @@ object EnTypeInference {
             return allMembers(owner, project)
                 .filter { ownBody == null || !PsiTreeUtil.isAncestor(ownBody, it, true) }
         }
-        val superName = owner.getSuperName()?.let { baseTypeName(it) } ?: return emptyList()
+        val superName = parentNameOf(owner.name, owner.getSuperName()?.let { baseTypeName(it) }) ?: return emptyList()
         val parent = classesNamed(superName, project).firstOrNull() ?: return emptyList()
         return allMembers(parent, project)
     }

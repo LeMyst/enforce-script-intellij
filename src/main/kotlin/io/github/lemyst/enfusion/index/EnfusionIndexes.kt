@@ -114,9 +114,10 @@ abstract class EnfusionNameIndexBase : ScalarIndexExtension<String>() {
      * appears not to work. Version 2 is the `Class`-as-type-argument fix, which made `map`, `set`
      * and every declaration after them in `enscript.c` indexable for the first time. Version 3
      * is the grammar catching up with a DayZ update (`sealed` members, `<<=`, `ref` foreach
-     * variables, statements before a `case`), each of which used to cut a file short.
+     * variables, statements before a `case`), each of which used to cut a file short. Version 4 is
+     * the lexer letting an unclosed string run to end of line instead of ending in a BAD_CHARACTER.
      */
-    override fun getVersion(): Int = 3
+    override fun getVersion(): Int = 4
 
     override fun getIndexer(): DataIndexer<String, Void, FileContent> =
         DataIndexer { content ->
@@ -151,7 +152,7 @@ class EnfusionSuperTypeIndex : ScalarIndexExtension<String>() {
     override fun dependsOnFileContent(): Boolean = true
 
     /** Bumped with [EnfusionNameIndexBase.getVersion]; see there for why a grammar change counts. */
-    override fun getVersion(): Int = 3
+    override fun getVersion(): Int = 4
 
     override fun getIndexer(): DataIndexer<String, Void, FileContent> =
         DataIndexer { content ->

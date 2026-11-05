@@ -28,7 +28,13 @@ DEC_LIT     = {DIGITS}
 // `\\.` matches ANY escaped character on purpose. The corpus contains `"dz\\characters\\zombies\data\\..."`
 // where `\d` is not a defined escape and the compiler passes it through literally. Never emit a
 // BAD_CHARACTER inside a string.
-STRING      = \" ([^\"\\\r\n] | \\[^\r\n])* \"
+//
+// The closing quote is optional, so an unclosed string runs to the end of the line as a STRING
+// rather than leaving a lone `"` as a BAD_CHARACTER. Valid code is unaffected: the longest match
+// still takes the closing quote. It is what lets the quote handler see the `"` just typed as the
+// start of a string and insert its partner; without it, every string typed showed a parse error
+// until it was closed. EnfusionUnclosedStringAnnotator reports the unclosed case instead.
+STRING      = \" ([^\"\\\r\n] | \\[^\r\n])* \\? \"?
 
 LINE_DOC      = ("//!" | "///") [^\r\n]*
 LINE_COMMENT  = "//" [^\r\n]*

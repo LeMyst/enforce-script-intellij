@@ -90,6 +90,27 @@ class EnfusionCodeCompletionTest : BasePlatformTestCase() {
         assertDoesntContain(offered, "Instance", "m_Field")
     }
 
+    /**
+     * `Class` is vanilla's implicit root, so a class naming no superclass still reaches its members:
+     * `Cast` through a class name, `ClassName` through an instance.
+     */
+    fun testImplicitRootMembers() {
+        myFixture.addFileToProject(
+            "root.es",
+            """
+            class Class
+            {
+            	proto static Class Cast(Class from);
+            	proto native owned string ClassName();
+            }
+            class Managed {}
+            class Widget : Managed { void Show(bool show) {} }
+            """.trimIndent(),
+        )
+        assertContainsElements(complete("class A { void F() { Widget.<caret> } }"), "Cast")
+        assertContainsElements(complete("class A { void F(Widget w) { w.<caret> } }"), "Cast", "ClassName", "Show")
+    }
+
     fun testEnumQualifierOffersItsConstants() {
         myFixture.addFileToProject("calltype.es", "enum CallType { Server, Client }")
         val offered = complete("class A { void F() { CallType.<caret> } }")
@@ -173,6 +194,30 @@ class EnfusionCodeCompletionTest : BasePlatformTestCase() {
 
         val members = complete("class Base { int m_Inherited; } class A : Base { int m_Count; void F() { m_<caret> } }")
         assertContainsElements(members, "m_Count", "m_Inherited")
+    }
+
+    /**
+     * `m_Map<caret>` on the line above `m_Menu = ...;` parses as a declaration, a local named
+     * `m_Menu` of type `m_Map`. The name is just as likely a variable, so fields are still offered.
+     */
+    fun testNameAboveAnAssignmentOffersFields() {
+        val offered = complete(
+            """
+            class Hud
+            {
+            	Widget m_MapWidget;
+            	Widget m_MapLegend;
+            	Widget m_Menu;
+            	void Init()
+            	{
+            		m_MapWidget = null;
+            		m_Map<caret>
+            		m_Menu = null;
+            	}
+            }
+            """,
+        )
+        assertContainsElements(offered, "m_MapWidget", "m_MapLegend")
     }
 
     /** A local hides a field of the same name: it is offered once, as the local. */

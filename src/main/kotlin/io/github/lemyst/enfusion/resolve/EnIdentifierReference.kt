@@ -50,7 +50,7 @@ class EnIdentifierReference(element: PsiElement, rangeInElement: TextRange) :
 
                 localsAndParameters(element, name).ifNotEmpty { return it }
                 EnOverloadFilter.narrow(fieldsOfEnclosingClass(element, name), element).ifNotEmpty { return it }
-                EnOverloadFilter.narrow(globals(project, name), element).ifNotEmpty { return it }
+                EnOverloadFilter.narrow(EnTypeInference.fileScopeDeclarationsNamed(name, project), element).ifNotEmpty { return it }
                 // Any type name, not just a class: an enum used as a static qualifier
                 // (`CallType.Client`) is the common case, and enums are not EnClassDeclMixin.
                 return PsiElementResolveResult.createResults(
@@ -95,30 +95,6 @@ class EnIdentifierReference(element: PsiElement, rangeInElement: TextRange) :
                 ?: return emptyList()
             return EnTypeInference.findMembers(owner, name, element.project)
                 .filterNot { it is EnMethodDeclMixin && (it.isConstructor() || it.isDestructor()) }
-        }
-
-        /**
-         * File-scope declarations, reachable from anywhere: globals such as `DayZGame g_Game;` and
-         * — just as importantly — **free functions**.
-         *
-         * The language leans heavily on free functions: `GetGame()`, `Print()`, `Error()`,
-         * `Vector()`, `GetHourMinuteSecond()` are all declared at file scope in `1_core/proto`
-         * rather than on a class, and unqualified calls to them are among the most common
-         * expressions in real code. Omitting them here left every such call unresolvable.
-         */
-        private fun globals(project: com.intellij.openapi.project.Project, name: String): List<PsiElement> {
-            val psiManager = PsiManager.getInstance(project)
-            val found = ArrayList<PsiElement>()
-            for (file in EnfusionIndexes.findFiles(
-                EnfusionIndexes.SYMBOLS, name, GlobalSearchScope.allScope(project),
-            )) {
-                val psiFile = psiManager.findFile(file) ?: continue
-                for (candidate in PsiTreeUtil.findChildrenOfType(psiFile, EnNamedElement::class.java)) {
-                    if (candidate.name != name) continue
-                    if (EnfusionIndexes.isFileScopeDeclaration(candidate)) found += candidate
-                }
-            }
-            return found
         }
     }
 }
