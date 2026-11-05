@@ -1,10 +1,12 @@
 package io.github.lemyst.enfusion.completion
 
+import com.intellij.codeInsight.AutoPopupController
 import com.intellij.codeInsight.completion.AddSpaceInsertHandler
 import com.intellij.codeInsight.completion.CompletionContributor
 import com.intellij.codeInsight.completion.CompletionParameters
 import com.intellij.codeInsight.completion.CompletionResultSet
 import com.intellij.codeInsight.completion.CompletionUtil
+import com.intellij.codeInsight.completion.InsertHandler
 import com.intellij.codeInsight.completion.PrioritizedLookupElement
 import com.intellij.codeInsight.completion.util.ParenthesesInsertHandler
 import com.intellij.codeInsight.lookup.LookupElement
@@ -63,9 +65,26 @@ class EnfusionCompletionContributor : CompletionContributor() {
         when (parent.node?.elementType) {
             EnfusionTypes.MEMBER_EXPR -> if (isAfterDot(parent, position)) completeMembers(parent, result)
             EnfusionTypes.REF_EXPR -> completeScope(position, result, seen)
-            EnfusionTypes.TYPE_REF -> completeTypes(position.project, result, seen)
+            EnfusionTypes.TYPE_REF ->
+                if (startsLocalDeclaration(parent)) {
+                    completeScope(position, result, seen)
+                } else {
+                    completeTypes(position.project, result, seen)
+                }
             else -> if (isUnparsedMemberStart(position)) completeTypes(position.project, result, seen)
         }
+    }
+
+    /**
+     * The type of a local declaration at the start of its statement. This is ambiguous while
+     * typing: `m_Map<caret>` on the line above `m_Menu = ...;` reads as a declaration of a local
+     * named `m_Menu` of type `m_Map`, because a statement of the form `Ident Ident =` is one. The
+     * name being typed is just as likely a variable, so the whole scope is offered, types included.
+     */
+    private fun startsLocalDeclaration(typeRef: PsiElement): Boolean {
+        val statement = typeRef.parent ?: return false
+        return statement.node?.elementType === EnfusionTypes.LOCAL_VAR_DECL_STMT &&
+            statement.textRange.startOffset == typeRef.textRange.startOffset
     }
 
     private fun keywordLookup(keyword: EnfusionKeywords.Keyword): LookupElement {
@@ -227,7 +246,7 @@ class EnfusionCompletionContributor : CompletionContributor() {
                 .withTypeText(signature.type)
             if (signature.isFunction) {
                 element = element.withTailText(signature.parameters, true)
-                    .withInsertHandler(ParenthesesInsertHandler.getInstance(signature.hasParameters))
+                    .withInsertHandler(callInsertHandler(signature.hasParameters))
             }
             result.addElement(PrioritizedLookupElement.withPriority(element, GLOBAL_PRIORITY))
         }
@@ -273,11 +292,23 @@ class EnfusionCompletionContributor : CompletionContributor() {
             element = element
                 .withTailText(declaration.getParameterListText(), true)
                 .withTypeText(declaration.getReturnTypeText())
-                .withInsertHandler(ParenthesesInsertHandler.getInstance(hasParameters))
+                .withInsertHandler(callInsertHandler(hasParameters))
         } else {
             element = element.withTypeText(declaredTypeText(declaration))
         }
         return element
+    }
+
+    /**
+     * Inserts the parentheses and, when there are arguments to type, opens parameter info on them,
+     * which is where the caret lands.
+     */
+    private fun callInsertHandler(hasParameters: Boolean): InsertHandler<LookupElement> {
+        val parentheses = ParenthesesInsertHandler.getInstance(hasParameters)
+        return InsertHandler { context, item ->
+            parentheses.handleInsert(context, item)
+            if (hasParameters) AutoPopupController.getInstance(context.project).autoPopupParameterInfo(context.editor, null)
+        }
     }
 
     /** A declarator carries no type of its own; it is on the enclosing declaration. */

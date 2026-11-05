@@ -8,6 +8,8 @@ inputs.
 ## What works today
 
 - **Syntax highlighting** for the whole language, including doc comments and preprocessor directives.
+  Typing `"` inserts its closing quote, and a string left without one is reported on the string
+  itself (*Missing closing quote*) rather than as a parse error on whatever follows it.
 - **Go to Declaration** (`Ctrl+Click` / `Ctrl+B`) on type names — in declarations, parameters, return
   types, `extends` clauses, generic arguments, `new X(...)`, and on static qualifiers such as
   `Math.Clamp(...)`. A name declared several times (vanilla `class X` plus one or more
@@ -17,9 +19,11 @@ inputs.
   free functions, via lightweight type inference over declarations, parameters and `new X(...)`.
   Container element types are carried through, so `m_Zones.Get(0).Activate()` resolves — vanilla
   declares `array` and `map` accessors as returning a bare type parameter (`proto T Get(int n)`),
-  so the element type exists only in the variable's own declaration. `auto` is inferred too, both
-  from an initializer (`auto p = new Param1<int>(...)`) and from the collection in
-  `foreach (auto x : ...)`.
+  so the element type exists only in the variable's own declaration. A class that names no
+  superclass still inherits from `Class`, vanilla's root of every class, so `Widget.Cast(w)` and
+  `w.ClassName()` reach it even though `Widget` extends `Managed` and `Managed` extends nothing.
+  `auto` is inferred too, both from an initializer (`auto p = new Param1<int>(...)`) and from the
+  collection in `foreach (auto x : ...)`.
 - **Go to Declaration and a gutter icon on `override` methods**, linking back to what they override —
   another `modded class` layer of the same class, or a superclass. A method's own name is a
   declaration rather than a reference, so without this Ctrl+Click on it did nothing at all.
@@ -40,8 +44,16 @@ inputs.
   at file scope, `class` after `modded`, and `extends` after a class name. A keyword that is
   followed by something inserts its space; `return` does so only when the method returns a
   value. The engine-binding modifiers (`owned`, `external`) are left out, since only vanilla's
-  `proto` declarations use them. **Not offered:** a generic class's own type parameters (`T`),
-  and parameter hints.
+  `proto` declarations use them. **Not offered:** a generic class's own type parameters (`T`).
+- **Parameter info** (`Ctrl+P`, and on its own when `(` is typed or a method is accepted from
+  completion) inside a call's parentheses: the parameters of every overload the call may mean,
+  with the one the caret is in highlighted and default values shown (`bool create_local =
+  false`). Most of the engine API is `proto native` with no documentation beyond its signature, so
+  this is usually the only place to read it without leaving the call. It covers member calls,
+  `super.` calls, methods of the enclosing class and its layers, free functions, and `new X(...)`
+  constructors. All overloads are listed even where Ctrl+Click narrows to one, since a call being
+  typed has not chosen yet; one that cannot take the arguments typed so far is greyed out, and an
+  override redeclared by several `modded class` layers is shown once.
 - **Code folding** (`Ctrl+.` / the gutter `-`/`+`) on every brace-delimited block that spans more than
   one line: class bodies, method/statement bodies, enum and switch bodies, array literals in
   Enforce Script; widget declarations and their children blocks in `.layout`/`.imageset`. Also on
@@ -256,6 +268,9 @@ Code completion, opening a real DayZ mod:
 - Start a bare name with `Get` → locals and members come first, then `GetGame` and the other free
   functions from vanilla `1_core/proto`, then types. The popup must open with no visible delay on
   the full vanilla corpus; a stall here means the global or type lookup has started parsing files.
+- On a line of its own directly above another assignment (`m_Menu = ...;`), type `m_Map` → the
+  class's `m_Map...` fields are offered. That line briefly parses as a declaration of a local named
+  `m_Menu`, so this is the case that proves completion does not trust that reading.
 - At the top of a class body type `Play` → type names (`PlayerBase`, `PlayerIdentity`); then after
   `PlayerBase ` type a field name → nothing is offered.
 - Accept a method with parameters → the caret lands inside `(` `)`; one without → after `()`.
@@ -264,6 +279,25 @@ Code completion, opening a real DayZ mod:
   `ov` → `override`; at file scope `mod` → `modded`, then `cl` → `class`; and in `class X ext`
   → `extends`. Inside a call's parentheses `nu` → `null`, but `if` and `return` are not offered.
 - During indexing → completion simply offers nothing, and **no `IndexNotReadyException`**.
+
+Parameter info, opening a real DayZ mod:
+
+- Type `GetGame().CreateObject(` → the hint opens by itself on the `(`, listing `string type`,
+  `vector pos` and the defaulted flags, with `type` highlighted. Type `"Apple", ` → the highlight
+  moves to `pos`.
+- Accept a method with parameters from completion → the caret lands inside `(` `)` and the hint
+  opens there too.
+- On a method with overloads (e.g. `GetGame().GetWorldName(`), both are listed. After a first
+  argument, the one taking no parameters is greyed out.
+- In `Outer(Inner(|))` the hint shows `Inner`'s parameters; after `Inner(...)`, `,` hands it
+  back to `Outer` with the second parameter highlighted.
+- `new` on a mod class with a constructor → the constructor's parameters.
+- With the caret before the `(` or after the `)`, `Ctrl+P` shows nothing, and no exception.
+- Type the whole of `GetGame().CreateObject("Apple", "1 2 1"` quickly, without pausing → the hint
+  stays open throughout, each `"` inserts its partner, and nothing turns red at any point. Type a
+  stray `;` after a `,` and delete it again → the hint stays open.
+- `Widget.Cast(` and `ButtonWidget.Cast(` → `Class from`: `Cast` lives on vanilla's root `Class`,
+  which `Widget` reaches only implicitly.
 
 Navigation from string literals, opening a real DayZ mod (the examples below use a
 mod called BattleRoyale):

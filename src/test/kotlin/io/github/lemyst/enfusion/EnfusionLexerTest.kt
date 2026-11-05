@@ -119,6 +119,22 @@ class EnfusionLexerTest {
         assertTrue(types("flags &= ~ECE_DYNAMIC;").contains(EnfusionTypes.TILDE))
     }
 
+    /**
+     * An unclosed string runs to the end of its line as one STRING, never a lone BAD_CHARACTER `"`:
+     * that is what lets the quote handler pair a quote as it is typed. It stops at the line end, so
+     * the next line lexes normally.
+     */
+    @Test
+    fun unclosedStringRunsToEndOfLine() {
+        assertEquals(
+            listOf(EnfusionTypes.STRING to "\"1 2 1);", EnfusionTypes.INT to "int"),
+            lex("\"1 2 1);\nint").filter { it.first == EnfusionTypes.STRING || it.first == EnfusionTypes.INT },
+        )
+        assertNoBadChars("Send(\"abc\\")
+        // A closed string still ends at its own quote.
+        assertEquals(listOf(EnfusionTypes.STRING to "\"a\"", EnfusionTypes.RPAREN to ")"), lex("\"a\")"))
+    }
+
     /** There are zero character literals in 417k lines, so `'` is a genuine mistake. */
     @Test
     fun singleQuoteIsABadCharacter() {

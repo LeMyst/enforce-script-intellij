@@ -52,7 +52,7 @@ class EnfusionGlobalIndex : FileBasedIndexExtension<String, EnGlobalSignature>()
     override fun dependsOnFileContent(): Boolean = true
 
     /** Bump with the grammar, as for [EnfusionNameIndexBase.getVersion]. */
-    override fun getVersion(): Int = 1
+    override fun getVersion(): Int = 2
 
     override fun getIndexer(): DataIndexer<String, EnGlobalSignature, FileContent> =
         DataIndexer { content ->
