@@ -61,6 +61,9 @@ intellijPlatform {
             namespace assembled from whole directories, spread across a mod, the ~3,000-file vanilla
             corpus and every dependency mod.
             <ul>
+              <li>Code completion across every <code>modded class</code> layer and the superclass
+                  chain, answered by the same type inference as Go to Declaration</li>
+              <li>Parameter info on every overload a call may mean, with default values</li>
               <li>Go to Declaration on types, members, locals and free functions, across every
                   <code>modded class</code> layer</li>
               <li>Go to Declaration from string literals &mdash; widget names into
@@ -79,7 +82,40 @@ intellijPlatform {
             DayZ and Enfusion are trademarks of Bohemia Interactive a.s.
         """.trimIndent()
         changeNotes = """
-            Adds a plugin logo to the Plugins page and the Marketplace listing.
+            <ul>
+              <li><b>Code completion.</b> After a dot: the receiver's members across every
+                  <code>modded class</code> layer and the superclass chain. Elsewhere: locals,
+                  class members, free functions, globals and types in scope. Keywords are offered
+                  where they fit the position. The popup opens on <code>.</code> by itself.</li>
+              <li><b>Parameter info</b> (<kbd>Ctrl+P</kbd>, and on its own after <code>(</code>):
+                  every overload a call may mean, with the current parameter highlighted and
+                  default values shown.</li>
+              <li><code>Cast</code>, <code>CastTo</code> and <code>ClassName</code> now resolve on
+                  classes that name no superclass, since <code>Class</code> is their implicit root.</li>
+              <li>Typing <code>"</code> now inserts the closing quote. A string left unclosed is
+                  reported as <i>Missing closing quote</i>, instead of every string showing a
+                  parse error until it was closed.</li>
+              <li>Errors thrown by the plugin can be reported from the IDE's <i>Internal Errors</i>
+                  dialog, using <i>Report to third-party plugin</i>.</li>
+              <li>A project opened in Safe Mode no longer uses the script roots saved in its
+                  <code>.idea</code> folder, which a cloned repository can supply. Trust the
+                  project and reopen it to enable them.</li>
+              <li>Files with deeply nested <code>#ifdef</code> blocks no longer stall parsing and
+                  indexing. Some nestings used to take minutes or longer, even in a small file.</li>
+              <li>A block comment left without <code>*/</code> now runs to the end of the file and
+                  is reported as <i>Unclosed comment</i>, in scripts, layouts and configs. Files
+                  with many such comments no longer slow highlighting and indexing.</li>
+              <li>Long member chains and <code>auto</code> locals no longer stall highlighting.
+                  A local whose initializer reads the local itself, such as
+                  <code>auto a = a.b;</code>, no longer crashes it either.</li>
+              <li>When several methods are offered to choose from, such as the layers of a
+                  <code>modded class</code> behind the overridden-method gutter icon, each line now
+                  names its class and the file it comes from.</li>
+              <li>Looking up types and members is much faster in projects with many mods. The
+                  <kbd>Ctrl</kbd>+hover underline on a chain such as
+                  <code>GetGame().GetPlayer().GetIdentity()</code> now appears at once on every
+                  link, instead of after a delay that grew along the chain.</li>
+            </ul>
         """.trimIndent()
         vendor {
             name = "Myst"
