@@ -32,9 +32,24 @@ class EnfusionPreprocessingLexer(
 
     private class Tok(val type: IElementType, val start: Int, val end: Int)
 
-    private class Branch(val directive: Int, val from: Int, val to: Int, val active: Boolean)
+    /** One arm of a region: the tokens strictly between its directive and the next one. */
+    private class Branch(val region: Region, directive: Int, val active: Boolean) {
+        val from = directive + 1
+        var to = -1
 
-    private class Region(val branches: List<Branch>, val endifIndex: Int, val endExclusive: Int)
+        /** Net `{` minus `}`, with nested regions counted under the same policy. */
+        var balance = 0
+    }
+
+    private class Region(val firstActive: Boolean) {
+        val branches = ArrayList<Branch>(2)
+
+        /** Whether every branch is emitted; decided when output first reaches the region. */
+        var keepAll: Boolean? = null
+
+        fun addBranch(directive: Int, active: Boolean): Branch =
+            Branch(this, directive, active).also { branches.add(it) }
+    }
 
     private var buf: CharSequence = ""
     private var bufStart = 0
@@ -47,10 +62,7 @@ class EnfusionPreprocessingLexer(
         bufStart = startOffset
         bufEnd = endOffset
 
-        val raw = tokenize(buffer, startOffset, endOffset)
-        val result = ArrayList<Tok>(raw.size)
-        emitRange(raw, 0, raw.size, result)
-        out = result
+        out = resolve(tokenize(buffer, startOffset, endOffset))
         pos = 0
     }
 
@@ -85,41 +97,98 @@ class EnfusionPreprocessingLexer(
     }
 
     // ------------------------------------------------------------------ region resolution
+    //
+    // Everything below is linear in the token count and uses no recursion. The nesting depth of
+    // `#ifdef` is chosen by whoever wrote the file, and this runs in every PSI build, including
+    // indexing of files the user has never opened. An earlier recursive version rescanned each
+    // nested region once per enclosing level and evaluated the selected branch of an unbalanced
+    // region twice. Its cost doubled with every two levels of nested unbalanced `#ifndef`
+    // (240 bytes took 0.2 s, so 480 bytes would take days), and 2,000 nested `#ifdef` lines took
+    // 34 s.
 
-    private fun emitRange(raw: List<Tok>, from: Int, to: Int, out: MutableList<Tok>) {
-        var i = from
-        while (i < to) {
+    /** Builds every region in one pass, then emits the token stream with each decision applied. */
+    private fun resolve(raw: List<Tok>): List<Tok> {
+        val n = raw.size
+        // The branch an `#ifdef`, `#ifndef` or `#else` token opens; null for every other token,
+        // including `#endif` and a stray `#else` outside any region, which are emitted as they are.
+        val branchAt = arrayOfNulls<Branch>(n)
+        val open = ArrayList<Region>()
+
+        for (i in 0 until n) {
             val t = raw[i]
-            if (t.type === EnfusionTypes.PP_DIRECTIVE && isConditionalOpen(text(t))) {
-                val region = parseRegion(raw, i, to)
-                emitRegion(raw, region, out)
-                i = region.endExclusive
-            } else {
-                out.add(t)
-                i++
+            when (t.type) {
+                EnfusionTypes.LBRACE -> open.lastOrNull()?.let { it.branches.last().balance++ }
+                EnfusionTypes.RBRACE -> open.lastOrNull()?.let { it.branches.last().balance-- }
+                EnfusionTypes.PP_DIRECTIVE -> {
+                    val s = text(t).trimStart()
+                    val top = open.lastOrNull()
+                    when {
+                        isConditionalOpen(s) -> {
+                            val flag = flagOf(s)
+                            val negated = s.startsWith("#ifndef")
+                            val region = Region(if (negated) flag !in defines else flag in defines)
+                            branchAt[i] = region.addBranch(i, region.firstActive)
+                            open.add(region)
+                        }
+                        top == null -> Unit
+                        s.startsWith("#endif") -> {
+                            top.branches.last().to = i
+                            open.removeAt(open.size - 1)
+                            close(top, open.lastOrNull())
+                        }
+                        // Only `#ifdef`/`#else` exist, so a later branch is always the complement
+                        // of the first.
+                        s.startsWith("#else") -> {
+                            top.branches.last().to = i
+                            branchAt[i] = top.addBranch(i, !top.firstActive)
+                        }
+                    }
+                }
             }
         }
+        // Unterminated regions: each takes the rest of the file as its last branch.
+        while (open.isNotEmpty()) {
+            val region = open.removeAt(open.size - 1)
+            region.branches.last().to = n
+            close(region, open.lastOrNull())
+        }
+
+        val significant = SignificantIndex(raw)
+        val out = ArrayList<Tok>(n)
+        var i = 0
+        while (i < n) {
+            out.add(raw[i])
+            val branch = branchAt[i]
+            if (branch == null) {
+                i++
+                continue
+            }
+            val region = branch.region
+            val keepAll = region.keepAll ?: region.branches.all {
+                it.balance == 0 && selfContained(raw, significant, it.from, it.to)
+            }.also { region.keepAll = it }
+            if (keepAll || branch.active) {
+                i++ // emit the branch's tokens, nested regions included, as they come
+            } else {
+                if (branch.to > branch.from) {
+                    out.add(Tok(EnfusionTypes.INACTIVE_CODE, raw[branch.from].start, raw[branch.to - 1].end))
+                }
+                i = branch.to // the next #else, the #endif, or the end of the file
+            }
+        }
+        return out
     }
 
-    private fun emitRegion(raw: List<Tok>, region: Region, out: MutableList<Tok>) {
-        val keepAll = region.branches.all {
-            balanced(raw, it.from, it.to) && selfContained(raw, it.from, it.to)
-        }
-        for (branch in region.branches) {
-            out.add(raw[branch.directive])
-            if (keepAll || branch.active) {
-                emitRange(raw, branch.from, branch.to, out)
-            } else if (branch.to > branch.from) {
-                out.add(
-                    Tok(
-                        EnfusionTypes.INACTIVE_CODE,
-                        raw[branch.from].start,
-                        raw[branch.to - 1].end,
-                    )
-                )
-            }
-        }
-        if (region.endifIndex >= 0) out.add(raw[region.endifIndex])
+    /**
+     * Adds a finished region to the brace balance of the branch enclosing it: a region whose
+     * branches are all balanced contributes zero; otherwise its selected branch counts.
+     */
+    private fun close(region: Region, enclosing: Region?) {
+        if (enclosing == null) return
+        val contribution =
+            if (region.branches.all { it.balance == 0 }) 0
+            else region.branches.firstOrNull { it.active }?.balance ?: 0
+        enclosing.branches.last().balance += contribution
     }
 
     /**
@@ -141,107 +210,36 @@ class EnfusionPreprocessingLexer(
      * boundary — `;`, `}`, or empty — rejects that case while still keeping both branches of the
      * whole-file `#ifdef SERVER ... #endif` wrappers and of ordinary statement-level guards.
      */
-    private fun selfContained(raw: List<Tok>, from: Int, to: Int): Boolean {
-        val first = firstSignificant(raw, from, to) ?: return true // empty branch
+    private fun selfContained(raw: List<Tok>, significant: SignificantIndex, from: Int, to: Int): Boolean {
+        val first = significant.next[from]
+        if (first >= to) return true // empty branch
         // A branch opening with `else` or `}` continues a statement that began outside the region,
         // so it can never stand alongside its sibling. dayzgame.c guards a bare `else { ... }` arm
         // with `#ifdef PLATFORM_PS4`; emitting it next to the other branch leaves a dangling else.
-        if (first === EnfusionTypes.ELSE || first === EnfusionTypes.RBRACE) return false
-        val last = lastSignificant(raw, from, to) ?: return true
-        return last === EnfusionTypes.SEMICOLON || last === EnfusionTypes.RBRACE
-    }
-
-    private fun isIgnorable(t: IElementType): Boolean =
-        t === com.intellij.psi.TokenType.WHITE_SPACE ||
-            t === EnfusionTypes.LINE_COMMENT || t === EnfusionTypes.BLOCK_COMMENT ||
-            t === EnfusionTypes.LINE_DOC_COMMENT || t === EnfusionTypes.BLOCK_DOC_COMMENT ||
-            t === EnfusionTypes.PP_DIRECTIVE
-
-    private fun firstSignificant(raw: List<Tok>, from: Int, to: Int): IElementType? {
-        for (i in from until to) if (!isIgnorable(raw[i].type)) return raw[i].type
-        return null
-    }
-
-    private fun lastSignificant(raw: List<Tok>, from: Int, to: Int): IElementType? {
-        for (i in to - 1 downTo from) if (!isIgnorable(raw[i].type)) return raw[i].type
-        return null
-    }
-
-    /** Parses one `#ifdef .. [#else ..] #endif`, ignoring nested regions at greater depth. */
-    private fun parseRegion(raw: List<Tok>, openIndex: Int, to: Int): Region {
-        val openText = text(raw[openIndex])
-        val negated = openText.trimStart().startsWith("#ifndef")
-        val flag = flagOf(openText)
-        val firstActive = if (negated) flag !in defines else flag in defines
-
-        val separators = ArrayList<Int>()
-        var endifIndex = -1
-        var depth = 0
-        var i = openIndex
-
-        while (i < to) {
-            val t = raw[i]
-            if (t.type === EnfusionTypes.PP_DIRECTIVE) {
-                val s = text(t).trimStart()
-                when {
-                    isConditionalOpen(s) -> depth++
-                    s.startsWith("#endif") -> {
-                        depth--
-                        if (depth == 0) {
-                            endifIndex = i
-                            i++
-                            break
-                        }
-                    }
-                    s.startsWith("#else") && depth == 1 -> separators.add(i)
-                }
-            }
-            i++
-        }
-        // Unterminated region: treat the rest of the range as its body.
-        val endExclusive = i
-        val bodyEnd = if (endifIndex >= 0) endifIndex else to
-
-        val branches = ArrayList<Branch>(separators.size + 1)
-        val marks = ArrayList<Int>(separators.size + 1)
-        marks.add(openIndex)
-        marks.addAll(separators)
-        for (n in marks.indices) {
-            val contentFrom = marks[n] + 1
-            val contentTo = if (n + 1 < marks.size) marks[n + 1] else bodyEnd
-            // Only `#ifdef`/`#else` exist, so a second branch is always the complement of the first.
-            val active = if (n == 0) firstActive else !firstActive
-            branches.add(Branch(marks[n], contentFrom, contentTo, active))
-        }
-        return Region(branches, endifIndex, endExclusive)
+        val firstType = raw[first].type
+        if (firstType === EnfusionTypes.ELSE || firstType === EnfusionTypes.RBRACE) return false
+        val lastType = raw[significant.previous[to - 1]].type
+        return lastType === EnfusionTypes.SEMICOLON || lastType === EnfusionTypes.RBRACE
     }
 
     /**
-     * Brace balance of a token range, with nested regions resolved under the same policy: a nested
-     * region whose branches are all balanced contributes zero; otherwise its selected branch counts.
+     * For every token index, the nearest significant token at or after it ([next], `size` if none)
+     * and at or before it ([previous], -1 if none). Without it, a branch made only of nested
+     * directives would be rescanned once per nesting level.
      */
-    private fun balanced(raw: List<Tok>, from: Int, to: Int): Boolean = balanceOf(raw, from, to) == 0
+    private class SignificantIndex(raw: List<Tok>) {
+        val next = IntArray(raw.size + 1)
+        val previous = IntArray(raw.size)
 
-    private fun balanceOf(raw: List<Tok>, from: Int, to: Int): Int {
-        var balance = 0
-        var i = from
-        while (i < to) {
-            val t = raw[i]
-            if (t.type === EnfusionTypes.PP_DIRECTIVE && isConditionalOpen(text(t))) {
-                val region = parseRegion(raw, i, to)
-                val allBalanced = region.branches.all { balanceOf(raw, it.from, it.to) == 0 }
-                if (!allBalanced) {
-                    val active = region.branches.firstOrNull { it.active }
-                    if (active != null) balance += balanceOf(raw, active.from, active.to)
-                }
-                i = region.endExclusive
-                continue
+        init {
+            next[raw.size] = raw.size
+            for (i in raw.indices.reversed()) next[i] = if (isIgnorable(raw[i].type)) next[i + 1] else i
+            var last = -1
+            for (i in raw.indices) {
+                if (!isIgnorable(raw[i].type)) last = i
+                previous[i] = last
             }
-            if (t.type === EnfusionTypes.LBRACE) balance++
-            else if (t.type === EnfusionTypes.RBRACE) balance--
-            i++
         }
-        return balance
     }
 
     // ------------------------------------------------------------------ helpers
@@ -264,5 +262,13 @@ class EnfusionPreprocessingLexer(
         val start = i
         while (i < s.length && (s[i].isLetterOrDigit() || s[i] == '_')) i++
         return s.substring(start, i)
+    }
+
+    private companion object {
+        fun isIgnorable(t: IElementType): Boolean =
+            t === com.intellij.psi.TokenType.WHITE_SPACE ||
+                t === EnfusionTypes.LINE_COMMENT || t === EnfusionTypes.BLOCK_COMMENT ||
+                t === EnfusionTypes.LINE_DOC_COMMENT || t === EnfusionTypes.BLOCK_DOC_COMMENT ||
+                t === EnfusionTypes.PP_DIRECTIVE
     }
 }
