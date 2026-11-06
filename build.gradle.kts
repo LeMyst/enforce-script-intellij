@@ -97,6 +97,8 @@ intellijPlatform {
               <li>A project opened in Safe Mode no longer uses the script roots saved in its
                   <code>.idea</code> folder, which a cloned repository can supply. Trust the
                   project and reopen it to enable them.</li>
+              <li>Files with deeply nested <code>#ifdef</code> blocks no longer stall parsing and
+                  indexing. Some nestings used to take minutes or longer, even in a small file.</li>
             </ul>
         """.trimIndent()
         vendor {
