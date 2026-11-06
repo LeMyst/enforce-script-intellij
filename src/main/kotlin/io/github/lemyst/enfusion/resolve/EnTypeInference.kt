@@ -391,8 +391,9 @@ object EnTypeInference {
         val found = ArrayList<EnClassDeclMixin>()
         for (file in EnfusionIndexes.findFiles(EnfusionIndexes.TYPES, name, GlobalSearchScope.allScope(project))) {
             val psiFile: PsiFile = psiManager.findFile(file) ?: continue
-            PsiTreeUtil.findChildrenOfType(psiFile, EnClassDeclMixin::class.java)
-                .filterTo(found) { it.name == name }
+            EnDeclarationWalk.forEachNamed(psiFile, intoClassBodies = false) {
+                if (it is EnClassDeclMixin && it.name == name) found += it
+            }
         }
         return found
     }
@@ -411,8 +412,9 @@ object EnTypeInference {
         val found = ArrayList<PsiElement>()
         for (file in EnfusionIndexes.findFiles(EnfusionIndexes.TYPES, name, GlobalSearchScope.allScope(project))) {
             val psiFile: PsiFile = psiManager.findFile(file) ?: continue
-            PsiTreeUtil.findChildrenOfType(psiFile, EnNamedElement::class.java)
-                .filterTo(found) { it.name == name && EnfusionIndexes.isTypeDeclaration(it) }
+            EnDeclarationWalk.forEachNamed(psiFile, intoClassBodies = true) {
+                if (it.name == name && EnfusionIndexes.isTypeDeclaration(it)) found += it
+            }
         }
         return found
     }
@@ -444,7 +446,7 @@ object EnTypeInference {
         var superName: String? = null
         for (layer in layers) {
             layer.node.findChildByType(EnfusionTypes.CLASS_BODY)?.psi?.let { body ->
-                for (member in PsiTreeUtil.findChildrenOfType(body, EnNamedElement::class.java)) {
+                EnDeclarationWalk.forEachNamed(body, intoClassBodies = true) { member ->
                     if (member.name == name && EnfusionIndexes.isSymbolDeclaration(member)) out += member
                 }
             }
@@ -529,8 +531,9 @@ object EnTypeInference {
         var superName: String? = null
         for (layer in layers) {
             layer.node.findChildByType(EnfusionTypes.CLASS_BODY)?.psi?.let { body ->
-                PsiTreeUtil.findChildrenOfType(body, EnNamedElement::class.java)
-                    .filterTo(out) { EnfusionIndexes.isSymbolDeclaration(it) }
+                EnDeclarationWalk.forEachNamed(body, intoClassBodies = true) {
+                    if (EnfusionIndexes.isSymbolDeclaration(it)) out += it
+                }
             }
             if (superName == null) superName = layer.getSuperName()?.let { baseTypeName(it) }
         }
