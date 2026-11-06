@@ -81,11 +81,18 @@ class EnMemberReference(element: PsiElement, rangeInElement: TextRange) :
                 return PsiElementResolveResult.createResults(narrowed)
             }
 
-            /** Constants of the enum [qualifier] names, when it names one at all. */
+            /**
+             * Constants of the enum [qualifier] names, when it names one at all.
+             *
+             * Resolving a member qualifier resolves its own qualifier in turn, down to the head of
+             * the chain, so this recursion is as deep as the chain is long. It counts against the
+             * same nesting cap as type inference, or a long enough `x.b.b.b` overflowed the stack.
+             */
             private fun enumConstants(qualifier: PsiElement?, name: String): List<PsiElement> {
                 val reference = qualifier?.reference as? PsiPolyVariantReference ?: return emptyList()
                 val found = ArrayList<PsiElement>()
-                for (result in reference.multiResolve(false)) {
+                val results = EnTypeInference.nested(ResolveResult.EMPTY_ARRAY) { reference.multiResolve(false) }
+                for (result in results) {
                     val declaration = result.element ?: continue
                     if (declaration.node?.elementType !== EnfusionTypes.ENUM_DECL) continue
                     PsiTreeUtil.findChildrenOfType(declaration, EnNamedElement::class.java)

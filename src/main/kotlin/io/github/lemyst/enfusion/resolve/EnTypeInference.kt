@@ -1,5 +1,6 @@
 package io.github.lemyst.enfusion.resolve
 
+import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
@@ -73,6 +74,92 @@ object EnTypeInference {
      */
     fun typesOf(expr: PsiElement?, project: Project, depth: Int = 0): List<EnType> {
         if (expr == null || depth > MAX_DEPTH) return emptyList()
+        ProgressManager.checkCanceled()
+        return inSession { it.typesOf(expr, project, depth) }
+    }
+
+    /**
+     * Runs [block] one level deeper in the current inference session, or returns [cutOff] once the
+     * session is [MAX_NESTING] deep. For resolution that walks down a member chain by itself,
+     * outside [typesOf]: [EnMemberReference] resolving its qualifier, which resolves its own, and so
+     * on to the head of the chain.
+     */
+    fun <T> nested(cutOff: T, block: () -> T): T = inSession { it.nested(cutOff, block) }
+
+    private fun <T> inSession(block: (Session) -> T): T {
+        activeSession.get()?.let { return block(it) }
+        val fresh = Session()
+        activeSession.set(fresh)
+        try {
+            return block(fresh)
+        } finally {
+            activeSession.remove()
+        }
+    }
+
+    /**
+     * One inference, from the outermost [typesOf] call to its return, on this thread.
+     *
+     * Without it the work was exponential, because nothing was remembered:
+     *
+     *  - A name resolves to every same-named local in the method, and each `auto` one is inferred
+     *    from its initializer again. Three `auto a = a;` lines took 12 s.
+     *  - Each link of `x.b.b.b` is inferred twice, once to resolve the member and once for the
+     *    receiver's type arguments. Twelve links took 7 s with one class, more with modded layers.
+     *  - Resolving a member re-enters inference from the top, through a reference object that is
+     *    new each time, so neither the depth cap nor ResolveCache's recursion guard saw the cycle:
+     *    the single line `auto a = a.b;` overflowed the stack.
+     *
+     * The session is per thread and shared by those re-entries. Each expression's result is
+     * remembered; one already in progress is a cycle and contributes nothing; and the total
+     * nesting, re-entries included, is capped. PSI cannot change during one inference, which runs
+     * in one read action.
+     *
+     * A result cut short by a cap or a cycle is remembered as it is, even if the same expression is
+     * reached again with more budget left. That costs resolution only in code nested deeper than
+     * any real file or in a cycle no compiler accepts, and taking the budget into account instead
+     * meant recomputing at every level an expression was reached from: ten times slower.
+     */
+    private class Session {
+        private val memo = HashMap<PsiElement, List<EnType>>()
+        private val inProgress = HashSet<PsiElement>()
+        private var nesting = 0
+
+        fun typesOf(expr: PsiElement, project: Project, depth: Int): List<EnType> {
+            memo[expr]?.let { return it }
+            if (nesting >= MAX_NESTING || !inProgress.add(expr)) return emptyList()
+            nesting++
+            try {
+                val types = computeTypesOf(expr, project, depth)
+                memo[expr] = types
+                return types
+            } finally {
+                nesting--
+                inProgress.remove(expr)
+            }
+        }
+
+        fun <T> nested(cutOff: T, block: () -> T): T {
+            if (nesting >= MAX_NESTING) return cutOff
+            nesting++
+            try {
+                return block()
+            } finally {
+                nesting--
+            }
+        }
+    }
+
+    private val activeSession = ThreadLocal<Session>()
+
+    /**
+     * Cap on nesting in one session: inferences, re-entries through member resolution (which
+     * restart [MAX_DEPTH]'s count), and [nested] qualifier resolution. A chain of n links nests
+     * about n deep; this bounds the stack for a pathological one while leaving any real chain whole.
+     */
+    private const val MAX_NESTING = 64
+
+    private fun computeTypesOf(expr: PsiElement, project: Project, depth: Int): List<EnType> {
         return when (expr.node?.elementType) {
             EnfusionTypes.PAREN_EXPR ->
                 typesOf(firstExprChild(expr), project, depth + 1)
