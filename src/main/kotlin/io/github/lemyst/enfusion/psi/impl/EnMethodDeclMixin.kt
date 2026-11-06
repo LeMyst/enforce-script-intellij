@@ -58,18 +58,40 @@ abstract class EnMethodDeclMixin(node: ASTNode) : EnNamedElementBase(node) {
         return null
     }
 
+    /**
+     * The signature, then the class and file the method belongs to.
+     *
+     * Every popup that offers several methods reads this: the overridden-method gutter icon, the
+     * Go to Declaration picker, Find Usages. Overrides share a signature by definition, and the
+     * platform's own location for a library file is the library name, so without the owner and
+     * the file every `modded class` layer of `OnEvent` read "OnEvent ((EventType eventTypeId,
+     * Param params): void) Enforce Script Sources" and the choice was a guess.
+     */
     override fun getPresentation(): ItemPresentation {
-        val icon = when {
-            isConstructor() || isDestructor() -> AllIcons.Nodes.ClassInitializer
-            isStatic() -> AllIcons.Nodes.MethodReference
-            isOverride() -> AllIcons.General.OverridingMethod
-            else -> AllIcons.Nodes.Method
-        }
-        val returnType = getReturnTypeText()
         val location = buildString {
-            append(getParameterListText())
-            if (returnType != null) append(": ").append(returnType)
+            append(signatureText())
+            val owner = parentOfTypeClassDecl()
+            val file = fileLocation()
+            if (owner?.name != null || file != null) append("  —  ")
+            owner?.name?.let { append(if (owner.isModded()) "modded $it" else it) }
+            if (owner?.name != null && file != null) append(" · ")
+            file?.let { append(it) }
         }
-        return presentation(icon, location)
+        return presentation(icon(), location)
+    }
+
+    /** The signature alone, for the Structure view, where the class and file are already in view. */
+    fun signaturePresentation(): ItemPresentation = presentation(icon(), signatureText())
+
+    private fun icon() = when {
+        isConstructor() || isDestructor() -> AllIcons.Nodes.ClassInitializer
+        isStatic() -> AllIcons.Nodes.MethodReference
+        isOverride() -> AllIcons.General.OverridingMethod
+        else -> AllIcons.Nodes.Method
+    }
+
+    private fun signatureText(): String {
+        val returnType = getReturnTypeText()
+        return if (returnType != null) "${getParameterListText()}: $returnType" else getParameterListText()
     }
 }
