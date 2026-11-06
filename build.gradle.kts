@@ -105,6 +105,9 @@ intellijPlatform {
               <li>Long member chains and <code>auto</code> locals no longer stall highlighting.
                   A local whose initializer reads the local itself, such as
                   <code>auto a = a.b;</code>, no longer crashes it either.</li>
+              <li>When several methods are offered to choose from, such as the layers of a
+                  <code>modded class</code> behind the overridden-method gutter icon, each line now
+                  names its class and the file it comes from.</li>
             </ul>
         """.trimIndent()
         vendor {
