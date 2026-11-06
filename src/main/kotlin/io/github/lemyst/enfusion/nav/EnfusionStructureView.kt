@@ -17,6 +17,7 @@ import io.github.lemyst.enfusion.psi.EnNamedElement
 import io.github.lemyst.enfusion.psi.EnfusionFile
 import io.github.lemyst.enfusion.psi.EnfusionTypes
 import io.github.lemyst.enfusion.psi.impl.EnClassDeclMixin
+import io.github.lemyst.enfusion.psi.impl.EnMethodDeclMixin
 
 class EnfusionStructureViewFactory : PsiStructureViewFactory {
     override fun getStructureViewBuilder(psiFile: PsiFile): StructureViewBuilder? {
@@ -62,7 +63,8 @@ class EnfusionStructureViewElement(private val element: PsiElement) :
     override fun getAlphaSortKey(): String = (element as? EnNamedElement)?.name ?: ""
 
     override fun getPresentation(): ItemPresentation =
-        (element as? com.intellij.navigation.NavigationItem)?.presentation
+        (element as? EnMethodDeclMixin)?.signaturePresentation()
+            ?: (element as? com.intellij.navigation.NavigationItem)?.presentation
             ?: com.intellij.ide.projectView.PresentationData(
                 element.containingFile?.name, null, null, null,
             )
