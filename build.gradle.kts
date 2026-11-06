@@ -99,6 +99,9 @@ intellijPlatform {
                   project and reopen it to enable them.</li>
               <li>Files with deeply nested <code>#ifdef</code> blocks no longer stall parsing and
                   indexing. Some nestings used to take minutes or longer, even in a small file.</li>
+              <li>A block comment left without <code>*/</code> now runs to the end of the file and
+                  is reported as <i>Unclosed comment</i>, in scripts, layouts and configs. Files
+                  with many such comments no longer slow highlighting and indexing.</li>
             </ul>
         """.trimIndent()
         vendor {
