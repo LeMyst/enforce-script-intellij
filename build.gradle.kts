@@ -61,6 +61,9 @@ intellijPlatform {
             namespace assembled from whole directories, spread across a mod, the ~3,000-file vanilla
             corpus and every dependency mod.
             <ul>
+              <li>Code completion across every <code>modded class</code> layer and the superclass
+                  chain, answered by the same type inference as Go to Declaration</li>
+              <li>Parameter info on every overload a call may mean, with default values</li>
               <li>Go to Declaration on types, members, locals and free functions, across every
                   <code>modded class</code> layer</li>
               <li>Go to Declaration from string literals &mdash; widget names into
