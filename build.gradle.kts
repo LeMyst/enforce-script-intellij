@@ -108,6 +108,10 @@ intellijPlatform {
               <li>When several methods are offered to choose from, such as the layers of a
                   <code>modded class</code> behind the overridden-method gutter icon, each line now
                   names its class and the file it comes from.</li>
+              <li>Looking up types and members is much faster in projects with many mods. The
+                  <kbd>Ctrl</kbd>+hover underline on a chain such as
+                  <code>GetGame().GetPlayer().GetIdentity()</code> now appears at once on every
+                  link, instead of after a delay that grew along the chain.</li>
             </ul>
         """.trimIndent()
         vendor {
