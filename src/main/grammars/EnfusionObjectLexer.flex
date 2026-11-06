@@ -26,6 +26,10 @@ WHITE_SPACE   = ([ \t\f] | \uFEFF)+
 LINE_COMMENT  = "//" [^\r\n]*
 BLOCK_COMMENT = "/*" ([^*] | "*"+ [^*/])* "*"+ "/"
 
+// An unclosed comment runs to the end of the file, as in the script lexer; see the comment on
+// UNCLOSED_COMMENT in EnfusionLexer.flex. EnfusionUnclosedCommentAnnotator reports it.
+UNCLOSED_COMMENT = "/*" ([^*] | "*"+ [^*/])* "*"*
+
 // `\\.` matches any escaped character, as in the script lexer: layout text runs contain markup such
 // as `<image set=\"playstation_buttons\">`, and an unknown escape must never become a BAD_CHARACTER.
 STRING        = \" ([^\"\\\r\n] | \\[^\r\n])* \"
@@ -44,6 +48,7 @@ IDENT         = [A-Za-z_] [A-Za-z0-9_]*
 
   {LINE_COMMENT}      { return EnfusionObjectTypes.LINE_COMMENT; }
   {BLOCK_COMMENT}     { return EnfusionObjectTypes.BLOCK_COMMENT; }
+  {UNCLOSED_COMMENT}  { return EnfusionObjectTypes.BLOCK_COMMENT; }
 
   "{"                 { return EnfusionObjectTypes.LBRACE; }
   "}"                 { return EnfusionObjectTypes.RBRACE; }

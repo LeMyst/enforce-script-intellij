@@ -41,6 +41,17 @@ LINE_COMMENT  = "//" [^\r\n]*
 BLOCK_DOC     = ("/**" | "/*!") ([^*] | "*"+ [^*/])* "*"+ "/"
 BLOCK_COMMENT = "/*" ([^*] | "*"+ [^*/])* "*"+ "/"
 
+// A comment with no `*/` runs to the end of the file as one comment, rather than leaving a `/`
+// token behind. Without a match, JFlex scanned to the end of the file looking for the terminator,
+// fell back to the one-character `/`, and repeated the scan at every later `/*`. That was quadratic
+// in the file size (250 KB of `/*a` took 32 s), in a lexer that runs for highlighting and indexing
+// of every file, and the same held for the layout and config lexers. Valid code is
+// unaffected: UNCLOSED_COMMENT cannot pass the first `*/`, so where a terminator exists the rules
+// above match one character more and win. There is deliberately no unclosed doc-comment rule: it
+// would swallow the rest of the file after an empty `/**/`. EnfusionUnclosedCommentAnnotator
+// reports the unclosed case.
+UNCLOSED_COMMENT = "/*" ([^*] | "*"+ [^*/])* "*"*
+
 // The only five directives that exist. `#` appears nowhere else outside string literals (the
 // `"#STR_BR_..."` form is matched by STRING first, which is longer), so no line anchor is needed.
 PP_DIRECTIVE = "#" ("ifdef" | "ifndef" | "else" | "endif" | "define") [^\r\n]*
@@ -58,6 +69,7 @@ IDENT = [A-Za-z_] [A-Za-z0-9_]*
   {LINE_COMMENT}      { return EnfusionTypes.LINE_COMMENT; }
   {BLOCK_DOC}         { return EnfusionTypes.BLOCK_DOC_COMMENT; }
   {BLOCK_COMMENT}     { return EnfusionTypes.BLOCK_COMMENT; }
+  {UNCLOSED_COMMENT}  { return EnfusionTypes.BLOCK_COMMENT; }
 
   // ---- hard keywords (must precede IDENT: equal-length match resolves to the earlier rule) ----
   "class"             { return EnfusionTypes.CLASS_KW; }

@@ -255,6 +255,16 @@
         <annotator
                 language="EnfusionScript"
                 implementationClass="io.github.lemyst.enfusion.highlight.EnfusionUnclosedStringAnnotator"/>
+        <!-- The lexers let an unclosed block comment run to end of file, to stay linear; this flags it. -->
+        <annotator
+                language="EnfusionScript"
+                implementationClass="io.github.lemyst.enfusion.highlight.EnfusionUnclosedCommentAnnotator"/>
+        <annotator
+                language="EnfusionObject"
+                implementationClass="io.github.lemyst.enfusion.highlight.EnfusionUnclosedCommentAnnotator"/>
+        <annotator
+                language="EnfusionConfig"
+                implementationClass="io.github.lemyst.enfusion.highlight.EnfusionUnclosedCommentAnnotator"/>
         <typedHandler implementation="io.github.lemyst.enfusion.completion.EnfusionDotAutoPopup"/>
         <typedHandler implementation="io.github.lemyst.enfusion.completion.EnfusionParenAutoPopup"/>
         <!-- Ctrl+P: every overload a call may mean, the current argument highlighted. -->
