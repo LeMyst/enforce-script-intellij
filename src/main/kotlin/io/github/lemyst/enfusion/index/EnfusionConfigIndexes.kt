@@ -62,8 +62,11 @@ abstract class EnfusionConfigIndexBase : ScalarIndexExtension<String>() {
 
     override fun dependsOnFileContent(): Boolean = true
 
-    /** Bump on any change to what is indexed, the config grammar included. */
-    override fun getVersion(): Int = 1
+    /**
+     * Bump on any change to what is indexed, the config grammar included. Version 2 is the lexer
+     * letting an unclosed block comment run to the end of the file.
+     */
+    override fun getVersion(): Int = 2
 
     override fun getIndexer(): DataIndexer<String, Void, FileContent> =
         DataIndexer { content ->

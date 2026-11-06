@@ -22,6 +22,10 @@ WHITE_SPACE   = ([ \t\f\r\n] | \uFEFF)+
 LINE_COMMENT  = "//" [^\r\n]*
 BLOCK_COMMENT = "/*" ([^*] | "*"+ [^*/])* "*"+ "/"
 
+// An unclosed comment runs to the end of the file, as in the script lexer; see the comment on
+// UNCLOSED_COMMENT in EnfusionLexer.flex. EnfusionUnclosedCommentAnnotator reports it.
+UNCLOSED_COMMENT = "/*" ([^*] | "*"+ [^*/])* "*"*
+
 // `#define` appears in exactly two files of the 377-file corpus and nothing else preprocessor-ish
 // appears at all -- no `#include`, no `#ifdef`. Vanilla's configs are de-rapified from `config.bin`
 // and are already flat. So the directive is lexed to end of line and handed to the parser as a
@@ -52,6 +56,7 @@ IDENT         = [A-Za-z_] [A-Za-z0-9_]*
 
   {LINE_COMMENT}      { return EnfusionConfigTypes.LINE_COMMENT; }
   {BLOCK_COMMENT}     { return EnfusionConfigTypes.BLOCK_COMMENT; }
+  {UNCLOSED_COMMENT}  { return EnfusionConfigTypes.BLOCK_COMMENT; }
   {PP_DIRECTIVE}      { return EnfusionConfigTypes.PP_DIRECTIVE; }
 
   "class"             { return EnfusionConfigTypes.CLASS_KW; }

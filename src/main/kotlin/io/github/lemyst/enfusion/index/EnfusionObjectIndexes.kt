@@ -57,9 +57,10 @@ abstract class EnfusionObjectIndexBase : ScalarIndexExtension<String>() {
 
     /**
      * Bump on any change to what is indexed or how names are derived. Version 2 indexes GUID-form
-     * widgets (`FrameWidgetClass "{…}" {`) under their `Name` property.
+     * widgets (`FrameWidgetClass "{…}" {`) under their `Name` property. Version 3 is the lexer
+     * letting an unclosed block comment run to the end of the file.
      */
-    override fun getVersion(): Int = 2
+    override fun getVersion(): Int = 3
 
     override fun getIndexer(): DataIndexer<String, Void, FileContent> =
         DataIndexer { content ->

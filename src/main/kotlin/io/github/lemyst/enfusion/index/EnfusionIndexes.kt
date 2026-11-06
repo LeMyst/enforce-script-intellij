@@ -116,8 +116,9 @@ abstract class EnfusionNameIndexBase : ScalarIndexExtension<String>() {
      * is the grammar catching up with a DayZ update (`sealed` members, `<<=`, `ref` foreach
      * variables, statements before a `case`), each of which used to cut a file short. Version 4 is
      * the lexer letting an unclosed string run to end of line instead of ending in a BAD_CHARACTER.
+     * Version 5 is the lexer letting an unclosed block comment run to the end of the file.
      */
-    override fun getVersion(): Int = 4
+    override fun getVersion(): Int = 5
 
     override fun getIndexer(): DataIndexer<String, Void, FileContent> =
         DataIndexer { content ->
@@ -152,7 +153,7 @@ class EnfusionSuperTypeIndex : ScalarIndexExtension<String>() {
     override fun dependsOnFileContent(): Boolean = true
 
     /** Bumped with [EnfusionNameIndexBase.getVersion]; see there for why a grammar change counts. */
-    override fun getVersion(): Int = 4
+    override fun getVersion(): Int = 5
 
     override fun getIndexer(): DataIndexer<String, Void, FileContent> =
         DataIndexer { content ->
