@@ -102,6 +102,9 @@ intellijPlatform {
               <li>A block comment left without <code>*/</code> now runs to the end of the file and
                   is reported as <i>Unclosed comment</i>, in scripts, layouts and configs. Files
                   with many such comments no longer slow highlighting and indexing.</li>
+              <li>Long member chains and <code>auto</code> locals no longer stall highlighting.
+                  A local whose initializer reads the local itself, such as
+                  <code>auto a = a.b;</code>, no longer crashes it either.</li>
             </ul>
         """.trimIndent()
         vendor {
