@@ -3,6 +3,8 @@ package io.github.lemyst.enfusion
 import com.intellij.psi.PsiErrorElement
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
+import io.github.lemyst.enfusion.cfg.EnfusionConfigLexerAdapter
+import io.github.lemyst.enfusion.cfg.psi.EnfusionConfigTypes
 import io.github.lemyst.enfusion.cfg.psi.impl.EnCfgClassMixin
 import io.github.lemyst.enfusion.cfg.psi.impl.EnCfgPropertyMixin
 
@@ -55,6 +57,26 @@ class EnfusionConfigTest : BasePlatformTestCase() {
         )
         val props = PsiTreeUtil.findChildrenOfType(file, EnCfgPropertyMixin::class.java).toList()
         assertEquals(2, props[0].value()!!.elements().size)
+    }
+
+    /** Vanilla `DZ/sounds/hpp/config.cpp` declares test tones named like `1kHz_mono_1s_SoundShader`. */
+    fun testClassNameMayStartWithDigits() {
+        val decls = classes(
+            "class CfgSoundShaders\n{\n\tclass 1kHz_mono_1s_SoundShader\n\t{\n\t\tvolume = 1;\n\t};\n" +
+                "\tclass 1kHz_Louder: 1kHz_mono_1s_SoundShader {};\n};\n",
+        )
+        assertEquals(listOf("CfgSoundShaders", "1kHz_mono_1s_SoundShader", "1kHz_Louder"), decls.map { it.name })
+        assertEquals("1kHz_mono_1s_SoundShader", decls[2].getSuperName())
+    }
+
+    /** The digit-led name rule must not take numbers, `1e5` included, which both rules match in full. */
+    fun testNumbersStayNumbers() {
+        val lexer = EnfusionConfigLexerAdapter()
+        for (number in listOf("10", "2.5", "-1.5", "1e5", "9.9999997e-05", ".5")) {
+            lexer.start(number)
+            assertEquals(number, EnfusionConfigTypes.NUMBER, lexer.tokenType)
+            assertEquals(number, number.length, lexer.tokenEnd)
+        }
     }
 
     /**
