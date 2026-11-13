@@ -84,6 +84,16 @@
                 language="EnfusionConfig"
                 implementationClass="io.github.lemyst.enfusion.cfg.EnfusionConfigBraceMatcher"/>
 
+        <!-- Textures. Binary, so never opened as text; `.edds` is safe to claim by extension, since
+             unlike `.c` nothing else uses it. The viewer replaces the binary-file placeholder. -->
+        <fileType
+                name="EnfusionTexture"
+                implementationClass="io.github.lemyst.enfusion.texture.EnTextureFileType"
+                fieldName="INSTANCE"
+                extensions="edds"/>
+        <fileEditorProvider
+                implementation="io.github.lemyst.enfusion.texture.EnTextureEditorProvider"/>
+
         <lang.parserDefinition
                 language="EnfusionScript"
                 implementationClass="io.github.lemyst.enfusion.lang.EnfusionParserDefinition"/>

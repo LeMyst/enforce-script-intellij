@@ -54,8 +54,9 @@ not supported.
 ### Corpus tests
 
 `EnfusionCorpusParseTest`, `EnfusionCorpusLexTest`, `EnfusionObjectCorpusParseTest`,
-`EnfusionConfigCorpusParseTest` and `EnfusionPboCorpusTest` run over real DayZ sources and are the
-strongest signal in the project. They **skip** when their root is unset or absent, so a green run without them proves less
+`EnfusionConfigCorpusParseTest`, `EnfusionTextureCorpusTest` and `EnfusionPboCorpusTest` run over
+real DayZ sources and are the strongest signal in the project. They **skip** when their root is
+unset or absent, so a green run without them proves less
 than it seems. Set the roots in your user-level `~/.gradle/gradle.properties`, **never** in the
 committed `gradle.properties`:
 
@@ -63,7 +64,8 @@ committed `gradle.properties`:
 enfusionCorpusRoot  = P:\\scripts
 enfusionLayoutRoots = P:\\gui;<a mod checkout with hand-written layouts>
 enfusionConfigRoots = P:\\DZ;P:\\scripts;<one or more mod checkouts>
-enfusionPboRoots    = <a DayZ install's addons folder>;<one or more Workshop @Mod folders>
+enfusionPboRoots     = <a DayZ install's addons folder>;<one or more Workshop @Mod folders>
+enfusionTextureRoots = P:\\gui;<one or more mod checkouts>
 # enfusionCorpusLimit = 300   # optional sampling
 ```
 
@@ -84,6 +86,8 @@ Vanilla DayZ sources are proprietary. Never commit them, nor fixtures copied out
     dispatch names, asset paths, config classes).
   - `index`: the file-based indexes.
   - `roots`: library roots (vanilla scripts, bundled CF stub, vanilla configs).
+  - `texture`: the `.edds` viewer. Its `format` subpackage is the decoder and uses no IntelliJ
+    API, so it can be tested on plain bytes; keep it that way.
   - `pbo`: `.pbo` roots. Its `format` subpackage (PBO reader, LZSS, `config.bin` derapifier) uses
     no IntelliJ API, like `texture/format`. `PboCache` unpacks only the navigable entries of a PBO
     to the IDE's system directory; never unpack a whole PBO, since texture PBOs run to gigabytes.
