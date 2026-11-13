@@ -7,6 +7,7 @@ import io.github.lemyst.enfusion.pbo.format.Derapifier
 import io.github.lemyst.enfusion.pbo.format.PboArchive
 import io.github.lemyst.enfusion.pbo.format.PboFormatException
 import io.github.lemyst.enfusion.pbo.format.PboPacking
+import java.nio.file.FileVisitOption
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
@@ -34,8 +35,12 @@ class EnfusionPboCorpusTest : BasePlatformTestCase() {
             println("EnfusionPboCorpusTest: no enfusionPboRoots, skipped")
             return
         }
+        // FOLLOW_LINKS: every `@Mod` folder under `!Workshop` is a link into Steam's workshop
+        // content. Without it the walk sees 29 of the 340 PBOs on a typical machine and stays green.
         val pbos = roots.flatMap { root ->
-            Files.walk(root).use { s -> s.filter { it.toString().endsWith(".pbo", ignoreCase = true) }.toList() }
+            Files.walk(root, FileVisitOption.FOLLOW_LINKS).use { s ->
+                s.filter { Files.isRegularFile(it) && it.toString().endsWith(".pbo", ignoreCase = true) }.toList()
+            }
         }.sorted()
 
         var entries = 0
