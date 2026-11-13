@@ -9,6 +9,7 @@ import com.intellij.openapi.util.io.FileUtil
 import com.intellij.ui.ToolbarDecorator
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBList
+import io.github.lemyst.enfusion.pbo.PboCache
 import io.github.lemyst.enfusion.roots.EnfusionRoots
 import io.github.lemyst.enfusion.roots.EnfusionVanillaConfigLibrary
 import java.awt.BorderLayout
@@ -43,7 +44,8 @@ class EnfusionConfigurable(private val project: Project) : Configurable {
         panel.add(
             JBLabel(
                 "<html>Script roots indexed for navigation &mdash; the vanilla DayZ script tree and " +
-                    "any dependency mod sources.<br>Add the unpacked game data (<code>P:\\DZ</code>) " +
+                    "any dependency mod sources, as folders or packed <code>.pbo</code> files." +
+                    "<br>Add the unpacked game data (<code>P:\\DZ</code>) " +
                     "too to navigate into vanilla configs.<br>Changing this triggers a re-index.</html>"
             ),
             BorderLayout.NORTH,
@@ -53,14 +55,21 @@ class EnfusionConfigurable(private val project: Project) : Configurable {
         return panel
     }
 
+    /**
+     * Folders, or packed `.pbo` files for dependencies that exist only as Workshop PBOs. Several at
+     * once, since a mod usually ships a handful of PBOs side by side in its `addons` folder.
+     */
     private fun chooseRoot() {
-        val descriptor = FileChooserDescriptorFactory.createSingleFolderDescriptor()
-            .withTitle("Select Enforce Script Source Root")
-        val chosen = FileChooser.chooseFile(descriptor, project, null) ?: return
-        val path = chosen.path
-        if (model.contains(path)) return
-        if (EnfusionVanillaConfigLibrary.isGameDataTree(chosen) && !confirmGameDataTree(path)) return
-        model.addElement(path)
+        val descriptor = FileChooserDescriptorFactory.multiFilesOrDirs()
+            .withExtensionFilter("pbo")
+            .withTitle("Select Enforce Script Source Roots or PBO Files")
+        for (chosen in FileChooser.chooseFiles(descriptor, project, null)) {
+            val path = chosen.path
+            if (model.contains(path)) continue
+            if (!chosen.isDirectory && !PboCache.isPbo(path)) continue
+            if (EnfusionVanillaConfigLibrary.isGameDataTree(chosen) && !confirmGameDataTree(path)) continue
+            model.addElement(path)
+        }
     }
 
     /**
