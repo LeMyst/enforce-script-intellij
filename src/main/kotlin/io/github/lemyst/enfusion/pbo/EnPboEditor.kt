@@ -3,10 +3,10 @@ package io.github.lemyst.enfusion.pbo
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.fileEditor.FileEditor
-import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.fileEditor.FileEditorPolicy
 import com.intellij.openapi.fileEditor.FileEditorProvider
 import com.intellij.openapi.fileEditor.FileEditorState
+import com.intellij.openapi.fileEditor.OpenFileDescriptor
 import com.intellij.openapi.fileTypes.FileTypeRegistry
 import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.project.Project
@@ -218,19 +218,30 @@ class EnPboEditor(private val project: Project, private val file: VirtualFile) :
                 val refused = ArrayList<Pair<Int, String>>()
                 for ((index, result) in results) {
                     when (result) {
-                        is Opened.Cached -> FileEditorManager.getInstance(project).openFile(result.file, true)
+                        is Opened.Cached -> open(result.file)
                         is Opened.View -> when (val view = result.view) {
                             is PboEntryView.Unavailable -> refused += index to view.message
-                            else -> {
-                                val light = opened.getOrPut(index) { lightFile(view) }
-                                FileEditorManager.getInstance(project).openFile(light, true)
-                            }
+                            else -> open(opened.getOrPut(index) { lightFile(view) })
                         }
                     }
                 }
                 if (refused.isNotEmpty()) explain(refused.first().first, refused.map { it.second })
             }
         }
+    }
+
+    /**
+     * Opens and focuses [file] in whichever editor its type has.
+     *
+     * Through a descriptor rather than `FileEditorManager.openFile`: 2026.3 deprecates every
+     * blocking `openFile` in favour of `requestOpenFile`, which 2025.2 lacks in that form (there it
+     * is experimental and returns `void`, so a call compiled against it fails on 2026.3). A
+     * descriptor's `navigate` is stable on every supported release. It would ask to associate a file
+     * type for an unknown one, but no entry reaches here as unknown: [PboEntryView] turns those
+     * into plain text or refuses them.
+     */
+    private fun open(file: VirtualFile) {
+        OpenFileDescriptor(project, file).navigate(true)
     }
 
     /**
