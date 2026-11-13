@@ -31,7 +31,7 @@ class EnfusionTextureGutterTest : BasePlatformTestCase() {
             """
             ImageSetClass {
              Name "my_gui"
-             RefSize 16 16
+             RefSize 8 8
              Textures {
               ImageSetTextureClass {
                mpix 1
@@ -41,8 +41,8 @@ class EnfusionTextureGutterTest : BasePlatformTestCase() {
              Images {
               ImageSetDefClass Corner {
                Name "Corner"
-               Pos 8 0
-               Size 8 8
+               Pos 4 0
+               Size 4 4
               }
              }
             }
@@ -77,7 +77,7 @@ class EnfusionTextureGutterTest : BasePlatformTestCase() {
         )
         val tooltips = gutterTooltips()
         assertEquals(tooltips.toString(), 2, tooltips.size)
-        assertTrue(tooltips.toString(), tooltips.any { it.contains("Corner") && it.contains("8 × 8 in my_gui.edds") })
+        assertTrue(tooltips.toString(), tooltips.any { it.contains("Corner") && it.contains("4 × 4 in my_gui.edds") })
         assertTrue(tooltips.toString(), tooltips.any { it.contains("my_gui.edds") && it.contains("BGRA8") })
     }
 
