@@ -164,6 +164,25 @@ more than one root. The unpacked game data (`P:\DZ`) is never added automaticall
 navigate into vanilla configs. Only its `config.cpp` files are indexed, and the settings page warns
 first, because finding them means walking the whole folder once.
 
+### Packed `.pbo` roots
+
+A root can also be a packed **`.pbo` file**: a dependency that exists only as a Workshop mod, with
+no sources on disk. The chooser accepts several at once, so a mod's whole `addons` folder can be
+picked in one go.
+
+- **Only the navigable part is unpacked:** scripts (`.c`), layouts, imagesets, stringtables, other
+  small text files, and `config.bin`, which is rebuilt as a readable, indented `config.cpp` and then
+  gets the full config support. Models, textures, sounds and everything else stay in the PBO, so a
+  multi-gigabyte texture PBO costs only its header. Entries over 16 MB are skipped.
+- The files go to `enfusion-pbo` in the IDE's system directory, under the PBO's prefix, so packaged
+  asset paths resolve as they do for a source checkout. Navigation reaches them like any other root.
+  They open **read-only**: they are a cache, rebuilt whenever the PBO changes.
+- A PBO is unpacked when it is added, and re-checked each time the project opens. A Workshop update
+  is picked up then, not while the project is open.
+- **Not supported:** encrypted `.ebo` content, and PBOs whose headers are deliberately obfuscated.
+  Encrypted entries are skipped; a header that does not hold together is reported as a missing root.
+  Picking a whole `@Mod` folder does not expand to its PBOs: choose the `.pbo` files themselves.
+
 The root list is saved in the project (`.idea/enfusion.xml`), so a cloned repository can ship one.
 In a project opened in **Safe Mode** the plugin therefore uses none of it: no root is indexed and
 auto-detection does not run, so navigation into vanilla and dependency sources stays empty. Trust the
@@ -277,6 +296,12 @@ Navigation, opening a real DayZ mod:
   choosing **Preview in Safe Mode**. Nothing appears under *External Libraries*, no balloon shows,
   and Process Monitor shows no access to `\\127.0.0.1`. Trust it and reopen: the warning names both
   roots, and `<b>bold</b>` is shown as text, not as bold.
+- Packed roots: in *Settings | Languages & Frameworks | Enforce Script*, add a dependency's
+  `Scripts.pbo` and a large texture or GUI `.pbo` in one pick. Ctrl+Click a class declared in the
+  scripts PBO reaches its unpacked source on the **first** click. Its `config.cpp` opens indented and
+  locked, and typing in it is refused. `enfusion-pbo` in the sandbox's system directory holds KBs
+  for the texture PBO, not its size. Remove the root and the navigation goes. Replace the `.pbo`
+  with an updated copy and reopen the project: the cache is rebuilt.
 - Find a `modded class` with an `override` method (e.g. `PartyHud`, or any state's
   `IsComplete`/`Activate`) → a green circular-arrow gutter icon appears on the method name; clicking
   it, and separately Ctrl+Clicking the method name itself, both land on the vanilla or superclass
