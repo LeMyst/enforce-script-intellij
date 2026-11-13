@@ -76,6 +76,11 @@ intellijPlatform {
               <li>A real PSI language for <code>.layout</code> / <code>.imageset</code> and for
                   <code>config.cpp</code> / <code>mod.cpp</code></li>
               <li>Indexes the vanilla script tree and dependency mod sources automatically</li>
+              <li>Packed <code>.pbo</code> files and whole Workshop folders as dependency roots,
+                  and a browser that opens any entry of a PBO</li>
+              <li>A viewer for <code>.edds</code> and <code>.paa</code> textures that outlines each
+                  imageset image on its atlas, with texture and icon previews on hover and in the
+                  gutter</li>
             </ul>
             <p>
             Unofficial community project, not affiliated with or endorsed by Bohemia Interactive.
@@ -83,38 +88,44 @@ intellijPlatform {
         """.trimIndent()
         changeNotes = """
             <ul>
-              <li><b>Code completion.</b> After a dot: the receiver's members across every
-                  <code>modded class</code> layer and the superclass chain. Elsewhere: locals,
-                  class members, free functions, globals and types in scope. Keywords are offered
-                  where they fit the position. The popup opens on <code>.</code> by itself.</li>
-              <li><b>Parameter info</b> (<kbd>Ctrl+P</kbd>, and on its own after <code>(</code>):
-                  every overload a call may mean, with the current parameter highlighted and
-                  default values shown.</li>
-              <li><code>Cast</code>, <code>CastTo</code> and <code>ClassName</code> now resolve on
-                  classes that name no superclass, since <code>Class</code> is their implicit root.</li>
-              <li>Typing <code>"</code> now inserts the closing quote. A string left unclosed is
-                  reported as <i>Missing closing quote</i>, instead of every string showing a
-                  parse error until it was closed.</li>
-              <li>Errors thrown by the plugin can be reported from the IDE's <i>Internal Errors</i>
-                  dialog, using <i>Report to third-party plugin</i>.</li>
-              <li>A project opened in Safe Mode no longer uses the script roots saved in its
-                  <code>.idea</code> folder, which a cloned repository can supply. Trust the
-                  project and reopen it to enable them.</li>
-              <li>Files with deeply nested <code>#ifdef</code> blocks no longer stall parsing and
-                  indexing. Some nestings used to take minutes or longer, even in a small file.</li>
-              <li>A block comment left without <code>*/</code> now runs to the end of the file and
-                  is reported as <i>Unclosed comment</i>, in scripts, layouts and configs. Files
-                  with many such comments no longer slow highlighting and indexing.</li>
-              <li>Long member chains and <code>auto</code> locals no longer stall highlighting.
-                  A local whose initializer reads the local itself, such as
-                  <code>auto a = a.b;</code>, no longer crashes it either.</li>
-              <li>When several methods are offered to choose from, such as the layers of a
-                  <code>modded class</code> behind the overridden-method gutter icon, each line now
-                  names its class and the file it comes from.</li>
-              <li>Looking up types and members is much faster in projects with many mods. The
-                  <kbd>Ctrl</kbd>+hover underline on a chain such as
-                  <code>GetGame().GetPlayer().GetIdentity()</code> now appears at once on every
-                  link, instead of after a delay that grew along the chain.</li>
+              <li><b>Texture viewer.</b> <code>.edds</code> and <code>.paa</code> files open as
+                  images, with zoom, a transparency checkerboard, a picker for every mip level and
+                  the pixel format in the status line. DXT1, DXT3, DXT5 and uncompressed textures
+                  are shown, raw or compressed. BC7 font atlases and the rare uncompressed
+                  <code>.paa</code> formats are named instead of shown.</li>
+              <li><b>Imageset outlines.</b> Over an atlas, the viewer outlines every image an
+                  imageset places on it, on the 1x and the 2x texture alike, so an icon with no
+                  <code>ImageSetDefClass</code> yet stands out. Hovering an outline names the image;
+                  double-clicking opens its entry. <i>Show Imageset Regions</i> turns them off.</li>
+              <li><b>Previews on hover.</b> Hovering a texture path, such as
+                  <code>picture="…/Mod_Logo.paa"</code>, shows the texture. Hovering an imageset
+                  image, such as <code>"set:dayz_gui image:DayZLogo"</code>, shows that one icon cut
+                  out of its atlas.</li>
+              <li><b>Texture icons in the gutter</b> beside imageset entries and beside lines
+                  that name a texture or an imageset image, in scripts, layouts and configs.
+                  Clicking one goes to the entry or the texture. They can be turned off under
+                  <i>Settings | Editor | General | Gutter Icons</i>, for configs separately.</li>
+              <li>Find in Files no longer matches inside textures, so texture folders no longer
+                  need excluding to keep results clean.</li>
+              <li>Texture paths now resolve to textures larger than 2.5 MB, and paths that start
+                  with a <code>{GUID}</code>, as imagesets and layouts write them.</li>
+              <li><b>Packed <code>.pbo</code> roots.</b> A root in <i>Settings | Languages &amp;
+                  Frameworks | Enforce Script</i> can be a <code>.pbo</code> file, for dependencies
+                  that exist only as Workshop mods. Its scripts, configs, layouts, imagesets and
+                  stringtables navigate like a source checkout, and <code>config.bin</code> is
+                  rebuilt as a readable <code>config.cpp</code>. Only those files are unpacked, to a
+                  cache in the IDE's system folder, and they open read-only.</li>
+              <li>A <b>folder root</b> now also brings in every <code>.pbo</code> under it, so one
+                  entry covers an <code>@Mod</code>, a whole <code>!Workshop</code> folder or a
+                  game install's <code>addons</code>. Folders are scanned again each time the
+                  project opens, behind a progress bar that can be cancelled. Adding a folder with
+                  more than 20 PBOs asks first.</li>
+              <li><b>PBO browser.</b> Opening a <code>.pbo</code> lists its entries, with a filter.
+                  <kbd>Enter</kbd> or a double-click opens entries read-only: scripts and layouts
+                  with their language, binarised configs as text, textures in the viewer.</li>
+              <li>A config class whose name starts with digits, such as vanilla's
+                  <code>1kHz_mono_1s_SoundShader</code>, no longer breaks parsing of the rest of
+                  the file.</li>
             </ul>
         """.trimIndent()
         vendor {
