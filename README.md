@@ -516,12 +516,20 @@ verifier is what proves each newer release. The verifier does **not** check byte
 also run `./gradlew verifyPluginProjectConfiguration`, which catches a JVM target newer than the
 oldest supported IDE can load.
 
-One **experimental API** usage is known and accepted, load-bearing with no stable equivalent:
-`AdditionalLibraryRootsListener.fireAdditionalLibraryChanged`, which targets a re-index at this one
-library instead of firing a full roots change. It would break loudly rather than silently if the
-platform changed it, and the verifier is what would catch it. **Internal** API usage is deliberately
-kept at zero. (`FileTypeOverrider` was a second such usage until 2025.2, when it stopped being
-marked experimental.)
+Two **experimental API** usages are known and accepted, each load-bearing with no stable
+equivalent:
+
+- `AdditionalLibraryRootsListener.fireAdditionalLibraryChanged`, which targets a re-index at this
+  one library instead of firing a full roots change. It is experimental in every supported release.
+- `TargetPresentation` (with its builder) and `Pointer`, in the texture hover popup. They are the
+  return types of `computePresentation()` and `createPointer()`, which every `DocumentationTarget`
+  must implement, so there is no way to offer documentation through that API without them. They
+  are flagged only on the older releases: `TargetPresentation` on 2025.2 and 2025.3, `Pointer` up
+  to 2026.1. From 2026.2 neither is experimental, and a released IDE never changes them.
+
+Either would break loudly rather than silently if the platform changed it, and the verifier is what
+would catch it. **Internal** API usage is deliberately kept at zero. (`FileTypeOverrider` was a
+further such usage until 2025.2, when it stopped being marked experimental.)
 
 ### Working from inside IntelliJ
 
