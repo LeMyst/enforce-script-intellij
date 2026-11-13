@@ -210,13 +210,28 @@ class PboArchive private constructor(
         }
 
         fun asciiz(max: Int): String {
-            val sb = StringBuilder()
+            val bytes = java.io.ByteArrayOutputStream()
             while (true) {
                 val b = byte()
-                if (b == 0) return sb.toString()
-                if (sb.length >= max) throw PboFormatException("header string longer than $max bytes (obfuscated or not a PBO)")
-                // Names are 8-bit ANSI in practice; Latin-1 keeps every byte without guessing a code page.
-                sb.append(b.toChar())
+                if (b == 0) return decode(bytes.toByteArray())
+                if (bytes.size() >= max) throw PboFormatException("header string longer than $max bytes (obfuscated or not a PBO)")
+                bytes.write(b)
+            }
+        }
+
+        /**
+         * UTF-8 when the bytes are valid UTF-8, Latin-1 otherwise. Older packers write 8-bit ANSI
+         * names, for which Latin-1 keeps every byte without guessing a code page. Newer ones write
+         * UTF-8, and the GameLabs obfuscator's Cyrillic names read as mojibake under Latin-1.
+         */
+        private fun decode(bytes: ByteArray): String {
+            val decoder = Charsets.UTF_8.newDecoder()
+                .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+                .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT)
+            return try {
+                decoder.decode(ByteBuffer.wrap(bytes)).toString()
+            } catch (_: java.nio.charset.CharacterCodingException) {
+                String(bytes, Charsets.ISO_8859_1)
             }
         }
 
@@ -238,21 +253,34 @@ object PboPaths {
     /**
      * [name] as a relative path safe to write under a directory, or null.
      *
-     * The cache writes entries to disk by name, so a name that climbs out (`..\..\x`), is absolute,
-     * names a drive, or carries characters Windows rejects would be a write outside the cache, the
-     * zip-slip shape. Obfuscated PBOs put exactly such junk in their headers. Those entries are
-     * skipped, not repaired.
+     * The cache writes entries to disk by name. A name that climbs out (`..\..\x`), is absolute, or
+     * has an empty segment is refused outright: that is the zip-slip shape, and no legitimate entry
+     * looks like it.
+     *
+     * Characters Windows cannot store are *replaced*, not refused. Obfuscated PBOs give every
+     * script a junk name full of `*`, `?` and control characters (the GameLabs scripts PBO is one),
+     * and skipping those entries left nothing to navigate. The engine loads every `.c` in a module
+     * folder whatever it is called, so a renamed file declares exactly what the original did.
      */
     fun safeRelativePath(name: String): String? {
         val path = name.replace('\\', '/')
         if (path.isEmpty() || path.startsWith('/')) return null
         val segments = path.split('/')
+        val clean = ArrayList<String>(segments.size)
         for (segment in segments) {
             if (segment.isEmpty() || segment == "." || segment == "..") return null
-            if (segment.any { it < ' ' || it in "<>:\"|?*" }) return null
+            var s = buildString(segment.length) {
+                for (c in segment) append(if (c < ' ' || c in "<>:\"|?*") '_' else c)
+            }
             // Windows silently strips trailing dots and spaces, so `a.` and `a` would collide.
-            if (segment.endsWith('.') || segment.endsWith(' ')) return null
+            if (s.endsWith('.') || s.endsWith(' ')) s = s.dropLast(1) + "_"
+            // `con.c` or `nul` would open a device on Windows, not a file.
+            if (s.substringBefore('.').uppercase() in RESERVED) s = "_$s"
+            clean += s
         }
-        return segments.joinToString("/")
+        return clean.joinToString("/")
     }
+
+    private val RESERVED = setOf("CON", "PRN", "AUX", "NUL") +
+        (1..9).flatMap { listOf("COM$it", "LPT$it") }
 }

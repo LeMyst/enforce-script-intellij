@@ -98,11 +98,23 @@ class EnfusionPboFormatTest {
     }
 
     @Test
-    fun unsafeNamesHaveNoPath() {
+    fun escapingNamesHaveNoPath() {
         assertEquals("scripts/3_Game/a.c", PboPaths.safeRelativePath("scripts\\3_Game\\a.c"))
-        for (bad in listOf("..\\..\\evil.c", "/abs.c", "C:\\x.c", "a\\\\b.c", "a\\.\\b.c", "con.", "a\u0001.c", "")) {
+        for (bad in listOf("..\\..\\evil.c", "/abs.c", "\\abs.c", "a\\\\b.c", "a\\.\\b.c", "a\\..\\..\\b.c", "///", "")) {
             assertNull(bad, PboPaths.safeRelativePath(bad))
         }
+    }
+
+    @Test
+    fun obfuscatedNamesAreCleanedNotDropped() {
+        // The shapes an obfuscated scripts PBO really uses: wildcards, control characters, and
+        // bytes outside ASCII, which are fine on disk and kept.
+        assertEquals("3_Game/__\u00e9_.c", PboPaths.safeRelativePath("3_Game\\*?\u00e9\u0001.c"))
+        assertEquals("C_/x.c", PboPaths.safeRelativePath("C:\\x.c"))
+        assertEquals("a_", PboPaths.safeRelativePath("a."))
+        assertEquals("_con.c", PboPaths.safeRelativePath("con.c"))
+        assertEquals("_NUL", PboPaths.safeRelativePath("NUL"))
+        assertEquals("___._", PboPaths.safeRelativePath("\t\t*.*"))
     }
 
     private fun checksumOf(s: String): ByteArray {
