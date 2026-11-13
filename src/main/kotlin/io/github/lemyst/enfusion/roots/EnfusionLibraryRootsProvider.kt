@@ -47,7 +47,8 @@ class EnfusionLibraryRootsProvider : AdditionalLibraryRootsProvider() {
     /**
      * Untrusted projects resolve nothing from their root list: see [EnfusionRoots.configuredRoots].
      * A `.pbo` root contributes its unpacked cache, and only once it exists: this can run inside a
-     * read action, so unpacking is left to [EnfusionRoots.apply] and the startup refresh.
+     * read action, so unpacking is left to [EnfusionRoots.apply] and the startup refresh. It also
+     * contributes the `.pbo` file itself, which is what the PBO browser opens from the tree.
      */
     private fun resolveRoots(project: Project, trusted: Boolean): List<VirtualFile> =
         EnfusionRoots.resolveForRead(EnfusionRoots.configuredRoots(project, trusted))
