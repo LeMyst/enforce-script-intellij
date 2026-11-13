@@ -83,7 +83,19 @@ inputs.
   supported:** BC7 `.edds`, used only by those 17 font atlases; the uncompressed `.paa` formats
   (ARGB4444, ARGB1555, ARGB8888, AI88), used by three vanilla detail and noise maps; and cube maps.
   The viewer names an unsupported format instead of showing it. It opens on the largest mip of at
-  most 4096 × 4096; larger mips are in the picker.
+  most 4096 × 4096; larger mips are in the picker. Both extensions are a binary file type, so Find
+  in Files and Replace in Files skip textures instead of matching inside their bytes: there is no
+  need to exclude texture folders to keep search results clean.
+- **Texture previews on hover** — hovering a texture path (`"…/loading_1.edds"`,
+  `picture="…/Mod_Logo.paa"`) or an imageset image (`"set:dayz_gui image:DayZLogo"`, in script,
+  layouts and configs) shows the image in the documentation popup, with its size, format and path.
+  An imageset image is cut out of its atlas, so the popup shows that one icon rather than the whole
+  sheet; when an imageset names a 1x and a 2x texture, the sharper one is used. Only the mip the
+  preview needs is decoded, and previews are cached until the texture changes. **Not covered:**
+  vanilla textures outside `gui/imagesets`, such as `P:\gui\textures`, are not in the library
+  roots, so a path into them does not resolve and shows nothing. Nor do imagesets and textures in a
+  folder marked **Excluded**, which the IDE does not index. After un-excluding one, if the preview
+  still does not appear, *File → Invalidate Caches…* makes the IDE index it.
 - **Class hierarchy** (`Ctrl+H`) modelling both relationships the language has: `extends`, and
   `modded class` layering. Every layer of a class hangs off the base, which is the view that matters
   here — a `modded class X` names nothing at all, so the link to what it patches exists only because
@@ -374,6 +386,15 @@ mod called BattleRoyale):
   DXT5 and `PAA, LZO`. Ctrl+Click a `picture="…/Mod_Logo.paa"` in a `config.cpp` → it opens in the
   viewer.
 - Open `P:\DZ\data\data\detailmap_4444.paa` → a message naming ARGB4444, not an error.
+
+**Texture previews on hover**
+
+- Hover `"set:dayz_gui image:…"` in a `.layout` or a script → a popup with that one icon, its
+  region (`… at x, y`) and the `.edds` path. The icon is sharp: the 2x atlas is the one used.
+- Hover a mod's `"…/GUI/textures/….edds"` literal and a `picture="…/Mod_Logo.paa"` in a
+  `config.cpp` → the whole texture, with size, format and mip count.
+- Hover the name of an `ImageSetDefClass` inside an `.imageset` → the same cut-out icon.
+- A BC7 font atlas or a broken path → a message, never an error.
 
 **Rename and inspections**
 
