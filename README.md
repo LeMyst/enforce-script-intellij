@@ -85,7 +85,11 @@ inputs.
   The viewer names an unsupported format instead of showing it. It opens on the largest mip of at
   most 4096 × 4096; larger mips are in the picker. Both extensions are a binary file type, so Find
   in Files and Replace in Files skip textures instead of matching inside their bytes: there is no
-  need to exclude texture folders to keep search results clean.
+  need to exclude texture folders to keep search results clean. Over an atlas, the viewer outlines
+  every image that an imageset places on it, on the 1x and the 2x texture alike: an icon with no
+  outline has no `ImageSetDefClass` yet, and the free space in the atlas is easy to see. Hovering
+  an outline names the image and its region, and double-clicking opens its entry. *Show Imageset
+  Regions* in the toolbar turns the outlines off.
 - **Texture previews on hover** — hovering a texture path (`"…/loading_1.edds"`,
   `picture="…/Mod_Logo.paa"`) or an imageset image (`"set:dayz_gui image:DayZLogo"`, in script,
   layouts and configs) shows the image in the documentation popup, with its size, format and path.
@@ -448,13 +452,18 @@ mod called BattleRoyale):
 - `Ctrl`+wheel zooms around it; *Fit to Window* and *Actual Size* do what they say; the
   transparency toggle shows the alpha-less image.
 - The mip picker steps through every level down to 1 × 1.
-- Open one of the `P:\guionts` BC7 atlases → a message naming BC7, not an error dialog.
+- Open one of the `P:\gui\fonts` BC7 atlases → a message naming BC7, not an error dialog.
 - Re-export a mod's `.edds` while it is open → the view reloads.
 - Open a mod's `Mod_Logo.paa`, then a large vanilla one such as
   `P:\DZ\characters\tops\data\gorka_upper_as.paa` → each appears, and the status line names DXT1 or
   DXT5 and `PAA, LZO`. Ctrl+Click a `picture="…/Mod_Logo.paa"` in a `config.cpp` → it opens in the
   viewer.
 - Open `P:\DZ\data\data\detailmap_4444.paa` → a message naming ARGB4444, not an error.
+- Open `P:\gui\imagesets\dayz_gui.edds` → an outline around each of its images, and the status line
+  counts them. Hover one → its name, set and region; double-click → `dayz_gui.imageset` opens at
+  that entry. The outlines follow zoom and the mip picker.
+- Open a mod's atlas, add an `ImageSetDefClass` to its `.imageset` → a new outline appears in the
+  open viewer. *Show Imageset Regions* hides and shows them all.
 
 **Texture previews on hover**
 
