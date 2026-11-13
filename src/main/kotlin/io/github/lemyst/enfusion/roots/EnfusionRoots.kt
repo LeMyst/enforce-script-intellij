@@ -1,8 +1,10 @@
 package io.github.lemyst.enfusion.roots
 
 import com.intellij.ide.trustedProjects.TrustedProjects
-import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.WriteAction
+import com.intellij.openapi.progress.ProgressIndicator
+import com.intellij.openapi.progress.ProgressManager
+import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.AdditionalLibraryRootsListener
 import com.intellij.openapi.vfs.LocalFileSystem
@@ -10,6 +12,7 @@ import com.intellij.openapi.vfs.VfsUtil
 import com.intellij.openapi.vfs.VirtualFile
 import io.github.lemyst.enfusion.lang.EnfusionFileTypeOverrider
 import io.github.lemyst.enfusion.pbo.PboCache
+import io.github.lemyst.enfusion.pbo.PboFolders
 import io.github.lemyst.enfusion.settings.EnfusionProjectSettings
 import java.io.File
 
@@ -90,13 +93,17 @@ object EnfusionRoots {
 
         // Resolving paths to VirtualFiles is a slow operation and the platform asserts against
         // those on the EDT -- and the settings dialog's apply() is on the EDT. So the VFS work and
-        // the roots-changed write action both go to a pooled thread, and so does unpacking a PBO.
+        // the roots-changed write action both go to a background task, and so do scanning folders
+        // and unpacking PBOs, which take about a minute the first time a folder holds a thousand.
         //
-        // The old list resolves through the existing PBO caches only. A `.pbo` it names has
-        // nothing to unpack: it was either unpacked already or never resolved.
-        ApplicationManager.getApplication().executeOnPooledThread {
-            fireChanged(project, toFiles(oldRoots, unpack = false), toFiles(newRoots, unpack = true))
-        }
+        // The old list resolves through the existing PBO caches and folder scans only. A `.pbo` it
+        // names has nothing to unpack: it was either unpacked already or never resolved.
+        ProgressManager.getInstance().run(object : Task.Backgroundable(project, "Preparing Enforce Script roots", true) {
+            override fun run(indicator: ProgressIndicator) {
+                val old = resolveAll(oldRoots, unpack = false, indicator = null).files
+                fireChanged(project, old, resolveAll(newRoots, unpack = true, indicator).files)
+            }
+        })
     }
 
     /**
@@ -150,13 +157,72 @@ object EnfusionRoots {
      * working by itself once an unrelated background refresh happened to reach the drive, which is
      * exactly the kind of intermittent behaviour that is miserable to diagnose.
      *
-     * A `.pbo` path resolves to its cache directory (see [PboCache]). With [unpack] it is unpacked
-     * first when missing or stale; without it only an existing cache is used.
+     * A `.pbo` path resolves to its cache directory (see [PboCache]), and a folder is followed by
+     * the PBOs under it (see [expand]). With [unpack] folders are scanned again and PBOs unpacked
+     * when missing or stale; without it only existing scans and caches are used.
+     *
+     * [Resolved.unresolved] lists the configured paths that came to nothing. A PBO found by a
+     * folder scan is never in it: one that cannot be read is logged and skipped, since the user
+     * never named it.
      *
      * Must not run on the EDT, and must not run inside a read action.
      */
-    private fun toFiles(paths: List<String>, unpack: Boolean): List<VirtualFile> =
-        paths.mapNotNull { resolveForWrite(it, unpack)?.first }
+    private fun resolveAll(paths: List<String>, unpack: Boolean, indicator: ProgressIndicator?): Resolved {
+        val expanded = expand(paths, scan = unpack)
+        val files = ArrayList<VirtualFile>(expanded.size)
+        val unresolved = ArrayList<String>()
+        val configured = paths.toHashSet()
+        indicator?.isIndeterminate = false
+        for ((i, path) in expanded.withIndex()) {
+            indicator?.checkCanceled()
+            indicator?.text2 = path
+            indicator?.fraction = i.toDouble() / expanded.size
+            val file = resolveForWrite(path, unpack)?.first
+            if (file != null && file.isDirectory) {
+                files += file
+            } else if (path in configured) {
+                unresolved += path
+            }
+        }
+        return Resolved(files, unresolved)
+    }
+
+    private class Resolved(val files: List<VirtualFile>, val unresolved: List<String>)
+
+    /**
+     * The configured paths with each folder followed by the `.pbo` files under it, in list order,
+     * each path once. The folder itself stays a root too: a mod checkout can hold both its sources
+     * and a packed build, and its sources then come first in the tiebreak.
+     *
+     * With [scan] folders are walked again ([PboFolders.scanAndRecord]); without it the last scan's
+     * record is used, which walks nothing and is safe in a read action. The unpacked game data
+     * (`P:\DZ`) is never scanned: it holds no PBOs, and walking it means 113,000 files.
+     */
+    private fun expand(paths: List<String>, scan: Boolean): List<String> {
+        val out = ArrayList<String>(paths.size)
+        val seen = HashSet<String>()
+        fun add(path: String) {
+            if (seen.add(path.replace('\\', '/').lowercase())) out += path
+        }
+        for (path in paths) {
+            add(path)
+            if (PboCache.isPbo(path)) continue
+            val pbos = when {
+                !scan -> PboFolders.recordedPbos(path)
+                isGameDataPath(path) -> emptyList()
+                else -> PboFolders.scanAndRecord(path)
+            }
+            pbos.forEach(::add)
+        }
+        return out
+    }
+
+    /** [EnfusionVanillaConfigLibrary.isGameDataTree] for a path, without the VFS. */
+    fun isGameDataPath(path: String): Boolean {
+        val dir = File(path)
+        return dir.name.equals("DZ", ignoreCase = true) &&
+            File(dir, "gear").isDirectory && File(dir, "characters").isDirectory
+    }
 
     /** The root as a refreshed VirtualFile, and whether a PBO behind it was just unpacked. */
     private fun resolveForWrite(path: String, unpack: Boolean): Pair<VirtualFile, Boolean>? {
@@ -177,31 +243,27 @@ object EnfusionRoots {
      * Pulls every configured root into the VFS, returning any that could not be found.
      *
      * Runs on every project open, not only the first: roots persisted from an earlier session are
-     * equally absent from a fresh VFS snapshot. It is also where `.pbo` roots are unpacked or
-     * brought up to date after a Workshop update, and the platform is told about any cache that
-     * appeared, since the library provider never unpacks anything itself.
+     * equally absent from a fresh VFS snapshot. It is also where folders are scanned again for
+     * newly installed PBOs, where `.pbo` roots are unpacked or brought up to date after a Workshop
+     * update, and where the platform is told about any cache that appeared, since the library
+     * provider never scans or unpacks anything itself.
      */
-    fun refreshAndReportMissing(project: Project): List<String> {
+    fun refreshAndReportMissing(project: Project, indicator: ProgressIndicator? = null): List<String> {
         val roots = configuredRoots(project)
-        val missing = ArrayList<String>()
-        val before = toFiles(roots, unpack = false)
-        val after = ArrayList<VirtualFile>()
-        for (path in roots) {
-            val resolved = resolveForWrite(path, unpack = true)
-            if (resolved == null || !resolved.first.isDirectory) missing += path
-            resolved?.first?.let { after += it }
-        }
-        if (before != after) fireChanged(project, before, after)
-        return missing
+        val before = resolveAll(roots, unpack = false, indicator = null).files
+        val after = resolveAll(roots, unpack = true, indicator)
+        if (before != after.files) fireChanged(project, before, after.files)
+        return after.unresolved
     }
 
     /**
-     * The roots as the library provider sees them: no VFS refresh, and a `.pbo` stands for its
-     * cache directory only if one exists. Safe in a read action.
+     * The roots as the library provider sees them: no VFS refresh, a `.pbo` stands for its cache
+     * directory only if one exists, and a folder brings the PBOs its last scan found. Safe in a
+     * read action.
      */
     fun resolveForRead(paths: List<String>): List<VirtualFile> {
         val fs = LocalFileSystem.getInstance()
-        return paths.mapNotNull { path ->
+        return expand(paths, scan = false).mapNotNull { path ->
             val target = if (PboCache.isPbo(path)) PboCache.existingDir(path)?.toString() ?: return@mapNotNull null else path
             fs.findFileByPath(target.replace('\\', '/'))
         }.filter { it.isDirectory }

@@ -5,6 +5,9 @@ import com.intellij.notification.NotificationAction
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.progress.ProgressIndicator
+import com.intellij.openapi.progress.ProgressManager
+import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.startup.ProjectActivity
 import com.intellij.openapi.util.text.StringUtil
@@ -41,11 +44,19 @@ class EnfusionAutoDetect : ProjectActivity {
         // project would silently attach the vanilla script tree to it.
         if (!looksLikeAddon(project)) return
 
+        // A background task with progress: the refresh below scans folder roots for PBOs and
+        // unpacks new or updated ones, which takes about a minute for a thousand new PBOs.
+        ProgressManager.getInstance().run(object : Task.Backgroundable(project, "Preparing Enforce Script roots", true) {
+            override fun run(indicator: ProgressIndicator) = prepare(project, indicator)
+        })
+    }
+
+    private fun prepare(project: Project, indicator: ProgressIndicator) {
         // Every open, before anything else: roots persisted from an earlier session are absent from
         // a fresh VFS snapshot, and the library provider silently drops a root it cannot resolve.
         // Without this a vanilla root only takes effect once some unrelated refresh happens to
         // reach it, which presents as navigation that works intermittently.
-        val missing = EnfusionRoots.refreshAndReportMissing(project)
+        val missing = EnfusionRoots.refreshAndReportMissing(project, indicator)
         if (missing.isNotEmpty()) notify(project, missingRootsMessage(missing), emptyList())
 
         val settings = EnfusionProjectSettings.getInstance(project)
@@ -59,8 +70,8 @@ class EnfusionAutoDetect : ProjectActivity {
         val data = EnfusionRoots.detectDataRoots(vanilla)
         if (vanilla == null && dependencies.isEmpty()) return
 
-        // No invokeLater: ProjectActivity already runs on a background coroutine, and hopping to
-        // the EDT is what put the VFS lookups inside EnfusionRoots.apply on the UI thread.
+        // No invokeLater: this already runs on a background thread, and hopping to the EDT is what
+        // put the VFS lookups inside EnfusionRoots.apply on the UI thread.
         if (vanilla != null && !settings.roots.contains(vanilla)) {
             val added = (listOf(vanilla) + data).filterNot { it in settings.roots }
             EnfusionRoots.apply(project, settings.roots + added)

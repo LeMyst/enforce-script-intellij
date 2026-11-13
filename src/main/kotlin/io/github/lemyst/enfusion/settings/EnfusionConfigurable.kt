@@ -3,16 +3,20 @@ package io.github.lemyst.enfusion.settings
 import com.intellij.openapi.fileChooser.FileChooser
 import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
 import com.intellij.openapi.options.Configurable
+import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.util.io.FileUtil
+import com.intellij.openapi.util.text.StringUtil
 import com.intellij.ui.ToolbarDecorator
 import com.intellij.ui.components.JBList
 import com.intellij.ui.dsl.builder.Align
 import com.intellij.ui.dsl.builder.panel
 import io.github.lemyst.enfusion.pbo.PboCache
+import io.github.lemyst.enfusion.pbo.PboFolders
 import io.github.lemyst.enfusion.roots.EnfusionRoots
 import io.github.lemyst.enfusion.roots.EnfusionVanillaConfigLibrary
+import java.nio.file.Path
 import javax.swing.DefaultListModel
 import javax.swing.JComponent
 
@@ -23,6 +27,11 @@ import javax.swing.JComponent
  * declared in more than one root.
  */
 class EnfusionConfigurable(private val project: Project) : Configurable {
+
+    private companion object {
+        /** A `@Mod` holds a handful of PBOs; past this the folder is a collection, and adding it is asked. */
+        const val PBO_FOLDER_ASK_ABOVE = 20
+    }
 
     private val model = DefaultListModel<String>()
     private val list = JBList(model)
@@ -45,7 +54,9 @@ class EnfusionConfigurable(private val project: Project) : Configurable {
             row {
                 text(
                     "Script roots indexed for navigation &mdash; the vanilla DayZ script tree and " +
-                        "any dependency mod sources, as folders or packed <code>.pbo</code> files.<br>" +
+                        "any dependency mod sources, as folders or packed <code>.pbo</code> files. " +
+                        "A folder brings the <code>.pbo</code> files under it too, so a whole " +
+                        "<code>@Mod</code> or <code>!Workshop</code> folder can be added at once.<br>" +
                         "Add the unpacked game data (<code>P:\\DZ</code>) too to navigate into vanilla " +
                         "configs.<br>Changing this triggers a re-index."
                 )
@@ -68,7 +79,11 @@ class EnfusionConfigurable(private val project: Project) : Configurable {
             val path = chosen.path
             if (model.contains(path)) continue
             if (!chosen.isDirectory && !PboCache.isPbo(path)) continue
-            if (EnfusionVanillaConfigLibrary.isGameDataTree(chosen) && !confirmGameDataTree(path)) continue
+            if (EnfusionVanillaConfigLibrary.isGameDataTree(chosen)) {
+                if (!confirmGameDataTree(path)) continue
+            } else if (chosen.isDirectory && !confirmPboFolder(path)) {
+                continue
+            }
             model.addElement(path)
         }
     }
@@ -91,6 +106,35 @@ class EnfusionConfigurable(private val project: Project) : Configurable {
             Messages.getCancelButton(),
             Messages.getWarningIcon(),
         ) == Messages.OK
+
+    /**
+     * Asked when a folder holds many PBOs, before it reaches the list: a `!Workshop` folder can hold
+     * a thousand, and unpacking their scripts and configs takes about a minute the first time.
+     * A `@Mod` with a handful goes in without asking. The scan behind the count only reads folder
+     * listings, never a PBO, so it is quick even for a large collection.
+     */
+    private fun confirmPboFolder(path: String): Boolean {
+        val found = ProgressManager.getInstance().runProcessWithProgressSynchronously<PboFolders.Found, RuntimeException>(
+            { PboFolders.scan(Path.of(path)) },
+            "Looking for PBO Files",
+            true,
+            project,
+        )
+        if (found.pbos.size <= PBO_FOLDER_ASK_ABOVE) return true
+        return Messages.showOkCancelDialog(
+            list,
+            "${FileUtil.toSystemDependentName(path)} holds ${found.pbos.size} .pbo files " +
+                "(${StringUtil.formatFileSize(found.totalBytes)}).\n\n" +
+                "Their scripts, configs, layouts, imagesets and stringtables are unpacked to the " +
+                "IDE's cache and indexed; textures, models and sounds stay in the PBOs. The first " +
+                "time takes about a minute per thousand PBOs. Each time the project opens, the " +
+                "folder is scanned again for new or updated PBOs.",
+            "Add a Folder of PBOs?",
+            "Add Folder",
+            Messages.getCancelButton(),
+            Messages.getQuestionIcon(),
+        ) == Messages.OK
+    }
 
     private fun removeSelected() {
         list.selectedIndices.sortedDescending().forEach { model.remove(it) }
