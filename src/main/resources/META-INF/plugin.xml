@@ -305,6 +305,15 @@
              unpack, so the editor opens them locked. -->
         <writingAccessProvider
                 implementation="io.github.lemyst.enfusion.pbo.PboCacheWritingAccessProvider"/>
+        <!-- Opening a .pbo lists its entries; one opens on demand, read-only. Claimed by
+             extension, which is safe since nothing else uses `.pbo`. -->
+        <fileType
+                name="EnfusionPbo"
+                implementationClass="io.github.lemyst.enfusion.pbo.EnPboFileType"
+                fieldName="INSTANCE"
+                extensions="pbo"/>
+        <fileEditorProvider
+                implementation="io.github.lemyst.enfusion.pbo.EnPboEditorProvider"/>
 
         <!-- .claude/worktrees holds duplicate checkouts; without this every class indexes twice. -->
         <directoryIndexExcludePolicy

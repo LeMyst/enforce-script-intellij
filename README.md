@@ -191,6 +191,24 @@ that also holds a packed build of itself still navigates to its sources.
   Encrypted entries are skipped; a header that does not hold together is reported as a missing root.
   The unpacked game data (`P:\DZ`) is never scanned for PBOs.
 
+**Browsing a PBO.** Under *External Libraries* a `.pbo` root shows twice: as its unpacked cache,
+which holds only the navigable files, and as the `.pbo` itself. A PBO found in a folder root shows
+under its folder. Opening a `.pbo` from there, or from *Go to File* or *File | Open*, shows a table
+of its entries: name, size and packing, with the prefix, entry count and total size
+above, and a filter. Only the header is read; an entry is read when it is opened, so browsing a
+multi-gigabyte texture PBO costs nothing. **Enter** or a double-click opens the selected entries,
+read-only:
+
+- An entry the PBO cache already unpacked (the PBO is a root) opens as that file, with full
+  navigation.
+- Anything else opens as an in-memory copy: scripts with the script language, layouts and
+  imagesets with theirs, `config.bin` and other binarised configs (`.rvmat`, …) rebuilt as indented
+  text with the config language, `.paa` and `.edds` in the texture viewer, other text as plain text.
+- Models, sounds and other binary formats are refused with a message naming the format, not dumped
+  as bytes, in a balloon on the entry's row; so are encrypted entries and entries over 128 MB.
+- The browser does not hold the PBO open, so Steam can update it meanwhile; the list reloads when
+  the file changes.
+
 The root list is saved in the project (`.idea/enfusion.xml`), so a cloned repository can ship one.
 In a project opened in **Safe Mode** the plugin therefore uses none of it: no root is indexed and
 auto-detection does not run, so navigation into vanilla and dependency sources stays empty. Trust the
@@ -314,6 +332,12 @@ Navigation, opening a real DayZ mod:
   → a dialog gives the PBO count and size; *Add Folder* starts a background task with a progress bar
   naming each PBO, cancellable. Afterwards a class from any subscribed mod navigates. Subscribe to
   one more mod and reopen the project: its classes navigate too.
+- PBO browser: with a `.pbo` root, *External Libraries* lists the `.pbo` next to its cache; open it
+  → a table of entries, no binary placeholder; typing in the filter narrows it. Enter on a `.c` → it opens highlighted and
+  read-only; if the PBO is a root, it is the unpacked file and Ctrl+Click works in it. Open
+  `config.bin` → an indented `config.cpp`. In a texture PBO, open a `.paa` → the texture viewer; a
+  `.p3d` → a warning balloon on its row naming the format, no tab. Open the same entry twice → one
+  tab.
 - Find a `modded class` with an `override` method (e.g. `PartyHud`, or any state's
   `IsComplete`/`Activate`) → a green circular-arrow gutter icon appears on the method name; clicking
   it, and separately Ctrl+Clicking the method name itself, both land on the vanilla or superclass

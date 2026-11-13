@@ -116,6 +116,23 @@ object PboExtractor {
         return Result(files, bytes, warnings)
     }
 
+    /**
+     * Where [extract] puts [entryName] relative to its target, for a PBO with [prefix]: null when
+     * the entry is not kept or its name is unsafe. Lets the browser open the unpacked copy, which
+     * has full navigation, instead of a detached in-memory one. Duplicate names, where the first
+     * entry wins, are not considered.
+     */
+    fun outputPath(prefix: String?, entryName: String): String? {
+        val path = PboPaths.safeRelativePath(entryName) ?: return null
+        val fileName = path.substringAfterLast('/')
+        val dir = path.substringBeforeLast('/', "")
+        val isBin = fileName.equals(CONFIG_BIN, ignoreCase = true)
+        if (!isBin && fileName.substringAfterLast('.', "").lowercase() !in KEPT) return null
+        val inside = if (isBin) (if (dir.isEmpty()) CONFIG_CPP else "$dir/$CONFIG_CPP") else path
+        val base = prefix?.let { PboPaths.safeRelativePath(it) ?: return null }
+        return if (base != null) "$base/$inside" else inside
+    }
+
     private fun rebuiltConfig(raw: ByteArray, label: String, entryName: String): ByteArray {
         if (!Derapifier.isRapified(raw)) {
             // Some packers store the text under the binary name.

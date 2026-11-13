@@ -183,8 +183,26 @@ object EnfusionRoots {
             } else if (path in configured) {
                 unresolved += path
             }
+            if (path in configured) packedFile(path, refresh = true)?.let { files += it }
         }
         return Resolved(files, unresolved)
+    }
+
+    /**
+     * The `.pbo` file itself, for a `.pbo` named in the root list, so that it shows under
+     * *External Libraries* next to its cache and opens in the PBO browser from there. Without it
+     * the cache is all the tree shows of a PBO root, and textures, models and every other entry
+     * the cache leaves out could only be reached through *File | Open*. A PBO found by a folder
+     * scan needs nothing: it already shows under its folder.
+     *
+     * Being a library root costs nothing to index: the file is binary, so only its name is.
+     */
+    private fun packedFile(path: String, refresh: Boolean): VirtualFile? {
+        if (!PboCache.isPbo(path)) return null
+        val fs = LocalFileSystem.getInstance()
+        val normalized = path.replace('\\', '/')
+        val file = if (refresh) fs.refreshAndFindFileByPath(normalized) else fs.findFileByPath(normalized)
+        return file?.takeIf { !it.isDirectory }
     }
 
     private class Resolved(val files: List<VirtualFile>, val unresolved: List<String>)
@@ -258,15 +276,19 @@ object EnfusionRoots {
 
     /**
      * The roots as the library provider sees them: no VFS refresh, a `.pbo` stands for its cache
-     * directory only if one exists, and a folder brings the PBOs its last scan found. Safe in a
-     * read action.
+     * directory only if one exists (and for itself, see [packedFile]), and a folder brings the PBOs
+     * its last scan found. Safe in a read action.
      */
     fun resolveForRead(paths: List<String>): List<VirtualFile> {
         val fs = LocalFileSystem.getInstance()
-        return expand(paths, scan = false).mapNotNull { path ->
-            val target = if (PboCache.isPbo(path)) PboCache.existingDir(path)?.toString() ?: return@mapNotNull null else path
-            fs.findFileByPath(target.replace('\\', '/'))
-        }.filter { it.isDirectory }
+        val configured = paths.toHashSet()
+        val out = ArrayList<VirtualFile>()
+        for (path in expand(paths, scan = false)) {
+            val target = if (PboCache.isPbo(path)) PboCache.existingDir(path)?.toString() else path
+            target?.let { fs.findFileByPath(it.replace('\\', '/')) }?.takeIf { it.isDirectory }?.let { out += it }
+            if (path in configured) packedFile(path, refresh = false)?.let { out += it }
+        }
+        return out
     }
 
     /**
