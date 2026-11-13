@@ -65,6 +65,11 @@ object PboExtractor {
             val seen = HashSet<String>()
             for (entry in archive.entries) {
                 if (entry.packing == PboPacking.ENCRYPTED) continue
+                // The extension filter runs on the raw name, before the name is judged: some
+                // obfuscators pad a PBO with thousands of decoy entries named `/////`, and a
+                // warning for each would bury the few that matter.
+                val rawName = entry.name.substringAfterLast('/')
+                if (!rawName.equals(CONFIG_BIN, ignoreCase = true) && rawName.substringAfterLast('.', "").lowercase() !in KEPT) continue
                 val path = PboPaths.safeRelativePath(entry.name)
                 if (path == null) {
                     warnings += "entry with an unsafe name skipped: '${entry.name.take(80)}'"
@@ -95,8 +100,15 @@ object PboExtractor {
                 val out = base.resolve(outPath)
                 // Belt and braces over safeRelativePath: never write outside the target.
                 if (!out.normalize().startsWith(base.normalize())) continue
-                Files.createDirectories(out.parent)
-                Files.write(out, content)
+                try {
+                    Files.createDirectories(out.parent)
+                    Files.write(out, content)
+                } catch (e: IOException) {
+                    // Obfuscators add entries that use a file as a folder (`config.cpp\<junk>`
+                    // beside `config.cpp`). One such entry must not cost the rest of the PBO.
+                    warnings += "${entry.name.take(80)}: could not be written (${e.javaClass.simpleName})"
+                    continue
+                }
                 files++
                 bytes += content.size
             }

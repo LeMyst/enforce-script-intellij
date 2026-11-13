@@ -115,8 +115,13 @@ class PboArchive private constructor(
         // Far beyond any real PBO (vanilla's largest holds a few tens of thousands of files), small
         // enough that a hostile header cannot make the reader build a list until memory runs out.
         private const val MAX_ENTRIES = 500_000
-        private const val MAX_NAME = 1024
-        private const val MAX_PROPERTIES = 64
+
+        // Generous on purpose, because obfuscators pad the header and the game reads it anyway.
+        // Published Workshop PBOs carry junk property keys over 2,000 characters long ahead of
+        // `prefix`, or hundreds of junk key/value pairs. A string or property count past these is
+        // still treated as not-a-PBO; reads stay bounded by the file length regardless.
+        private const val MAX_NAME = 64 * 1024
+        private const val MAX_PROPERTIES = 4096
 
         fun open(path: Path): PboArchive {
             val source = FilePboSource(path)
@@ -222,7 +227,7 @@ class PboArchive private constructor(
         /**
          * UTF-8 when the bytes are valid UTF-8, Latin-1 otherwise. Older packers write 8-bit ANSI
          * names, for which Latin-1 keeps every byte without guessing a code page. Newer ones write
-         * UTF-8, and the GameLabs obfuscator's Cyrillic names read as mojibake under Latin-1.
+         * UTF-8, and an obfuscator's Cyrillic names read as mojibake under Latin-1.
          */
         private fun decode(bytes: ByteArray): String {
             val decoder = Charsets.UTF_8.newDecoder()
@@ -258,8 +263,8 @@ object PboPaths {
      * looks like it.
      *
      * Characters Windows cannot store are *replaced*, not refused. Obfuscated PBOs give every
-     * script a junk name full of `*`, `?` and control characters (the GameLabs scripts PBO is one),
-     * and skipping those entries left nothing to navigate. The engine loads every `.c` in a module
+     * script a junk name full of `*`, `?` and control characters, and skipping those entries left
+     * nothing to navigate. The engine loads every `.c` in a module
      * folder whatever it is called, so a renamed file declares exactly what the original did.
      */
     fun safeRelativePath(name: String): String? {

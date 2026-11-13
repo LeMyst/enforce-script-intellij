@@ -36,6 +36,21 @@ class EnfusionPboFormatTest {
     }
 
     @Test
+    fun readsHeadersPaddedByObfuscators() {
+        // The shapes obfuscated Workshop PBOs use: a junk key of over 2,000 characters ahead of
+        // `prefix`, and hundreds of junk key/value pairs. The game loads both.
+        val padding = LinkedHashMap<String, String>()
+        padding["obfuscated"] = "rtm"
+        padding["x".repeat(2204)] = ""
+        repeat(300) { padding["junk$it"] = "true" }
+        padding["prefix"] = "Padded\\Scripts"
+        open(PboBytes.pbo(listOf(PboBytes.file("a.c", "class A {}")), padding)).use { pbo ->
+            assertEquals("Padded/Scripts", pbo.prefix)
+            assertEquals("class A {}", String(pbo.read(pbo.entries.single())))
+        }
+    }
+
+    @Test
     fun readsWithoutProductBlock() {
         open(PboBytes.pbo(listOf(PboBytes.file("a.c", "x")))).use { pbo ->
             assertNull(pbo.prefix)
