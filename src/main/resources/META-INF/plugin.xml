@@ -94,6 +94,11 @@
                 extensions="edds;paa"/>
         <fileEditorProvider
                 implementation="io.github.lemyst.enfusion.texture.EnTextureEditorProvider"/>
+        <!-- Hovering a texture path or an imageset image shows the image. `order="first"`: the
+             platform's own fallback answers for any PSI, and would otherwise win. -->
+        <platform.backend.documentation.psiTargetProvider
+                order="first"
+                implementation="io.github.lemyst.enfusion.texture.EnTextureDocumentationTargetProvider"/>
 
         <lang.parserDefinition
                 language="EnfusionScript"
