@@ -49,6 +49,13 @@ NUMBER        = [+-]? ([0-9]+ ("." [0-9]*)? | "." [0-9]+) ([eE] [+-]? [0-9]+)?
 
 IDENT         = [A-Za-z_] [A-Za-z0-9_]*
 
+// A name may start with digits: vanilla `DZ/sounds/hpp/config.cpp` declares test tones such as
+// `class 1kHz_mono_1s_SoundShader`, and the engine accepts them. Without this the digits lexed as a
+// NUMBER and the class failed to parse. The rule needs a letter or `_` after the digits, so a plain
+// number never matches it, and it is listed after NUMBER, so a tie such as `1e5`, which both match
+// in full, stays a number.
+DIGIT_IDENT   = [0-9]+ [A-Za-z_] [A-Za-z0-9_]*
+
 %%
 
 <YYINITIAL> {
@@ -75,6 +82,7 @@ IDENT         = [A-Za-z_] [A-Za-z0-9_]*
   {STRING}            { return EnfusionConfigTypes.STRING; }
   {NUMBER}            { return EnfusionConfigTypes.NUMBER; }
   {IDENT}             { return EnfusionConfigTypes.IDENT; }
+  {DIGIT_IDENT}       { return EnfusionConfigTypes.IDENT; }
 }
 
 [^] { return TokenType.BAD_CHARACTER; }

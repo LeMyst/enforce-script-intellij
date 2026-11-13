@@ -64,9 +64,10 @@ abstract class EnfusionConfigIndexBase : ScalarIndexExtension<String>() {
 
     /**
      * Bump on any change to what is indexed, the config grammar included. Version 2 is the lexer
-     * letting an unclosed block comment run to the end of the file.
+     * letting an unclosed block comment run to the end of the file; version 3 is class names that
+     * start with digits.
      */
-    override fun getVersion(): Int = 2
+    override fun getVersion(): Int = 3
 
     override fun getIndexer(): DataIndexer<String, Void, FileContent> =
         DataIndexer { content ->
