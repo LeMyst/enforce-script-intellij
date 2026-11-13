@@ -6,7 +6,7 @@ import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import io.github.lemyst.enfusion.texture.EnTextureEditorProvider
 import io.github.lemyst.enfusion.texture.EnTextureFileType
 
-/** `.edds` gets its own binary file type, and the viewer is the editor that opens it. */
+/** `.edds` and `.paa` get their own binary file type, and the viewer is the editor that opens them. */
 class EnfusionTextureViewerTest : BasePlatformTestCase() {
 
     fun testEddsIsABinaryTexture() {
@@ -18,6 +18,15 @@ class EnfusionTextureViewerTest : BasePlatformTestCase() {
         val provider = FileEditorProvider.EP_FILE_EDITOR_PROVIDER.extensionList
             .single { it is EnTextureEditorProvider }
         assertTrue(provider.accept(project, file))
+    }
+
+    fun testPaaIsATextureToo() {
+        val file = myFixture.tempDirFixture.createFile("MyMod/Data/logo.paa")
+        runWriteAction {
+            file.setBinaryContent(TextureBytes.paaDxt1(4, 4, TextureBytes.bc1Block(0xF800, 0x001F), lzo = false))
+        }
+        assertEquals(EnTextureFileType, file.fileType)
+        assertTrue(EnTextureEditorProvider().accept(project, file))
     }
 
     fun testViewerIgnoresOtherFiles() {

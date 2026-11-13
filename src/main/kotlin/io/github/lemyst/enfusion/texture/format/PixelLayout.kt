@@ -5,7 +5,7 @@ package io.github.lemyst.enfusion.texture.format
  *
  * The decoders here cover what the game data actually uses. A survey of every `.edds` under
  * `P:\gui` and `P:\DZ` and several mods found uncompressed BGRA/BGRX, DXT1, DXT5, and BC7 in font
- * atlases only.
+ * atlases only. Every `.paa` under `P:\DZ` but three is DXT1 or DXT5.
  */
 internal sealed class PixelLayout {
 

@@ -3,7 +3,7 @@ package io.github.lemyst.enfusion
 import java.io.ByteArrayOutputStream
 
 /**
- * Builds small `.edds` files in memory, laid out as the real ones are. Tests never copy
+ * Builds small `.edds` and `.paa` files in memory, laid out as the real ones are. Tests never copy
  * textures out of the game data, which is proprietary.
  */
 object TextureBytes {
@@ -45,6 +45,44 @@ object TextureBytes {
         val blocks = (0 until maxOf(1, (width + 3) / 4) * maxOf(1, (height + 3) / 4)).flatMap { block.toList() }.toByteArray()
         val header = ddsHeader(width, height, 1, fourCC = fourCC("DXT1"), pfFlags = 0x4, bitCount = 0, masks = IntArray(4))
         return eddsBody(header, listOf("COPY" to blocks))
+    }
+
+    /** A DXT1 `.paa` with one mip, raw or as a literal-run LZO stream. */
+    fun paaDxt1(width: Int, height: Int, block: ByteArray, lzo: Boolean): ByteArray {
+        val blocks = (0 until maxOf(1, width / 4) * maxOf(1, height / 4)).flatMap { block.toList() }.toByteArray()
+        val data = if (lzo) lzoLiterals(blocks) else blocks
+        val out = ByteArrayOutputStream()
+        out.short(0xFF01)
+        out.tag("CGVA", ByteArray(4))
+        out.tag("CXAM", ByteArray(4))
+        out.tag("SFFO", ByteArray(64))
+        out.short(0) // palette
+        out.short(if (lzo) width or 0x8000 else width)
+        out.short(height)
+        out.write(data.size and 0xFF); out.write((data.size shr 8) and 0xFF); out.write((data.size shr 16) and 0xFF)
+        out.write(data)
+        out.short(0); out.short(0) // end of the mip list
+        out.short(0)
+        return out.toByteArray()
+    }
+
+    /** A `.paa` header with an ARGB4444 code: named, not decoded. */
+    fun paaArgb4444(width: Int, height: Int): ByteArray {
+        val out = ByteArrayOutputStream()
+        out.short(0x4444)
+        out.short(0)
+        out.short(width); out.short(height)
+        val size = width * height * 2
+        out.write(size and 0xFF); out.write((size shr 8) and 0xFF); out.write((size shr 16) and 0xFF)
+        out.write(ByteArray(size))
+        out.short(0); out.short(0)
+        return out.toByteArray()
+    }
+
+    /** LZO1X: an initial literal run (first byte 17 + n, which needs n >= 4), then end-of-stream. */
+    fun lzoLiterals(data: ByteArray): ByteArray {
+        require(data.size in 4..238)
+        return byteArrayOf((17 + data.size).toByte()) + data + byteArrayOf(0x11, 0, 0)
     }
 
     /** One BC1 block whose four texels per row read colour 0, 1, 2, 3 from left to right. */
@@ -105,5 +143,16 @@ object TextureBytes {
 
     private fun ByteArrayOutputStream.int(v: Int) {
         write(v and 0xFF); write((v shr 8) and 0xFF); write((v shr 16) and 0xFF); write((v ushr 24) and 0xFF)
+    }
+
+    private fun ByteArrayOutputStream.short(v: Int) {
+        write(v and 0xFF); write((v shr 8) and 0xFF)
+    }
+
+    private fun ByteArrayOutputStream.tag(name: String, data: ByteArray) {
+        write("GGAT".toByteArray(Charsets.US_ASCII))
+        write(name.toByteArray(Charsets.US_ASCII))
+        int(data.size)
+        write(data)
     }
 }

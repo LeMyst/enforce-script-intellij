@@ -48,7 +48,7 @@ import javax.swing.SwingConstants
 import javax.swing.SwingUtilities
 
 /**
- * Opens `.edds` files as images, replacing the binary-file placeholder.
+ * Opens `.edds` and `.paa` files as images, replacing the binary-file placeholder.
  *
  * A provider of its own rather than an ImageIO plug-in for the bundled Images editor: that editor
  * finds readers through its own internals, and leaning on them would break the plugin's
