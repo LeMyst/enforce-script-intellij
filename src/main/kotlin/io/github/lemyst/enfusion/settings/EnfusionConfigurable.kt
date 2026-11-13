@@ -7,15 +7,14 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.ui.ToolbarDecorator
-import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBList
+import com.intellij.ui.dsl.builder.Align
+import com.intellij.ui.dsl.builder.panel
 import io.github.lemyst.enfusion.pbo.PboCache
 import io.github.lemyst.enfusion.roots.EnfusionRoots
 import io.github.lemyst.enfusion.roots.EnfusionVanillaConfigLibrary
-import java.awt.BorderLayout
 import javax.swing.DefaultListModel
 import javax.swing.JComponent
-import javax.swing.JPanel
 
 /**
  * Settings | Languages & Frameworks | Enforce Script.
@@ -40,17 +39,19 @@ class EnfusionConfigurable(private val project: Project) : Configurable {
             .setMoveDownAction { move(1) }
             .createPanel()
 
-        val panel = JPanel(BorderLayout())
-        panel.add(
-            JBLabel(
-                "<html>Script roots indexed for navigation &mdash; the vanilla DayZ script tree and " +
-                    "any dependency mod sources, as folders or packed <code>.pbo</code> files." +
-                    "<br>Add the unpacked game data (<code>P:\\DZ</code>) " +
-                    "too to navigate into vanilla configs.<br>Changing this triggers a re-index.</html>"
-            ),
-            BorderLayout.NORTH,
-        )
-        panel.add(toolbar, BorderLayout.CENTER)
+        // The UI DSL's text() wraps at a readable line length. A plain JBLabel in a BorderLayout
+        // takes its one-line preferred width and is cut off at the settings dialog's default size.
+        val panel = panel {
+            row {
+                text(
+                    "Script roots indexed for navigation &mdash; the vanilla DayZ script tree and " +
+                        "any dependency mod sources, as folders or packed <code>.pbo</code> files.<br>" +
+                        "Add the unpacked game data (<code>P:\\DZ</code>) too to navigate into vanilla " +
+                        "configs.<br>Changing this triggers a re-index."
+                )
+            }
+            row { cell(toolbar).align(Align.FILL) }.resizableRow()
+        }
         component = panel
         return panel
     }
