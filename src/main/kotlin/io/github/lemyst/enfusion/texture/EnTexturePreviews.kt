@@ -47,9 +47,45 @@ object EnTexturePreviews {
      * `RefSize` units, not in texture pixels, because one imageset can point to a 1x and a 2x
      * texture. Without a `RefSize`, they are pixels of the top mip.
      */
-    data class Region(val x: Int, val y: Int, val width: Int, val height: Int, val refWidth: Int?, val refHeight: Int?)
+    data class Region(val x: Int, val y: Int, val width: Int, val height: Int, val refWidth: Int?, val refHeight: Int?) {
+
+        /**
+         * The rectangle as fractions of a texture whose largest mip is [topWidth] × [topHeight], or
+         * null when it lies outside it. `Pos` and `Size` count in a [refWidth] × [refHeight] space
+         * (see [EnImageSetTextures]), so fractions place the same rectangle on the 1x and the 2x
+         * texture alike, and on any mip of either. With no space known, they count in the
+         * texture's own pixels.
+         */
+        fun fractions(topWidth: Int, topHeight: Int): Fractions? {
+            val refW = (refWidth ?: topWidth).coerceAtLeast(1).toDouble()
+            val refH = (refHeight ?: topHeight).coerceAtLeast(1).toDouble()
+            val f = Fractions(x / refW, y / refH, width / refW, height / refH)
+            return f.takeUnless { it.w <= 0 || it.h <= 0 || it.x < 0 || it.y < 0 || it.x + it.w > 1.0001 || it.y + it.h > 1.0001 }
+        }
+    }
+
+    data class Fractions(val x: Double, val y: Double, val w: Double, val h: Double)
 
     fun ofTexture(file: VirtualFile, maxSide: Int): Preview = preview(file, null, maxSide)
+
+    /**
+     * The size of the texture's largest mip, or null when it cannot be read. Cached with the
+     * preview headers, so asking again for an unchanged file reads nothing.
+     */
+    fun dimensions(file: VirtualFile): Pair<Int, Int>? {
+        val fileKey = FileKey(file.url, file.modificationStamp)
+        headers[fileKey]?.let { return it.mipSizes[0] }
+        return try {
+            headerOf(load(file)).also { headers[fileKey] = it }.mipSizes[0]
+        } catch (e: TextureFormatException) {
+            null
+        } catch (e: IOException) {
+            null
+        }
+    }
+
+    private fun headerOf(t: Texture) =
+        Header(Summary(t.container, t.formatName, t.width, t.height, t.mips.size, t.compression), t.mips.map { it.width to it.height })
 
     fun ofRegion(file: VirtualFile, region: Region, maxSide: Int): Preview = preview(file, region, maxSide)
 
@@ -84,30 +120,12 @@ object EnTexturePreviews {
         var texture: Texture? = null
         fun texture(): Texture = texture ?: load(file).also { texture = it }
 
-        val header = headers[fileKey] ?: texture().let { t ->
-            Header(
-                Summary(t.container, t.formatName, t.width, t.height, t.mips.size, t.compression),
-                t.mips.map { it.width to it.height },
-            ).also { headers[fileKey] = it }
-        }
+        val header = headers[fileKey] ?: headerOf(texture()).also { headers[fileKey] = it }
         val (topWidth, topHeight) = header.mipSizes[0]
 
         // The rectangle as fractions of the texture, so it can be cut from any mip.
-        val fx: Double
-        val fy: Double
-        val fw: Double
-        val fh: Double
-        if (region == null) {
-            fx = 0.0; fy = 0.0; fw = 1.0; fh = 1.0
-        } else {
-            val refW = (region.refWidth ?: topWidth).coerceAtLeast(1).toDouble()
-            val refH = (region.refHeight ?: topHeight).coerceAtLeast(1).toDouble()
-            fx = region.x / refW; fy = region.y / refH
-            fw = region.width / refW; fh = region.height / refH
-            if (fw <= 0 || fh <= 0 || fx < 0 || fy < 0 || fx + fw > 1.0001 || fy + fh > 1.0001) {
-                return Preview.Failure("the image lies outside its texture")
-            }
-        }
+        val (fx, fy, fw, fh) = if (region == null) Fractions(0.0, 0.0, 1.0, 1.0)
+        else region.fractions(topWidth, topHeight) ?: return Preview.Failure("the image lies outside its texture")
 
         // The smallest mip in which the rectangle still covers the preview: detail without decoding
         // a 4096² mip for a 16-pixel icon.

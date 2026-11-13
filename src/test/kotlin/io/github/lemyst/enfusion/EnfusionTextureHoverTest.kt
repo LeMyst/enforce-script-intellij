@@ -41,14 +41,18 @@ class EnfusionTextureHoverTest : BasePlatformTestCase() {
         return file
     }
 
-    /** `RefSize` is twice the texture, as with a 2x texture: `Pos` and `Size` are in its units. */
-    private fun addImageSet() {
+    /**
+     * `Corner` is the top-right quadrant of the 8-pixel atlas, in that texture's pixels, which is
+     * what `RefSize` repeats. A larger atlas passes its own size and a quadrant in its pixels.
+     */
+    private fun addImageSet(side: Int = 8) {
+        val half = side / 2
         myFixture.addFileToProject(
             "MyMod/GUI/imagesets/my_gui.imageset",
             """
             ImageSetClass {
              Name "my_gui"
-             RefSize 16 16
+             RefSize $side $side
              Textures {
               ImageSetTextureClass {
                mpix 1
@@ -58,8 +62,8 @@ class EnfusionTextureHoverTest : BasePlatformTestCase() {
              Images {
               ImageSetDefClass Corner {
                Name "Corner"
-               Pos 8 0
-               Size 8 8
+               Pos $half 0
+               Size $half $half
                Flags 0
               }
              }
@@ -133,9 +137,9 @@ class EnfusionTextureHoverTest : BasePlatformTestCase() {
         assertEquals("my_gui.edds", entry.texture.name)
 
         val rendered = EnTextureDocs.render(def)!!
-        assertTrue(rendered.html, rendered.html.contains("8 × 8 at 8, 0"))
+        assertTrue(rendered.html, rendered.html.contains("4 × 4 at 4, 0"))
         val image = rendered.images.values.single() as BufferedImage
-        // Pos 8 0 / Size 8 8 in RefSize 16 units is the top-right quadrant of the 8-pixel texture.
+        // Pos 4 0 / Size 4 4 is the top-right quadrant of the 8-pixel texture.
         assertEquals(topRight, image.getRGB(0, 0))
         assertEquals(topRight, image.getRGB(image.width - 1, image.height - 1))
     }
@@ -187,7 +191,7 @@ class EnfusionTextureHoverTest : BasePlatformTestCase() {
             file.setBinaryContent(TextureBytes.eddsBgra(1024, 1024) { x, _ -> if (x < 512) topLeft else topRight })
         }
         assertTrue(file.length > 2_500_000)
-        addImageSet()
+        addImageSet(1024)
 
         myFixture.configureByText("hud.es", "class Hud { string m_Tex = \"{0123456789ABCDEF}MyMod/GUI/imagesets/my_g<caret>ui.edds\"; }")
         assertEquals(file, (resolveAtCaret() as com.intellij.psi.PsiFile).virtualFile)

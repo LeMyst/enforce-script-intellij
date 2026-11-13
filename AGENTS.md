@@ -118,8 +118,8 @@ Vanilla DayZ sources are proprietary. Never commit them, nor fixtures copied out
   `$PBOPREFIX$` ancestor (`EnfusionFileTypeOverrider`). Config files are claimed by exact file name
   so that the plugin never competes with C/C++.
 - **No internal API.** Keep the verifier's internal-API count at zero. Experimental API usage
-  (currently `AdditionalLibraryRootsListener.fireAdditionalLibraryChanged`) must be load-bearing and
-  documented in the README.
+  (currently `AdditionalLibraryRootsListener.fireAdditionalLibraryChanged`, and `TargetPresentation`
+  and `Pointer` in the texture hover) must be load-bearing and documented in the README.
 - **Resolution must be cached.** Resolve through `ResolveCache`, memoise through
   `CachedValuesManager` keyed on PSI and root modification trackers, and wrap recursive walks in
   `RecursionManager`.

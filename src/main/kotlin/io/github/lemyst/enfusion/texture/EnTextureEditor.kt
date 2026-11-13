@@ -8,6 +8,7 @@ import com.intellij.openapi.actionSystem.DefaultActionGroup
 import com.intellij.openapi.actionSystem.ToggleAction
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
+import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.fileEditor.FileEditor
 import com.intellij.openapi.fileEditor.FileEditorPolicy
 import com.intellij.openapi.fileEditor.FileEditorProvider
@@ -18,19 +19,28 @@ import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.util.UserDataHolderBase
+import com.intellij.openapi.util.text.StringUtil
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.VirtualFileManager
 import com.intellij.openapi.vfs.newvfs.BulkFileListener
 import com.intellij.openapi.vfs.newvfs.events.VFileEvent
+import com.intellij.pom.Navigatable
+import com.intellij.psi.PsiFile
+import com.intellij.psi.PsiManager
+import com.intellij.psi.PsiTreeChangeAdapter
+import com.intellij.psi.PsiTreeChangeEvent
 import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.util.ui.JBUI
+import com.intellij.util.concurrency.AppExecutorUtil
 import com.intellij.util.ui.UIUtil
 import io.github.lemyst.enfusion.texture.format.Texture
 import io.github.lemyst.enfusion.texture.format.TextureFormatException
 import io.github.lemyst.enfusion.texture.format.TextureReader
+import java.awt.BasicStroke
 import java.awt.BorderLayout
+import java.awt.Color
 import java.awt.Dimension
 import java.awt.Graphics
 import java.awt.Graphics2D
@@ -38,6 +48,8 @@ import java.awt.GridBagLayout
 import java.awt.RenderingHints
 import java.awt.event.ComponentAdapter
 import java.awt.event.ComponentEvent
+import java.awt.event.MouseAdapter
+import java.awt.event.MouseEvent
 import java.awt.image.BufferedImage
 import java.beans.PropertyChangeListener
 import java.io.IOException
@@ -61,7 +73,7 @@ class EnTextureEditorProvider : FileEditorProvider, DumbAware {
 
     override fun acceptRequiresReadAction(): Boolean = false
 
-    override fun createEditor(project: Project, file: VirtualFile): FileEditor = EnTextureEditor(file)
+    override fun createEditor(project: Project, file: VirtualFile): FileEditor = EnTextureEditor(project, file)
 
     override fun getEditorTypeId(): String = "enfusion-texture-viewer"
 
@@ -69,12 +81,13 @@ class EnTextureEditorProvider : FileEditorProvider, DumbAware {
 }
 
 /**
- * The viewer: zoom, fit to window, a transparency checkerboard, and a mip picker.
+ * The viewer: zoom, fit to window, a transparency checkerboard, a mip picker, and the outline of
+ * every imageset image placed on the texture.
  *
  * Decoding runs off the EDT. A 4096² DXT5 mip takes long enough to freeze the UI, and the file
  * may be re-exported while open, in which case it is decoded again.
  */
-class EnTextureEditor(private val file: VirtualFile) : UserDataHolderBase(), FileEditor {
+class EnTextureEditor(private val project: Project, private val file: VirtualFile) : UserDataHolderBase(), FileEditor {
 
     private val canvas = Canvas()
 
@@ -106,6 +119,24 @@ class EnTextureEditor(private val file: VirtualFile) : UserDataHolderBase(), Fil
                 override fun setSelected(e: AnActionEvent, state: Boolean) {
                     canvas.showAlpha = state
                     canvas.repaint()
+                }
+
+                override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
+            },
+            object : ToggleAction(
+                "Show Imageset Regions",
+                "Outline the images that imagesets place on this texture",
+                AllIcons.Graph.Grid,
+            ) {
+                override fun isSelected(e: AnActionEvent): Boolean = canvas.showRegions
+                override fun setSelected(e: AnActionEvent, state: Boolean) {
+                    canvas.showRegions = state
+                    canvas.repaint()
+                }
+
+                override fun update(e: AnActionEvent) {
+                    super.update(e)
+                    e.presentation.isEnabled = canvas.regions.isNotEmpty()
                 }
 
                 override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
@@ -146,7 +177,37 @@ class EnTextureEditor(private val file: VirtualFile) : UserDataHolderBase(), Fil
                     if (events.any { it.file == file }) load()
                 }
             })
+        // An imageset edited, added or deleted can move, add or remove an outline.
+        PsiManager.getInstance(project).addPsiTreeChangeListener(object : PsiTreeChangeAdapter() {
+            override fun childrenChanged(event: PsiTreeChangeEvent) = onPsiChange(event)
+            override fun childAdded(event: PsiTreeChangeEvent) = onPsiChange(event)
+            override fun childRemoved(event: PsiTreeChangeEvent) = onPsiChange(event)
+            override fun childReplaced(event: PsiTreeChangeEvent) = onPsiChange(event)
+        }, this)
         load()
+        loadRegions()
+    }
+
+    private fun onPsiChange(event: PsiTreeChangeEvent) {
+        val changed = event.file ?: event.child as? PsiFile ?: return
+        if (changed.name.endsWith(".imageset", ignoreCase = true)) loadRegions()
+    }
+
+    /**
+     * Looks up the imageset images on this texture, off the EDT and once indexing is done. A burst
+     * of edits to an imageset coalesces into one lookup, and closing the viewer cancels it.
+     */
+    private fun loadRegions() {
+        ReadAction.nonBlocking<List<EnImageSetTextures.Placed>> { EnImageSetTextures.entriesOn(project, file) }
+            .inSmartMode(project)
+            .expireWith(this)
+            .coalesceBy(this, RegionsLookup)
+            .finishOnUiThread(ModalityState.any()) { placed ->
+                canvas.regions = placed
+                updateInfo()
+                canvas.repaint()
+            }
+            .submit(AppExecutorUtil.getAppExecutorService())
     }
 
     private fun action(text: String, icon: javax.swing.Icon, run: () -> Unit) =
@@ -220,12 +281,22 @@ class EnTextureEditor(private val file: VirtualFile) : UserDataHolderBase(), Fil
                 updatingMips = false
                 mipBox.isVisible = t.mips.size > 1
 
-                val mipCount = t.mips.size
-                info.text = "${t.width} × ${t.height}  ·  ${t.formatName}  ·  $mipCount mip${if (mipCount == 1) "" else "s"}" +
-                    "  ·  ${t.container}, ${t.compression}"
+                updateInfo()
                 canvas.show(outcome.image, outcome.error)
             }
         }
+    }
+
+    /** The imageset images the viewer outlines, for tests. */
+    internal fun shownRegions(): List<EnImageSetTextures.Placed> = canvas.regions
+
+    private fun updateInfo() {
+        val t = texture ?: return
+        val mipCount = t.mips.size
+        val images = canvas.regions.size
+        info.text = "${t.width} × ${t.height}  ·  ${t.formatName}  ·  $mipCount mip${if (mipCount == 1) "" else "s"}" +
+            "  ·  ${t.container}, ${t.compression}" +
+            if (images > 0) "  ·  $images imageset image${if (images == 1) "" else "s"}" else ""
     }
 
     override fun getComponent(): JComponent = root
@@ -256,9 +327,71 @@ class EnTextureEditor(private val file: VirtualFile) : UserDataHolderBase(), Fil
         private var zoom = 1.0
         private var fitting = true
         var showAlpha = true
+        var showRegions = true
+        var regions: List<EnImageSetTextures.Placed> = emptyList()
+            set(value) {
+                field = value
+                hovered = null
+                toolTipText = null
+            }
+        private var hovered: EnImageSetTextures.Placed? = null
 
         init {
             isFocusable = true
+            val mouse = object : MouseAdapter() {
+                override fun mouseMoved(e: MouseEvent) {
+                    val now = regionAt(e.x, e.y)
+                    if (now === hovered) return
+                    hovered = now
+                    toolTipText = now?.let(::tooltipOf)
+                    repaint()
+                }
+
+                override fun mouseExited(e: MouseEvent) {
+                    if (hovered == null) return
+                    hovered = null
+                    repaint()
+                }
+
+                override fun mouseClicked(e: MouseEvent) {
+                    if (e.clickCount != 2 || !SwingUtilities.isLeftMouseButton(e)) return
+                    val def = regionAt(e.x, e.y)?.def?.takeIf { it.isValid } ?: return
+                    (def as? Navigatable)?.navigate(true)
+                }
+            }
+            addMouseListener(mouse)
+            addMouseMotionListener(mouse)
+        }
+
+        /** Where a region lies on the canvas at the current zoom, or null when it is off the texture. */
+        private fun boundsOf(placed: EnImageSetTextures.Placed): java.awt.Rectangle? {
+            val t = texture ?: return null
+            val img = image ?: return null
+            val f = placed.region.fractions(t.width, t.height) ?: return null
+            val z = effectiveZoom()
+            val w = img.width * z
+            val h = img.height * z
+            val left = Math.round(f.x * w).toInt()
+            val top = Math.round(f.y * h).toInt()
+            val right = Math.round((f.x + f.w) * w).toInt()
+            val bottom = Math.round((f.y + f.h) * h).toInt()
+            return java.awt.Rectangle(left, top, maxOf(1, right - left), maxOf(1, bottom - top))
+        }
+
+        /** The smallest region under the point, so an icon nested in a larger panel stays reachable. */
+        private fun regionAt(x: Int, y: Int): EnImageSetTextures.Placed? {
+            if (!showRegions) return null
+            return regions
+                .mapNotNull { p -> boundsOf(p)?.takeIf { it.contains(x, y) }?.let { p to it } }
+                .minByOrNull { (_, r) -> r.width.toLong() * r.height }
+                ?.first
+        }
+
+        private fun tooltipOf(placed: EnImageSetTextures.Placed): String {
+            val r = placed.region
+            return "<html><b>${StringUtil.escapeXmlEntities(placed.name)}</b> in " +
+                "${StringUtil.escapeXmlEntities(placed.setName)}<br>${r.width} × ${r.height} at ${r.x}, ${r.y}" +
+                "<br><i>Double-click to open</i></html>"
         }
 
         fun show(image: BufferedImage?, message: String?) {
@@ -328,9 +461,29 @@ class EnTextureEditor(private val file: VirtualFile) : UserDataHolderBase(), Fil
                     if (z >= 1.0) RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR else RenderingHints.VALUE_INTERPOLATION_BILINEAR,
                 )
                 g2.drawImage(if (showAlpha) img else opaqueImage(img), x, y, w, h, null)
+                if (showRegions) paintRegions(g2)
                 message?.let { paintMessage(g2) }
             } finally {
                 g2.dispose()
+            }
+        }
+
+        /**
+         * Each region as a bright outline over a dark one, which reads on light and dark textures
+         * alike. The hovered region is also filled, so it stands out where outlines touch.
+         */
+        private fun paintRegions(g2: Graphics2D) {
+            g2.stroke = BasicStroke(1f)
+            for (placed in regions) {
+                val r = boundsOf(placed) ?: continue
+                if (placed === hovered) {
+                    g2.color = REGION_FILL
+                    g2.fillRect(r.x, r.y, r.width, r.height)
+                }
+                g2.color = REGION_SHADOW
+                g2.drawRect(r.x - 1, r.y - 1, r.width + 1, r.height + 1)
+                g2.color = if (placed === hovered) REGION_HOVERED else REGION_LINE
+                g2.drawRect(r.x, r.y, r.width - 1, r.height - 1)
             }
         }
 
@@ -374,6 +527,9 @@ class EnTextureEditor(private val file: VirtualFile) : UserDataHolderBase(), Fil
         }
     }
 
+    /** With the editor, the key that merges a burst of region lookups into one. */
+    private object RegionsLookup
+
     private companion object {
         const val ZOOM_STEP = 1.25
         const val MIN_ZOOM = 1.0 / 64
@@ -384,5 +540,11 @@ class EnTextureEditor(private val file: VirtualFile) : UserDataHolderBase(), Fil
 
         val CHECKER_LIGHT = JBColor(0xFFFFFF, 0x3C3F41)
         val CHECKER_DARK = JBColor(0xD8D8D8, 0x2B2B2B)
+
+        // Fixed rather than themed: they are drawn over the texture, not over the IDE background.
+        val REGION_LINE = Color(0x00, 0xC8, 0xFF)
+        val REGION_HOVERED = Color(0xFF, 0xD0, 0x00)
+        val REGION_FILL = Color(0xFF, 0xD0, 0x00, 0x40)
+        val REGION_SHADOW = Color(0, 0, 0, 0x90)
     }
 }
