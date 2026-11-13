@@ -64,8 +64,8 @@ committed `gradle.properties`:
 enfusionCorpusRoot  = P:\\scripts
 enfusionLayoutRoots = P:\\gui;<a mod checkout with hand-written layouts>
 enfusionConfigRoots = P:\\DZ;P:\\scripts;<one or more mod checkouts>
+enfusionTextureRoots = P:\\gui;P:\\DZ;<one or more mod checkouts>
 enfusionPboRoots     = <a DayZ install's addons folder>;<one or more Workshop @Mod folders>
-enfusionTextureRoots = P:\\gui;<one or more mod checkouts>
 # enfusionCorpusLimit = 300   # optional sampling
 ```
 
@@ -86,7 +86,7 @@ Vanilla DayZ sources are proprietary. Never commit them, nor fixtures copied out
     dispatch names, asset paths, config classes).
   - `index`: the file-based indexes.
   - `roots`: library roots (vanilla scripts, bundled CF stub, vanilla configs).
-  - `texture`: the `.edds` viewer. Its `format` subpackage is the decoder and uses no IntelliJ
+  - `texture`: the `.edds` / `.paa` viewer. Its `format` subpackage is the decoder and uses no IntelliJ
     API, so it can be tested on plain bytes; keep it that way.
   - `pbo`: `.pbo` roots. Its `format` subpackage (PBO reader, LZSS, `config.bin` derapifier) uses
     no IntelliJ API, like `texture/format`. `PboCache` unpacks only the navigable entries of a PBO

@@ -149,3 +149,76 @@ internal object EddsReader {
         99 to ("BC7 sRGB" to null),
     )
 }
+
+/**
+ * `.paa`, the Real Virtuality texture that DayZ inherited from Arma.
+ *
+ * A 2-byte format code, a run of `GGAT` tags (average colour, maximum colour, flags, mip offsets,
+ * swizzle), a palette count, then the mips largest first. Each mip is a `uint16` width and height
+ * and a 24-bit size; the top bit of the width marks LZO-compressed data. A zero width and height
+ * end the list.
+ *
+ * Only the DXT formats are decoded. Of the 40,055 `.paa` files under `P:\DZ`, 40,052 are DXT1 or
+ * DXT5; the other three are an ARGB4444 detail map and an ARGB1555 noise map in `data/data`. Those
+ * codes are still named, so that a file using one says what it is rather than "corrupt".
+ */
+internal object PaaReader {
+
+    private const val LZO_FLAG = 0x8000
+
+    fun read(bytes: ByteArray): Texture {
+        if (bytes.size < 2) throw TextureFormatException("not a texture")
+        val code = readUInt16(bytes, 0)
+        val (formatName, layout) = FORMATS[code] ?: throw TextureFormatException(
+            "not an EDDS or PAA texture (starts with 0x${Integer.toHexString(code)})"
+        )
+
+        var at = 2
+        while (at + 12 <= bytes.size && tag(bytes, at) == "GGAT") {
+            val length = readInt32(bytes, at + 8).toLong() and 0xFFFFFFFFL
+            if (at + 12L + length > bytes.size) throw TextureFormatException("truncated PAA tag")
+            at += 12 + length.toInt()
+        }
+        if (at + 2 > bytes.size) throw TextureFormatException("truncated PAA header")
+        val paletteSize = readUInt16(bytes, at)
+        at += 2 + 3 * paletteSize
+
+        val mips = ArrayList<TextureMip>()
+        while (true) {
+            if (at + 4 > bytes.size) throw TextureFormatException("truncated PAA mip list")
+            val rawWidth = readUInt16(bytes, at)
+            val height = readUInt16(bytes, at + 2)
+            at += 4
+            if (rawWidth == 0 && height == 0) break
+            if (at + 3 > bytes.size) throw TextureFormatException("truncated PAA mip list")
+            val size = (bytes[at].toInt() and 0xFF) or
+                ((bytes[at + 1].toInt() and 0xFF) shl 8) or
+                ((bytes[at + 2].toInt() and 0xFF) shl 16)
+            at += 3
+            if (at.toLong() + size > bytes.size) throw TextureFormatException("truncated PAA mip data")
+            val compressed = rawWidth and LZO_FLAG != 0
+            val width = rawWidth and LZO_FLAG.inv()
+            checkDimensions(width, height)
+            mips += TextureMip(width, height, at, size, if (compressed) TextureCodec.LZO else TextureCodec.RAW)
+            at += size
+            if (mips.size > 32) throw TextureFormatException("too many PAA mips")
+        }
+        if (mips.isEmpty()) throw TextureFormatException("PAA holds no mips")
+        return Texture("PAA", formatName, layout, mips, bytes)
+    }
+
+    private fun tag(bytes: ByteArray, at: Int): String =
+        String(CharArray(4) { (bytes[at + it].toInt() and 0xFF).toChar() })
+
+    private val FORMATS: Map<Int, Pair<String, PixelLayout?>> = mapOf(
+        0xFF01 to ("DXT1" to PixelLayout.Block(PixelLayout.Block.Kind.BC1)),
+        0xFF02 to ("DXT2" to PixelLayout.Block(PixelLayout.Block.Kind.BC2)),
+        0xFF03 to ("DXT3" to PixelLayout.Block(PixelLayout.Block.Kind.BC2)),
+        0xFF04 to ("DXT4" to PixelLayout.Block(PixelLayout.Block.Kind.BC3)),
+        0xFF05 to ("DXT5" to PixelLayout.Block(PixelLayout.Block.Kind.BC3)),
+        0x4444 to ("ARGB4444" to null),
+        0x1555 to ("ARGB1555" to null),
+        0x8888 to ("ARGB8888" to null),
+        0x8080 to ("AI88" to null),
+    )
+}
