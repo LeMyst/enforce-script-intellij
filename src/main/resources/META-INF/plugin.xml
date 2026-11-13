@@ -301,6 +301,10 @@
              Ctrl+Click on a vanilla type resolve from mod code. -->
         <additionalLibraryRootsProvider
                 implementation="io.github.lemyst.enfusion.roots.EnfusionLibraryRootsProvider"/>
+        <!-- Files unpacked from a .pbo root are a cache: editing one would be lost on the next
+             unpack, so the editor opens them locked. -->
+        <writingAccessProvider
+                implementation="io.github.lemyst.enfusion.pbo.PboCacheWritingAccessProvider"/>
 
         <!-- .claude/worktrees holds duplicate checkouts; without this every class indexes twice. -->
         <directoryIndexExcludePolicy

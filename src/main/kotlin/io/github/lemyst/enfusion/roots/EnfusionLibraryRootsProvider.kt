@@ -4,7 +4,6 @@ import com.intellij.ide.trustedProjects.TrustedProjects
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.AdditionalLibraryRootsProvider
 import com.intellij.openapi.roots.SyntheticLibrary
-import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VirtualFile
 
 /**
@@ -45,11 +44,11 @@ class EnfusionLibraryRootsProvider : AdditionalLibraryRootsProvider() {
         return scriptRoots + CfStubs.rootsFor(scriptRoots)
     }
 
-    /** Untrusted projects resolve nothing from their root list: see [EnfusionRoots.configuredRoots]. */
-    private fun resolveRoots(project: Project, trusted: Boolean): List<VirtualFile> {
-        val fs = LocalFileSystem.getInstance()
-        return EnfusionRoots.configuredRoots(project, trusted)
-            .mapNotNull { fs.findFileByPath(it.replace('\\', '/')) }
-            .filter { it.isDirectory }
-    }
+    /**
+     * Untrusted projects resolve nothing from their root list: see [EnfusionRoots.configuredRoots].
+     * A `.pbo` root contributes its unpacked cache, and only once it exists: this can run inside a
+     * read action, so unpacking is left to [EnfusionRoots.apply] and the startup refresh.
+     */
+    private fun resolveRoots(project: Project, trusted: Boolean): List<VirtualFile> =
+        EnfusionRoots.resolveForRead(EnfusionRoots.configuredRoots(project, trusted))
 }

@@ -6,8 +6,10 @@ import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.AdditionalLibraryRootsListener
 import com.intellij.openapi.vfs.LocalFileSystem
+import com.intellij.openapi.vfs.VfsUtil
 import com.intellij.openapi.vfs.VirtualFile
 import io.github.lemyst.enfusion.lang.EnfusionFileTypeOverrider
+import io.github.lemyst.enfusion.pbo.PboCache
 import io.github.lemyst.enfusion.settings.EnfusionProjectSettings
 import java.io.File
 
@@ -88,34 +90,44 @@ object EnfusionRoots {
 
         // Resolving paths to VirtualFiles is a slow operation and the platform asserts against
         // those on the EDT -- and the settings dialog's apply() is on the EDT. So the VFS work and
-        // the roots-changed write action both go to a pooled thread.
+        // the roots-changed write action both go to a pooled thread, and so does unpacking a PBO.
         //
-        // The list feeds three libraries, so each is told only about its own files: a game-data
-        // folder coming or going must not make the platform rescan the script roots, and the
-        // reverse. The CF stub comes and goes with the list too, when a root with CF's real
-        // sources is added or removed.
+        // The old list resolves through the existing PBO caches only. A `.pbo` it names has
+        // nothing to unpack: it was either unpacked already or never resolved.
         ApplicationManager.getApplication().executeOnPooledThread {
-            val (oldData, oldScripts) = splitGameData(toFiles(oldRoots))
-            val (newData, newScripts) = splitGameData(toFiles(newRoots))
-            val oldStub = CfStubs.rootsFor(oldScripts)
-            val newStub = CfStubs.rootsFor(newScripts)
-            WriteAction.runAndWait<RuntimeException> {
-                if (oldScripts != newScripts) {
-                    AdditionalLibraryRootsListener.fireAdditionalLibraryChanged(
-                        project, LIBRARY_NAME, oldScripts, newScripts, "enfusion",
-                    )
-                }
-                if (oldData != newData) {
-                    AdditionalLibraryRootsListener.fireAdditionalLibraryChanged(
-                        project, EnfusionVanillaConfigLibrary.LIBRARY_NAME, oldData, newData,
-                        "enfusion-vanilla-configs",
-                    )
-                }
-                if (oldStub != newStub) {
-                    AdditionalLibraryRootsListener.fireAdditionalLibraryChanged(
-                        project, CF_STUBS_LIBRARY_NAME, oldStub, newStub, "enfusion-cf-stubs",
-                    )
-                }
+            fireChanged(project, toFiles(oldRoots, unpack = false), toFiles(newRoots, unpack = true))
+        }
+    }
+
+    /**
+     * Tells the platform what changed between two resolved root lists, library by library.
+     *
+     * The list feeds three libraries, so each is told only about its own files: a game-data
+     * folder coming or going must not make the platform rescan the script roots, and the
+     * reverse. The CF stub comes and goes with the list too, when a root with CF's real sources
+     * is added or removed.
+     */
+    private fun fireChanged(project: Project, oldRoots: List<VirtualFile>, newRoots: List<VirtualFile>) {
+        val (oldData, oldScripts) = splitGameData(oldRoots)
+        val (newData, newScripts) = splitGameData(newRoots)
+        val oldStub = CfStubs.rootsFor(oldScripts)
+        val newStub = CfStubs.rootsFor(newScripts)
+        WriteAction.runAndWait<RuntimeException> {
+            if (oldScripts != newScripts) {
+                AdditionalLibraryRootsListener.fireAdditionalLibraryChanged(
+                    project, LIBRARY_NAME, oldScripts, newScripts, "enfusion",
+                )
+            }
+            if (oldData != newData) {
+                AdditionalLibraryRootsListener.fireAdditionalLibraryChanged(
+                    project, EnfusionVanillaConfigLibrary.LIBRARY_NAME, oldData, newData,
+                    "enfusion-vanilla-configs",
+                )
+            }
+            if (oldStub != newStub) {
+                AdditionalLibraryRootsListener.fireAdditionalLibraryChanged(
+                    project, CF_STUBS_LIBRARY_NAME, oldStub, newStub, "enfusion-cf-stubs",
+                )
             }
         }
     }
@@ -138,25 +150,61 @@ object EnfusionRoots {
      * working by itself once an unrelated background refresh happened to reach the drive, which is
      * exactly the kind of intermittent behaviour that is miserable to diagnose.
      *
+     * A `.pbo` path resolves to its cache directory (see [PboCache]). With [unpack] it is unpacked
+     * first when missing or stale; without it only an existing cache is used.
+     *
      * Must not run on the EDT, and must not run inside a read action.
      */
-    private fun toFiles(paths: List<String>): List<VirtualFile> {
+    private fun toFiles(paths: List<String>, unpack: Boolean): List<VirtualFile> =
+        paths.mapNotNull { resolveForWrite(it, unpack)?.first }
+
+    /** The root as a refreshed VirtualFile, and whether a PBO behind it was just unpacked. */
+    private fun resolveForWrite(path: String, unpack: Boolean): Pair<VirtualFile, Boolean>? {
         val fs = LocalFileSystem.getInstance()
-        return paths.mapNotNull { fs.refreshAndFindFileByPath(it.replace('\\', '/')) }
+        if (!PboCache.isPbo(path)) return fs.refreshAndFindFileByPath(path.replace('\\', '/'))?.let { it to false }
+        val (dir, extracted) = if (unpack) {
+            PboCache.ensure(path)?.let { it.dir to it.extracted } ?: return null
+        } else {
+            (PboCache.existingDir(path) ?: return null) to false
+        }
+        val file = fs.refreshAndFindFileByPath(dir.toString().replace('\\', '/')) ?: return null
+        // A re-unpacked PBO replaced the whole tree, which the VFS snapshot still remembers as it was.
+        if (extracted) VfsUtil.markDirtyAndRefresh(false, true, true, file)
+        return file to extracted
     }
 
     /**
      * Pulls every configured root into the VFS, returning any that could not be found.
      *
      * Runs on every project open, not only the first: roots persisted from an earlier session are
-     * equally absent from a fresh VFS snapshot.
+     * equally absent from a fresh VFS snapshot. It is also where `.pbo` roots are unpacked or
+     * brought up to date after a Workshop update, and the platform is told about any cache that
+     * appeared, since the library provider never unpacks anything itself.
      */
     fun refreshAndReportMissing(project: Project): List<String> {
-        val fs = LocalFileSystem.getInstance()
-        return configuredRoots(project).filter { path ->
-            val file = fs.refreshAndFindFileByPath(path.replace('\\', '/'))
-            file == null || !file.isDirectory
+        val roots = configuredRoots(project)
+        val missing = ArrayList<String>()
+        val before = toFiles(roots, unpack = false)
+        val after = ArrayList<VirtualFile>()
+        for (path in roots) {
+            val resolved = resolveForWrite(path, unpack = true)
+            if (resolved == null || !resolved.first.isDirectory) missing += path
+            resolved?.first?.let { after += it }
         }
+        if (before != after) fireChanged(project, before, after)
+        return missing
+    }
+
+    /**
+     * The roots as the library provider sees them: no VFS refresh, and a `.pbo` stands for its
+     * cache directory only if one exists. Safe in a read action.
+     */
+    fun resolveForRead(paths: List<String>): List<VirtualFile> {
+        val fs = LocalFileSystem.getInstance()
+        return paths.mapNotNull { path ->
+            val target = if (PboCache.isPbo(path)) PboCache.existingDir(path)?.toString() ?: return@mapNotNull null else path
+            fs.findFileByPath(target.replace('\\', '/'))
+        }.filter { it.isDirectory }
     }
 
     /**
