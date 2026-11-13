@@ -73,14 +73,17 @@ inputs.
 - **`.layout` / `.imageset` support** — a dedicated PSI language (not just syntax highlighting) with
   structure view and folding, which is what makes widget and imageset navigation resolve to real
   elements instead of a plain-text search.
-- **`.edds` texture viewer** — opening a texture shows the image instead of binary content, with
+- **`.edds` and `.paa` texture viewer** — opening a texture shows the image instead of binary content, with
   zoom (toolbar or `Ctrl`+wheel), fit to window, actual size, a transparency checkerboard that can be
   switched off (for textures that keep data in alpha), and a picker for every mip level. The status
-  line gives size, pixel format, mip count and compression. It decodes uncompressed BGRA/BGRX/RGBA,
-  DXT1, DXT3 and DXT5, raw or LZ4-compressed, which covers every `.edds` in the vanilla `gui` folder
-  except the font atlases. **Not supported:** BC7, used only by those 17 font atlases (the viewer
-  names the format instead of showing it), cube maps, and `.paa` (tracked as #14). It opens on the
-  largest mip of at most 4096 × 4096; larger mips are in the picker.
+  line gives size, pixel format, mip count and compression. For `.edds` it decodes uncompressed
+  BGRA/BGRX/RGBA, DXT1, DXT3 and DXT5, raw or LZ4-compressed, which covers every `.edds` in the
+  vanilla `gui` folder except the font atlases. For `.paa` it decodes DXT1 to DXT5, raw or
+  LZO-compressed: all but three of the 40,055 `.paa` files in the vanilla game data. **Not
+  supported:** BC7 `.edds`, used only by those 17 font atlases; the uncompressed `.paa` formats
+  (ARGB4444, ARGB1555, ARGB8888, AI88), used by three vanilla detail and noise maps; and cube maps.
+  The viewer names an unsupported format instead of showing it. It opens on the largest mip of at
+  most 4096 × 4096; larger mips are in the picker.
 - **Class hierarchy** (`Ctrl+H`) modelling both relationships the language has: `extends`, and
   `modded class` layering. Every layer of a class hangs off the base, which is the view that matters
   here — a `modded class X` names nothing at all, so the link to what it patches exists only because
@@ -366,6 +369,11 @@ mod called BattleRoyale):
 - The mip picker steps through every level down to 1 × 1.
 - Open one of the `P:\guionts` BC7 atlases → a message naming BC7, not an error dialog.
 - Re-export a mod's `.edds` while it is open → the view reloads.
+- Open a mod's `Mod_Logo.paa`, then a large vanilla one such as
+  `P:\DZ\characters\tops\data\gorka_upper_as.paa` → each appears, and the status line names DXT1 or
+  DXT5 and `PAA, LZO`. Ctrl+Click a `picture="…/Mod_Logo.paa"` in a `config.cpp` → it opens in the
+  viewer.
+- Open `P:\DZ\data\data\detailmap_4444.paa` → a message naming ARGB4444, not an error.
 
 **Rename and inspections**
 
@@ -447,10 +455,10 @@ Lexed 2811 files / 416578 lines / 2595003 tokens in 1154ms (360986 lines/s)
 M1 adds a parsing counterpart asserting zero `PsiErrorElement`s and exact text round-tripping, run
 under two different preprocessor define configurations.
 
-`EnfusionTextureCorpusTest` decodes every `.edds` under `enfusionTextureRoots` (sampled down to
-`enfusionCorpusLimit`, 2,000 per root by default) and fails on any file it calls corrupt. A file in a
-format not decoded here is counted, not failed, and the run prints a breakdown by format. Use
-`P:\gui` and a few mods; `P:\DZ` adds a handful of world textures.
+`EnfusionTextureCorpusTest` decodes every `.edds` and `.paa` under `enfusionTextureRoots`
+(sampled down to `enfusionCorpusLimit`, 2,000 per root by default) and fails on any file it calls
+corrupt. A file in a format not decoded here is counted, not failed, and the run prints a breakdown
+by format. Use `P:\gui`, `P:\DZ` (about 40,000 `.paa`, hence the sampling) and a few mods.
 
 Both read their root from the `enfusionCorpusRoot` Gradle property and **skip** (rather than fail)
 when it is unset or the path is absent, so CI works without it. The roots are machine-specific, so

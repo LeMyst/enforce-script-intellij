@@ -1,6 +1,7 @@
 package io.github.lemyst.enfusion
 
 import io.github.lemyst.enfusion.texture.format.Lz4
+import io.github.lemyst.enfusion.texture.format.Lzo1x
 import io.github.lemyst.enfusion.texture.format.TextureFormatException
 import io.github.lemyst.enfusion.texture.format.TextureReader
 import io.github.lemyst.enfusion.texture.format.UnsupportedTextureException
@@ -8,7 +9,7 @@ import junit.framework.TestCase
 import kotlin.random.Random
 
 /**
- * The texture decoders on synthetic bytes. Real files are covered by [EnfusionTextureCorpusTest];
+ * The texture decoders, `.edds` and `.paa`, on synthetic bytes. Real files are covered by [EnfusionTextureCorpusTest];
  * these pin down each codec and, above all, that a corrupt file is reported rather than crashing.
  */
 class EnfusionTextureFormatTest : TestCase() {
@@ -79,6 +80,44 @@ class EnfusionTextureFormatTest : TestCase() {
         assertEquals(0xFF0000FF.toInt(), image.getRGB(1, 0))
     }
 
+    fun testDxt1PaaDecodes() {
+        val texture = TextureReader.read(TextureBytes.paaDxt1(4, 4, TextureBytes.bc1Block(0xF800, 0x001F), lzo = false))
+        assertEquals("PAA", texture.container)
+        assertEquals("DXT1", texture.formatName)
+        assertEquals("raw", texture.compression)
+        val image = texture.decode(0)
+        assertEquals(0xFFFF0000.toInt(), image.getRGB(0, 0))
+        assertEquals(0xFF5500AA.toInt(), image.getRGB(3, 3))
+    }
+
+    /** The top bit of a `.paa` mip width marks LZO data; the width itself is the other 15 bits. */
+    fun testLzoPaaDecodes() {
+        val texture = TextureReader.read(TextureBytes.paaDxt1(8, 4, TextureBytes.bc1Block(0xF800, 0x001F), lzo = true))
+        assertEquals("LZO", texture.compression)
+        assertEquals(8, texture.width)
+        assertEquals(0xFFFF0000.toInt(), texture.decode(0).getRGB(4, 2))
+    }
+
+    /**
+     * A back-reference, which a literal-only stream never reaches: "abcd", then an M3 match of
+     * length 6 at distance 3 (it overlaps its own output, giving "bcdbcd"), then the end marker.
+     */
+    fun testLzoMatch() {
+        val stream = byteArrayOf(
+            21, 'a'.code.toByte(), 'b'.code.toByte(), 'c'.code.toByte(), 'd'.code.toByte(),
+            (32 or 4).toByte(), (2 shl 2).toByte(), 0,
+            0x11, 0, 0,
+        )
+        val out = Lzo1x.decompress(stream, 0, stream.size, 10)
+        assertEquals("abcdbcdbcd", String(out, Charsets.US_ASCII))
+    }
+
+    fun testUncompressedPaaFormatsAreNamedNotDecoded() {
+        val texture = TextureReader.read(TextureBytes.paaArgb4444(4, 4))
+        assertEquals("ARGB4444", texture.formatName)
+        assertFalse(texture.isSupported)
+    }
+
     fun testBc7IsReadButNotDecoded() {
         val texture = TextureReader.read(TextureBytes.eddsBc7(16, 16))
         assertEquals("BC7", texture.formatName)
@@ -113,6 +152,9 @@ class EnfusionTextureFormatTest : TestCase() {
             TextureBytes.eddsBgra(16, 16, mips = 5) { x, y -> (x * 16 + y) or 0xFF000000.toInt() },
             TextureBytes.eddsBgra(16, 16, mips = 5, lz4 = true) { x, y -> (x xor y) or 0xFF000000.toInt() },
             TextureBytes.eddsDxt1(8, 8, TextureBytes.bc1Block(0xF800, 0x07E0)),
+            TextureBytes.paaDxt1(8, 8, TextureBytes.bc1Block(0xF800, 0x07E0), lzo = true),
+            TextureBytes.paaDxt1(8, 8, TextureBytes.bc1Block(0x07E0, 0xF800), lzo = false),
+            TextureBytes.paaArgb4444(4, 4),
             TextureBytes.eddsBc7(8, 8),
         )
         val random = Random(42)

@@ -3,9 +3,10 @@ package io.github.lemyst.enfusion.texture.format
 /**
  * How one mip's bytes are stored.
  *
- * LZ4 is written here rather than taken from a library: it is small enough that a dependency would
- * cost more than it saves, and depending on the copy the IDE bundles would rely on something that
- * is not API.
+ * Both decompressors are written here rather than taken from a library. LZ4 is small enough that
+ * a dependency would cost more than it saves, and depending on the copy the IDE bundles would rely
+ * on something that is not API. The Java LZO ports are GPL-2.0-only or unclearly licensed, and
+ * this plugin must stay GPL-3.0-or-later.
  *
  * Every decompressor writes into a buffer of exactly the size the header implies, and treats any
  * attempt to read or write past it as a corrupt file. A texture is untrusted input: it can come from
@@ -24,13 +25,19 @@ internal enum class TextureCodec(val label: String) {
     LZ4("LZ4") {
         override fun decompress(src: ByteArray, offset: Int, size: Int, expected: Int): ByteArray =
             Lz4.decodeEddsMip(src, offset, offset + size, expected)
+    },
+
+    /** `.paa` DXT mips. */
+    LZO("LZO") {
+        override fun decompress(src: ByteArray, offset: Int, size: Int, expected: Int): ByteArray =
+            Lzo1x.decompress(src, offset, offset + size, expected)
     };
 
     abstract fun decompress(src: ByteArray, offset: Int, size: Int, expected: Int): ByteArray
 }
 
 /**
- * LZ4 cannot expand data by much more than 255 to 1, since each extra length byte
+ * Neither LZ4 nor LZO can expand data by much more than 255 to 1, since each extra length byte
  * adds at most 255 bytes of output. A header claiming more is corrupt, and checking that before the
  * output buffer is allocated keeps a forged size from costing a large allocation.
  */
@@ -114,6 +121,156 @@ internal object Lz4 {
             repeat(length) { out[op++] = out[from++] }
         }
         return op
+    }
+}
+
+/**
+ * LZO1X-1 decompression, as `.paa` uses for DXT mips: a port of the reference `lzo1x_d.ch` state
+ * machine, with the bounds checks that the reference leaves to its `_safe` build added throughout.
+ */
+internal object Lzo1x {
+
+    private const val LOOP = 0
+    private const val FIRST_LITERAL_RUN = 1
+    private const val MATCH = 2
+    private const val MATCH_DONE = 3
+    private const val MATCH_NEXT = 4
+
+    fun decompress(src: ByteArray, start: Int, end: Int, expected: Int): ByteArray {
+        checkRatio(end - start, expected, "LZO")
+        val out = ByteArray(expected)
+        var ip = start
+        var op = 0
+
+        fun next(): Int {
+            if (ip >= end) corrupt("LZO")
+            return src[ip++].toInt() and 0xFF
+        }
+
+        /** A run of zero bytes adds 255 each; the first non-zero byte ends it. */
+        fun extended(): Int {
+            var n = 0
+            while (true) {
+                if (ip >= end) corrupt("LZO")
+                if (src[ip].toInt() != 0) break
+                n += 255
+                ip++
+                if (n > expected) corrupt("LZO")
+            }
+            return n + next()
+        }
+
+        fun literals(count: Int) {
+            if (count > end - ip || count > expected - op) corrupt("LZO")
+            System.arraycopy(src, ip, out, op, count)
+            ip += count
+            op += count
+        }
+
+        fun match(from: Int, count: Int) {
+            if (from < 0 || count > expected - op) corrupt("LZO")
+            var m = from
+            repeat(count) { out[op++] = out[m++] }
+        }
+
+        var t: Int
+        var state: Int
+        if (end <= start) corrupt("LZO")
+        if ((src[ip].toInt() and 0xFF) > 17) {
+            t = next() - 17
+            if (t < 4) {
+                state = MATCH_NEXT
+            } else {
+                literals(t)
+                state = FIRST_LITERAL_RUN
+            }
+        } else {
+            t = 0
+            state = LOOP
+        }
+
+        while (true) {
+            when (state) {
+                LOOP -> {
+                    t = next()
+                    if (t >= 16) {
+                        state = MATCH
+                    } else {
+                        if (t == 0) t = 15 + extended()
+                        literals(t + 3)
+                        state = FIRST_LITERAL_RUN
+                    }
+                }
+
+                FIRST_LITERAL_RUN -> {
+                    t = next()
+                    if (t >= 16) {
+                        state = MATCH
+                    } else {
+                        val from = op - (1 + 0x800) - (t shr 2) - (next() shl 2)
+                        match(from, 3)
+                        state = MATCH_DONE
+                    }
+                }
+
+                MATCH -> {
+                    val from: Int
+                    val count: Int
+                    when {
+                        t >= 64 -> {
+                            from = op - 1 - ((t shr 2) and 7) - (next() shl 3)
+                            count = (t shr 5) + 1
+                        }
+
+                        t >= 32 -> {
+                            t = t and 31
+                            if (t == 0) t = 31 + extended()
+                            val lo = next()
+                            val hi = next()
+                            from = op - 1 - ((lo shr 2) + (hi shl 6))
+                            count = t + 2
+                        }
+
+                        t >= 16 -> {
+                            var m = op - ((t and 8) shl 11)
+                            t = t and 7
+                            if (t == 0) t = 7 + extended()
+                            val lo = next()
+                            val hi = next()
+                            m -= (lo shr 2) + (hi shl 6)
+                            if (m == op) {
+                                // The end-of-stream marker.
+                                if (op != expected) {
+                                    throw TextureFormatException("LZO mip decompressed to $op bytes, expected $expected")
+                                }
+                                return out
+                            }
+                            from = m - 0x4000
+                            count = t + 2
+                        }
+
+                        else -> {
+                            from = op - 1 - (t shr 2) - (next() shl 2)
+                            count = 2
+                        }
+                    }
+                    match(from, count)
+                    state = MATCH_DONE
+                }
+
+                MATCH_DONE -> {
+                    // The low two bits of the byte two back say how many literals follow the match.
+                    t = src[ip - 2].toInt() and 3
+                    state = if (t == 0) LOOP else MATCH_NEXT
+                }
+
+                MATCH_NEXT -> {
+                    literals(t)
+                    t = next()
+                    state = MATCH
+                }
+            }
+        }
     }
 }
 

@@ -11,12 +11,13 @@ import java.nio.file.Paths
 import kotlin.streams.toList
 
 /**
- * Every `.edds` under the texture roots either decodes or says its format is not supported.
- * Nothing may be reported as corrupt: the format is documented only by community tools, so a real
- * file failing here means the decoder is wrong, not the file.
+ * Every `.edds` and `.paa` under the texture roots either decodes or says its format is not
+ * supported. Nothing may be reported as corrupt: the formats are documented only by community
+ * tools, so a real file failing here means the decoder is wrong, not the file.
  *
- * Each root is sampled evenly down to `enfusionCorpusLimit` files (2,000 by default). The breakdown
- * by format it prints is the evidence for which formats are worth decoding.
+ * `P:\DZ` holds about 40,000 `.paa` files, so each root is sampled evenly down to
+ * `enfusionCorpusLimit` files (2,000 by default). The breakdown by format it prints is the evidence
+ * for which formats are worth decoding.
  *
  * Skips when no root is present.
  */
@@ -51,8 +52,8 @@ class EnfusionTextureCorpusTest : TestCase() {
                     unsupported.merge(texture.formatName, 1, Int::plus)
                     continue
                 }
-                // Every mip of anything up to 2048², which covers LZ4 on long streams; for larger
-                // ones, the top mip the viewer opens on and the smallest.
+                // Every mip of anything up to 2048², which covers LZ4 and LZO on long streams; for
+                // larger ones, the top mip the viewer opens on and the smallest.
                 val levels = if (texture.width.toLong() * texture.height <= 2048L * 2048L) {
                     texture.mips.indices.toList()
                 } else {
@@ -87,7 +88,7 @@ class EnfusionTextureCorpusTest : TestCase() {
             stream.filter { path ->
                 val name = path.toString()
                 !name.replace('\\', '/').contains("/.claude/") &&
-                    name.endsWith(".edds", ignoreCase = true)
+                    (name.endsWith(".edds", ignoreCase = true) || name.endsWith(".paa", ignoreCase = true))
             }.toList()
         }.sorted()
 
