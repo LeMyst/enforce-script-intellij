@@ -18,7 +18,7 @@ class Texture internal constructor(
     val container: String,
     /** What users see: `DXT1`, `DXT5`, `BGRA8`, `BC7`, ... */
     val formatName: String,
-    /** Null when the format is recognised but not decoded here, BC7 being the real case. */
+    /** Null when the format is recognised but not decoded here: BC4 to BC6H, the uncompressed `.paa` formats. */
     internal val layout: PixelLayout?,
     /** Largest first, whatever order the file stores them in. */
     val mips: List<TextureMip>,

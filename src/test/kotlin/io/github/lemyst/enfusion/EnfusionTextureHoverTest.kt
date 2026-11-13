@@ -203,9 +203,9 @@ class EnfusionTextureHoverTest : BasePlatformTestCase() {
 
     fun testUnsupportedTextureSaysSoInsteadOfAnImage() {
         val file = myFixture.tempDirFixture.createFile("MyMod/GUI/fonts/font.edds")
-        runWriteAction { file.setBinaryContent(TextureBytes.eddsBc7(8, 8)) }
+        runWriteAction { file.setBinaryContent(TextureBytes.eddsBc5(8, 8)) }
         val rendered = EnTextureDocs.render(psiManager.findFile(file)!!)!!
-        assertTrue(rendered.html, rendered.html.contains("BC7 textures cannot be previewed yet"))
+        assertTrue(rendered.html, rendered.html.contains("BC5 textures cannot be previewed yet"))
         assertTrue(rendered.images.isEmpty())
     }
 
