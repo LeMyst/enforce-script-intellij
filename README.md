@@ -96,6 +96,14 @@ inputs.
   roots, so a path into them does not resolve and shows nothing. Nor do imagesets and textures in a
   folder marked **Excluded**, which the IDE does not index. After un-excluding one, if the preview
   still does not appear, *File → Invalidate Caches…* makes the IDE index it.
+- **Texture icons in the gutter** — a small thumbnail beside each image of an `.imageset`, and
+  beside every line of script, layout or config naming a texture or an imageset image. Clicking
+  one goes to the texture or the imageset entry, and its tooltip gives the name and size. A line
+  naming several textures shows one icon. Icons are computed in the background and share the hover
+  previews' cache, so an imageset's atlas is decoded once for all its icons. Each can be turned off
+  under *Settings → Editor → General → Gutter Icons*: "Texture preview", and "Texture preview in
+  configs" for `config.cpp` and `mod.cpp` on their own. Textures that cannot be previewed, such as
+  BC7 font atlases, get no icon.
 - **Class hierarchy** (`Ctrl+H`) modelling both relationships the language has: `extends`, and
   `modded class` layering. Every layer of a class hangs off the base, which is the view that matters
   here — a `modded class X` names nothing at all, so the link to what it patches exists only because
@@ -456,6 +464,17 @@ mod called BattleRoyale):
   `config.cpp` → the whole texture, with size, format and mip count.
 - Hover the name of an `ImageSetDefClass` inside an `.imageset` → the same cut-out icon.
 - A BC7 font atlas or a broken path → a message, never an error.
+
+**Texture icons in the gutter**
+
+- Open a mod's `.imageset` → an icon beside each `ImageSetDefClass`, each showing its own image,
+  and one beside the texture `path`. Hover an icon → its name and size.
+- Open a busy `.layout` → an icon on each line with an `image0 "set:…"`; click one → the
+  imageset entry. Typing in the layout stays smooth while the icons fill in.
+- Open `P:\gui\imagesets\dayz_gui.imageset` (hundreds of entries) → icons appear after a moment,
+  and scrolling and typing do not stall.
+- Open a mod's `config.cpp` with `hiddenSelectionsTextures[]` → one icon per line. Untick "Texture
+  preview in configs" → they disappear from configs only.
 
 **Rename and inspections**
 
