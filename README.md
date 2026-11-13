@@ -152,8 +152,15 @@ first, because finding them means walking the whole folder once.
 ### Packed `.pbo` roots
 
 A root can also be a packed **`.pbo` file**: a dependency that exists only as a Workshop mod, with
-no sources on disk. The chooser accepts several at once, so a mod's whole `addons` folder can be
-picked in one go.
+no sources on disk. The chooser accepts several at once.
+
+A **folder** root brings the `.pbo` files under it too, so one entry can cover a mod (`@Mod`), a
+whole `!Workshop` folder, Steam's workshop content folder or a game install's `addons`. The scan
+follows links (each `@Mod` under `!Workshop` is one), goes four levels deep, and runs again each time
+the project opens, so a newly subscribed mod is picked up then. A folder holding more than 20 PBOs
+asks first, with the count and size: the first unpack of a thousand PBOs takes about a minute, shown
+as a background task. The folder's own files stay a root as well, ahead of its PBOs, so a checkout
+that also holds a packed build of itself still navigates to its sources.
 
 - **Only the navigable part is unpacked:** scripts (`.c`), layouts, imagesets, stringtables, other
   small text files, and `config.bin`, which is rebuilt as a readable, indented `config.cpp` and then
@@ -163,10 +170,11 @@ picked in one go.
   asset paths resolve as they do for a source checkout. Navigation reaches them like any other root.
   They open **read-only**: they are a cache, rebuilt whenever the PBO changes.
 - A PBO is unpacked when it is added, and re-checked each time the project opens. A Workshop update
-  is picked up then, not while the project is open.
+  is picked up then, not while the project is open. A PBO found in a folder that cannot be read is
+  skipped and logged; only a `.pbo` named in the list itself is reported as missing.
 - **Not supported:** encrypted `.ebo` content, and PBOs whose headers are deliberately obfuscated.
   Encrypted entries are skipped; a header that does not hold together is reported as a missing root.
-  Picking a whole `@Mod` folder does not expand to its PBOs: choose the `.pbo` files themselves.
+  The unpacked game data (`P:\DZ`) is never scanned for PBOs.
 
 The root list is saved in the project (`.idea/enfusion.xml`), so a cloned repository can ship one.
 In a project opened in **Safe Mode** the plugin therefore uses none of it: no root is indexed and
@@ -287,6 +295,10 @@ Navigation, opening a real DayZ mod:
   locked, and typing in it is refused. `enfusion-pbo` in the sandbox's system directory holds KBs
   for the texture PBO, not its size. Remove the root and the navigation goes. Replace the `.pbo`
   with an updated copy and reopen the project: the cache is rebuilt.
+- PBO folders: add a single `@Mod` folder → no question, and its classes navigate. Add `!Workshop`
+  → a dialog gives the PBO count and size; *Add Folder* starts a background task with a progress bar
+  naming each PBO, cancellable. Afterwards a class from any subscribed mod navigates. Subscribe to
+  one more mod and reopen the project: its classes navigate too.
 - Find a `modded class` with an `override` method (e.g. `PartyHud`, or any state's
   `IsComplete`/`Activate`) → a green circular-arrow gutter icon appears on the method name; clicking
   it, and separately Ctrl+Clicking the method name itself, both land on the vanilla or superclass

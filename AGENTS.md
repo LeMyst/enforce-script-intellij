@@ -91,6 +91,8 @@ Vanilla DayZ sources are proprietary. Never commit them, nor fixtures copied out
   - `pbo`: `.pbo` roots. Its `format` subpackage (PBO reader, LZSS, `config.bin` derapifier) uses
     no IntelliJ API, like `texture/format`. `PboCache` unpacks only the navigable entries of a PBO
     to the IDE's system directory; never unpack a whole PBO, since texture PBOs run to gigabytes.
+    `PboFolders` finds the PBOs under a folder root; only the startup refresh and a settings change
+    walk the disk, and the library provider reads the recorded result.
   - `nav`, `hierarchy`, `rename`, `inspections`, `format`, `highlight`, `settings`, `startup`.
 - `src/main/resources/META-INF/plugin.xml`: extension registrations. The Marketplace description,
   change notes, version and IDE range live in `build.gradle.kts` (`pluginConfiguration`) and are
