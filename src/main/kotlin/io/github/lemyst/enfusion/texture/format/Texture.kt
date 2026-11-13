@@ -3,18 +3,18 @@ package io.github.lemyst.enfusion.texture.format
 import java.awt.image.BufferedImage
 
 /**
- * A texture read from an `.edds` file: its header and mip table, with every mip still encoded.
+ * A texture read from an `.edds` or `.paa` file: its header and mip table, with every mip still
+ * encoded.
  *
- * This package uses no IntelliJ API on purpose. The format is documented only by community tools,
- * so the decoder is the part most likely to need fixing against a file nobody has seen yet. Keeping
- * it self-contained is what lets [TextureReader] be tested on plain bytes, and lets `.paa` (#14)
- * join it later without touching the IDE side.
+ * This package uses no IntelliJ API on purpose. Both formats are documented only by community
+ * tools, so the decoders are the part most likely to need fixing against a file nobody has seen
+ * yet. Keeping them self-contained is what lets [TextureReader] be tested on plain bytes.
  *
  * Nothing is decompressed until [decode] asks for one level. A 4096² texture has a 64 MB top mip,
  * and a 192-pixel hover preview has no use for it.
  */
 class Texture internal constructor(
-    /** `EDDS`; a field so that `.paa` can join without a model change. */
+    /** `EDDS` or `PAA`. */
     val container: String,
     /** What users see: `DXT1`, `DXT5`, `BGRA8`, `BC7`, ... */
     val formatName: String,
@@ -29,7 +29,7 @@ class Texture internal constructor(
 
     val isSupported: Boolean get() = layout != null
 
-    /** `LZ4`, `raw`, `raw + LZ4`, ... in the order the mips use them. */
+    /** `LZ4`, `LZO`, `LZ4 + raw`, ... in the order the mips use them. */
     val compression: String
         get() = mips.map { it.codec.label }.distinct().joinToString(" + ")
 
@@ -91,14 +91,15 @@ open class TextureFormatException(message: String) : Exception(message)
 class UnsupportedTextureException(val format: String) :
     TextureFormatException("$format textures cannot be previewed yet")
 
-/** The entry point: checks the magic, then reads the header and mip table. */
+/**
+ * Reads either format, chosen by content rather than by file name: `.edds` starts with `DDS `,
+ * and anything else is read as `.paa`, whose reader rejects an unknown format code.
+ */
 object TextureReader {
 
     /** Larger than any texture in the vanilla game data, and well short of hurting the IDE's heap. */
     const val MAX_FILE_BYTES: Long = 128L * 1024 * 1024
 
-    fun read(bytes: ByteArray): Texture {
-        if (!EddsReader.isEdds(bytes)) throw TextureFormatException("not an EDDS texture")
-        return EddsReader.read(bytes)
-    }
+    fun read(bytes: ByteArray): Texture =
+        if (EddsReader.isEdds(bytes)) EddsReader.read(bytes) else PaaReader.read(bytes)
 }
