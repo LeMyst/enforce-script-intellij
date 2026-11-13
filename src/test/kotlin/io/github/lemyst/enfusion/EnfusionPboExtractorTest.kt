@@ -57,6 +57,31 @@ class EnfusionPboExtractorTest {
     }
 
     @Test
+    fun oneUnwritableEntryDoesNotCostTheRest() {
+        // An obfuscator trick seen in a real PBO: an entry that uses an existing file as a folder.
+        val (out, result) = extract(
+            PboBytes.pbo(
+                listOf(
+                    PboBytes.file("config.cpp", "class CfgPatches {};"),
+                    PboBytes.file("config.cpp\\ junk.c", "decoy"),
+                    PboBytes.file("3_Game\\a.c", "class A {}"),
+                ),
+            ),
+        )
+        assertEquals("class A {}", Files.readString(out.resolve("3_Game/a.c")))
+        assertEquals(2, result.filesWritten)
+        assertTrue(result.warnings.toString(), result.warnings.any { "could not be written" in it })
+    }
+
+    @Test
+    fun decoyEntriesWithNoKeptExtensionRaiseNoWarning() {
+        val decoys = (1..50).map { PboBytes.file("/////", "pad") }
+        val (_, result) = extract(PboBytes.pbo(decoys + PboBytes.file("a.c", "x")))
+        assertEquals(1, result.filesWritten)
+        assertTrue(result.warnings.toString(), result.warnings.isEmpty())
+    }
+
+    @Test
     fun noPrefixWritesAtTheRoot() {
         val (out, _) = extract(PboBytes.pbo(listOf(PboBytes.file("a.c", "x"))))
         assertEquals("x", Files.readString(out.resolve("a.c")))

@@ -36,7 +36,7 @@ class EnfusionPboCorpusTest : BasePlatformTestCase() {
             return
         }
         // FOLLOW_LINKS: every `@Mod` folder under `!Workshop` is a link into Steam's workshop
-        // content. Without it the walk sees 29 of the 340 PBOs on a typical machine and stays green.
+        // content. Without it the walk sees only the few PBOs not behind a link, and stays green.
         val pbos = roots.flatMap { root ->
             Files.walk(root, FileVisitOption.FOLLOW_LINKS).use { s ->
                 s.filter { Files.isRegularFile(it) && it.toString().endsWith(".pbo", ignoreCase = true) }.toList()
