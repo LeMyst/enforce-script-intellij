@@ -32,11 +32,17 @@ object TextureBytes {
         return eddsBody(header, levels.reversed().map { if (lz4) "LZ4 " to lz4Literals(it) else "COPY" to it })
     }
 
-    /** A BC7 `.edds` header with one empty mip: readable, not decodable. */
-    fun eddsBc7(width: Int, height: Int): ByteArray {
+    /** A BC5 `.edds` with one empty mip: readable, not decodable, as no game texture uses BC5. */
+    fun eddsBc5(width: Int, height: Int): ByteArray =
+        eddsDx10(width, height, dxgi = 83, ByteArray(maxOf(1, (width + 3) / 4) * maxOf(1, (height + 3) / 4) * 16))
+
+    /** A BC7 `.edds` with one mip, every 4x4 block equal to [block]. */
+    fun eddsBc7(width: Int, height: Int, block: ByteArray): ByteArray =
+        eddsDx10(width, height, dxgi = 98, (0 until maxOf(1, (width + 3) / 4) * maxOf(1, (height + 3) / 4)).flatMap { block.toList() }.toByteArray())
+
+    private fun eddsDx10(width: Int, height: Int, dxgi: Int, blocks: ByteArray): ByteArray {
         val header = ddsHeader(width, height, 1, fourCC = fourCC("DX10"), pfFlags = 0x4, bitCount = 0, masks = IntArray(4))
-        val dx10 = ByteArrayOutputStream().apply { int(98); int(3); int(0); int(1); int(0) }.toByteArray()
-        val blocks = ByteArray(maxOf(1, (width + 3) / 4) * maxOf(1, (height + 3) / 4) * 16)
+        val dx10 = ByteArrayOutputStream().apply { int(dxgi); int(3); int(0); int(1); int(0) }.toByteArray()
         return eddsBody(header + dx10, listOf("COPY" to blocks))
     }
 

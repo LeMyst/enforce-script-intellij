@@ -126,8 +126,8 @@ internal object EddsReader {
     )
 
     /**
-     * The DXGI formats worth naming. BC7 is the one the game data holds, in 17 font atlases under
-     * `P:\gui\fonts`; it stays undecoded until a texture people actually look at needs it.
+     * The DXGI formats worth naming. Past BC3, BC7 is the only block format the game data holds,
+     * in the font atlases under `P:\gui\fonts`, so BC4 to BC6H stay named but undecoded.
      */
     private val DXGI_FORMATS: Map<Int, Pair<String, PixelLayout?>> = mapOf(
         28 to ("RGBA8" to PixelLayout.Masked(4, 0xFFL, 0xFF00L, 0xFF0000L, 0xFF000000L, false)),
@@ -145,8 +145,8 @@ internal object EddsReader {
         91 to ("BGRA8 sRGB" to PixelLayout.Masked(4, 0xFF0000L, 0xFF00L, 0xFFL, 0xFF000000L, false)),
         95 to ("BC6H" to null),
         96 to ("BC6H" to null),
-        98 to ("BC7" to null),
-        99 to ("BC7 sRGB" to null),
+        98 to ("BC7" to PixelLayout.Bc7),
+        99 to ("BC7 sRGB" to PixelLayout.Bc7),
     )
 }
 
