@@ -75,6 +75,8 @@ class WorkDrive {
         if (!after.present) return@runInBackground fail(project, "$letter: did not appear.${details(output.text)}")
         notify(project, "Work drive $letter: mounted from $source.", NotificationType.INFORMATION)
         refreshRoots(letter, indicator)
+        // A freshly mounted drive may never have had the game data extracted onto it.
+        project?.let { ExtractGameData.checkAndAsk(it) }
     }
 
     fun unmount(project: Project?) = runInBackground(project, "Unmounting the work drive") { indicator ->

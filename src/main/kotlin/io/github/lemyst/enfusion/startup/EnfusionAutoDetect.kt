@@ -16,6 +16,7 @@ import io.github.lemyst.enfusion.feedback.FeedbackNotice
 import io.github.lemyst.enfusion.roots.EnfusionRoots
 import io.github.lemyst.enfusion.settings.EnfusionProjectSettings
 import io.github.lemyst.enfusion.tools.DayZInstallation
+import io.github.lemyst.enfusion.tools.ExtractGameData
 import io.github.lemyst.enfusion.tools.WorkDrive
 import java.io.File
 
@@ -85,6 +86,7 @@ class EnfusionAutoDetect : ProjectActivity {
         // reach it, which presents as navigation that works intermittently.
         val missing = EnfusionRoots.refreshAndReportMissing(project, indicator)
         notifyMissing(project, missing)
+        ExtractGameData.checkAndAsk(project)
 
         val dependencies = if (settings.state.autoDetected) {
             emptyList()
