@@ -7,7 +7,6 @@ import com.intellij.codeInspection.ProblemHighlightType
 import com.intellij.codeInspection.ProblemsHolder
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.fileEditor.FileDocumentManager
-import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.fileEditor.OpenFileDescriptor
 import com.intellij.openapi.project.DumbService
 import com.intellij.openapi.project.Project
@@ -74,7 +73,7 @@ class CreateStringTableRowFix(private val key: String) : LocalQuickFix {
         val row = StringTableCsv.parse(document.text).rowOf(key)
         val original = csv.columnIndex(StringTableCsv.ORIGINAL)
         val offset = row?.cells?.getOrNull(original)?.let { it.start + 1 } ?: row?.start ?: 0
-        FileEditorManager.getInstance(project).openTextEditor(OpenFileDescriptor(project, target, offset), true)
+        OpenFileDescriptor(project, target, offset).navigate(true)
     }
 
     /** The project's own stringtable closest to [from], by shared path. */

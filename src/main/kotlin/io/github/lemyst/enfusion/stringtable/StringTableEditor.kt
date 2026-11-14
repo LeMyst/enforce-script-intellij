@@ -406,7 +406,8 @@ class StringTableEditor(private val project: Project, private val file: VirtualF
 
         override fun actionPerformed(e: AnActionEvent) {
             val row = selectedRows().firstOrNull() ?: return
-            FileEditorManager.getInstance(project).openTextEditor(OpenFileDescriptor(project, file, row.start), true)
+            // navigate() picks the text tab: the table is not a navigatable editor.
+            OpenFileDescriptor(project, file, row.start).navigate(true)
         }
     }
 
