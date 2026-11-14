@@ -9,6 +9,7 @@ import com.intellij.psi.PsiElementVisitor
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.util.indexing.FileBasedIndex
 import io.github.lemyst.enfusion.index.StringTableIndex
+import io.github.lemyst.enfusion.stringtable.CreateStringTableRowFix
 import io.github.lemyst.enfusion.psi.EnfusionTypes
 import io.github.lemyst.enfusion.refs.EnMethodNameReference
 import io.github.lemyst.enfusion.refs.StringTableKeyReference
@@ -74,6 +75,7 @@ class EnUnresolvedStringTableKeyInspection : LocalInspectionTool() {
                         "No row for '${reference.value}' in any stringtable.csv",
                         ProblemHighlightType.GENERIC_ERROR_OR_WARNING,
                         reference.rangeInElement,
+                        CreateStringTableRowFix(reference.value),
                     )
                 }
             }

@@ -272,6 +272,10 @@ tasks.test {
         "enfusion.pbo.roots",
         providers.gradleProperty("enfusionPboRoots").orNull ?: "",
     )
+    systemProperty(
+        "enfusion.stringtable.roots",
+        providers.gradleProperty("enfusionStringTableRoots").orNull ?: "",
+    )
     // The corpus tests report progress and throughput as they run; without this Gradle
     // buffers stdout until the test method returns, which makes a long run unobservable.
     testLogging {

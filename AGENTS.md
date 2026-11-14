@@ -54,9 +54,9 @@ not supported.
 ### Corpus tests
 
 `EnfusionCorpusParseTest`, `EnfusionCorpusLexTest`, `EnfusionObjectCorpusParseTest`,
-`EnfusionConfigCorpusParseTest`, `EnfusionTextureCorpusTest` and `EnfusionPboCorpusTest` run over
-real DayZ sources and are the strongest signal in the project. They **skip** when their root is
-unset or absent, so a green run without them proves less
+`EnfusionConfigCorpusParseTest`, `EnfusionTextureCorpusTest`, `EnfusionPboCorpusTest` and
+`EnfusionStringTableCorpusTest` run over real DayZ sources and are the strongest signal in the
+project. They **skip** when their root is unset or absent, so a green run without them proves less
 than it seems. Set the roots in your user-level `~/.gradle/gradle.properties`, **never** in the
 committed `gradle.properties`:
 
@@ -66,6 +66,7 @@ enfusionLayoutRoots = P:\\gui;<a mod checkout with hand-written layouts>
 enfusionConfigRoots = P:\\DZ;P:\\scripts;<one or more mod checkouts>
 enfusionTextureRoots = P:\\gui;P:\\DZ;<one or more mod checkouts>
 enfusionPboRoots     = <a DayZ install's addons folder>;<one or more Workshop @Mod folders>
+enfusionStringTableRoots = P:\\languagecore;<one or more mod checkouts>
 # enfusionCorpusLimit = 300   # optional sampling
 ```
 
@@ -94,6 +95,10 @@ Vanilla DayZ sources are proprietary. Never commit them, nor fixtures copied out
     `PboFolders` finds the PBOs under a folder root; only the startup refresh and a settings change
     walk the disk, and the library provider reads the recorded result. `EnPboEditor` is the PBO
     browser; `PboEntryViews` decides how an entry opens and is tested without the UI.
+  - `stringtable`: the *Table* tab of `stringtable.csv`, its structure inspection and the create-row
+    quick fix. Its `format` subpackage (`StringTableCsv`) reads the CSV with every cell's offsets and
+    turns each edit into text replacements; it uses no IntelliJ API, like `texture/format`. Every
+    table edit goes through the document, never around it.
   - `nav`, `hierarchy`, `rename`, `inspections`, `format`, `highlight`, `settings`, `startup`.
 - `src/main/resources/META-INF/plugin.xml`: extension registrations. The Marketplace description,
   change notes, version and IDE range live in `build.gradle.kts` (`pluginConfiguration`) and are
