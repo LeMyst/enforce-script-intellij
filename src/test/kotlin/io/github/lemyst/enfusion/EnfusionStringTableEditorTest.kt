@@ -85,7 +85,7 @@ class EnfusionStringTableEditorTest : BasePlatformTestCase() {
 
     fun testEditingACellEditsTheDocumentAndUndoes() {
         val file = myFixture.addFileToProject("MyMod/stringtable.csv", table).virtualFile
-        val editor = StringTableEditor(project, file)
+        val editor = openTable(file)
         try {
             val tables = UIUtil.findComponentsOfType(editor.component, JBTable::class.java)
             val model = tables.first().model
@@ -105,7 +105,7 @@ class EnfusionStringTableEditorTest : BasePlatformTestCase() {
 
     fun testEditingOriginalUpdatesItsCopies() {
         val file = myFixture.addFileToProject("MyMod/stringtable.csv", table).virtualFile
-        val editor = StringTableEditor(project, file)
+        val editor = openTable(file)
         try {
             val tables = UIUtil.findComponentsOfType(editor.component, JBTable::class.java)
             val model = tables.first().model
@@ -124,7 +124,7 @@ class EnfusionStringTableEditorTest : BasePlatformTestCase() {
 
     fun testShowOnlyRowsMissingALanguage() {
         val file = myFixture.addFileToProject("MyMod/stringtable.csv", table).virtualFile
-        val editor = StringTableEditor(project, file)
+        val editor = openTable(file)
         try {
             val model = UIUtil.findComponentsOfType(editor.component, JBTable::class.java).first().model
             @Suppress("UNCHECKED_CAST")
@@ -141,6 +141,50 @@ class EnfusionStringTableEditorTest : BasePlatformTestCase() {
         } finally {
             Disposer.dispose(editor)
         }
+    }
+
+    /** A repository of several addons, each with its own `config.cpp`, as mods split into PBOs are. */
+    private fun addons() {
+        myFixture.addFileToProject("Repo/GUI/config.cpp", "class CfgPatches {};\n")
+        myFixture.addFileToProject("Repo/Map/config.cpp", "class CfgPatches {};\n")
+        myFixture.addFileToProject("Repo/Map/stringtable.csv", table.replace("STR_MOD_", "STR_MAP_"))
+        myFixture.addFileToProject("Repo/AutoRun/config.cpp", "class CfgPatches {};\n")
+        myFixture.addFileToProject("Repo/AutoRun/stringtable.csv", table.replace("STR_MOD_", "STR_AUTORUN_"))
+    }
+
+    private fun targets(key: String, from: String): List<String> =
+        CreateStringTableRowFix(key).targets(project, myFixture.findFileInTempDir(from)!!).map { it.label }
+
+    /** Every stringtable meets a file in GUI only at the repository root; the key prefix decides. */
+    fun testQuickFixFollowsTheKeyPrefixAcrossAddons() {
+        addons()
+        myFixture.addFileToProject("Repo/GUI/layouts/menu.es", "")
+        assertEquals(listOf("Repo/AutoRun/stringtable.csv"), targets("STR_AUTORUN_NEW", "Repo/GUI/layouts/menu.es"))
+        assertEquals(listOf("Repo/Map/stringtable.csv"), targets("str_map_new", "Repo/GUI/layouts/menu.es"))
+    }
+
+    fun testQuickFixPrefersTheFilesOwnAddon() {
+        addons()
+        myFixture.addFileToProject("Repo/Map/Scripts/marker.es", "")
+        assertEquals(listOf("Repo/Map/stringtable.csv"), targets("STR_AUTORUN_NEW", "Repo/Map/Scripts/marker.es"))
+    }
+
+    /** No addon of its own and no telling prefix: every stringtable is offered, then a new one. */
+    fun testQuickFixOffersEveryTableWhenUnsure() {
+        addons()
+        myFixture.addFileToProject("Repo/GUI/layouts/menu.es", "")
+        assertEquals(
+            listOf("Repo/AutoRun/stringtable.csv", "Repo/Map/stringtable.csv", "New stringtable.csv in Repo/GUI"),
+            targets("STR_OTHER_NEW", "Repo/GUI/layouts/menu.es"),
+        )
+    }
+
+    /** The editor once its background project-content check has landed, as it is a moment after opening. */
+    private fun openTable(file: com.intellij.openapi.vfs.VirtualFile): StringTableEditor {
+        val editor = StringTableEditor(project, file)
+        com.intellij.openapi.application.impl.NonBlockingReadActionImpl.waitForAsyncTaskCompletion()
+        com.intellij.testFramework.PlatformTestUtil.dispatchAllEventsInIdeEventQueue()
+        return editor
     }
 
     private fun csvText(path: String): String {

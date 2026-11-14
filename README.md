@@ -131,9 +131,12 @@ inputs.
     shifts every translation after it into the wrong language), an unclosed quote, text after a
     closing quote, and a duplicate key. The table marks the key of such a row in red.
   - **From the code:** *Localization key with no stringtable row* offers *Create stringtable row
-    for 'STR_…'*. The row goes into the project's own stringtable nearest the file, never a
-    library's, and when there is none a `stringtable.csv` is created at the addon root (the folder
-    with `config.cpp`) with the vanilla header. The caret lands in the new row's `original` cell.
+    for 'STR_…'*. The row goes into one of the project's own stringtables, never a library's: the
+    one in the file's own addon (the nearest folder with `config.cpp`); otherwise the one whose
+    keys share the new key's prefix (`STR_AUTORUN_…`), which is what decides in a repository of
+    several addons; otherwise the only one. When that still leaves a choice, a list offers them
+    all, plus a new `stringtable.csv` in the file's addon. A new stringtable gets the vanilla
+    header. The caret lands in the new row's `original` cell.
   - **Not supported:** column colouring and the column name at the caret in the text tab, and
     translation hints on `"#STR_…"` strings. The *original changed* tint is not saved: it is gone
     after a restart, since the CSV has no room for it. A cell holding a line break shows it as `⏎`
