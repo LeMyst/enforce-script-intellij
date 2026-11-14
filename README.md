@@ -339,8 +339,8 @@ Tools launcher, Workbench, Object Builder, Terrain Builder, TexView 2, ImageToPA
 Editor, Addon Builder, Publisher, the Central Economy Editor, BankRev and DSUtils — and starts the
 one chosen. A tool that is not installed is not listed, and without DayZ Tools the menu is hidden.
 
-On a file, the *Project* view and the editor tab menus offer *Open in TexView 2* (`.paa`, `.edds`,
-`.tga`, `.png`), *Open in Object Builder* (`.p3d`) and *Open in Material Editor* (`.rvmat`), which
+On a file, the *Project* view and the editor tab menus offer *Open in TexView 2* (`.paa`, `.tga`,
+`.png`; TexView cannot read `.edds`), *Open in Object Builder* (`.p3d`) and *Open in Material Editor* (`.rvmat`), which
 start the tool with the file. The built-in texture viewer stays the default for textures.
 
 The installs are detected in the background when a project opens, so the menu is ready without

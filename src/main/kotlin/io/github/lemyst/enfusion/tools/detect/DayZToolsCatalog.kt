@@ -16,7 +16,8 @@ object DayZToolsCatalog {
     val WORKBENCH = Tool("Workbench", "Workbench/WorkbenchApp.exe")
     val OBJECT_BUILDER = Tool("Object Builder", "ObjectBuilder/ObjectBuilder.exe", setOf("p3d"))
     val TERRAIN_BUILDER = Tool("Terrain Builder", "TerrainBuilder/terrainBuilder.exe")
-    val TEXVIEW = Tool("TexView 2", "ImageToPAA/TexView.exe", setOf("paa", "edds", "tga", "png"))
+    // No .edds: TexView 2 predates the Enfusion format and fails with "Error loading file".
+    val TEXVIEW = Tool("TexView 2", "ImageToPAA/TexView.exe", setOf("paa", "tga", "png"))
     val IMAGE_TO_PAA = Tool("ImageToPAA", "ImageToPAA/imageToPaaGUI.exe")
     val ADDON_BUILDER = Tool("Addon Builder", "AddonBuilder/AddonBuilder.exe")
     val PUBLISHER = Tool("Publisher", "Publisher/Publisher.exe")

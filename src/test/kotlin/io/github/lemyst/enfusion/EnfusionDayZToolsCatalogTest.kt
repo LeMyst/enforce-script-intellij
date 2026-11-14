@@ -21,6 +21,7 @@ class EnfusionDayZToolsCatalogTest : TestCase() {
                 DayZToolsCatalog.installed(bin).map { it.name },
             )
             assertEquals("TexView 2", DayZToolsCatalog.opener(bin, "PAA")?.name)
+            assertNull("TexView cannot read .edds", DayZToolsCatalog.opener(bin, "edds"))
             assertEquals("Object Builder", DayZToolsCatalog.opener(bin, "p3d")?.name)
             assertNull("Material Editor is not installed", DayZToolsCatalog.opener(bin, "rvmat"))
             assertNull(DayZToolsCatalog.opener(bin, "c"))
