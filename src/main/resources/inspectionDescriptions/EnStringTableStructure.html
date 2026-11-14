@@ -1,0 +1,14 @@
+<html><body>
+Reports rows of a <code>stringtable.csv</code> that would put translations in the wrong place:
+<ul>
+  <li>a row with more or fewer cells than the header, so every translation after the difference
+      lands in the next language's column;</li>
+  <li>an unclosed quote, which turns the rest of the file into one cell;</li>
+  <li>text after the closing quote of a cell, or a quote inside an unquoted cell;</li>
+  <li>a key declared twice in the same file.</li>
+</ul>
+<p>
+The game loads such a file without a word, so the mistake shows only when someone plays in the
+affected language.
+</p>
+</body></html>
