@@ -11,11 +11,23 @@ import java.nio.file.Path
 /** The command lines of the DayZ run configuration, without starting anything. */
 class EnfusionDayZLaunchTest : TestCase() {
 
+    /*
+     * The folders are built a segment at a time under the real filesystem root: a literal
+     * `Path.of("D:\\Games\\DayZ")` is a single file name on Linux, so CI would test something else.
+     * The launch options are strings handed to the game verbatim, so they stay literal.
+     */
+    private val root: Path = Path.of("").toAbsolutePath().root
+    private val game = root.resolve("Games").resolve("DayZ")
+    private val server = root.resolve("Games").resolve("DayZServer")
+    private val serverProfile = root.resolve("Servers").resolve("profile")
+    private val diagExe = game.resolve("DayZDiag_x64.exe").toString()
+    private val retailExe = game.resolve("DayZ_x64.exe").toString()
+
     private val paths = DayZPaths(
-        game = Path.of("D:\\Games\\DayZ"),
-        server = Path.of("D:\\Games\\DayZServer"),
+        game = game,
+        server = server,
         workDriveLetter = "P",
-        serverProfile = Path.of("D:\\Servers\\profile"),
+        serverProfile = serverProfile,
     )
 
     fun testDiagClient() {
@@ -27,7 +39,7 @@ class EnfusionDayZLaunchTest : TestCase() {
         )
         assertEquals(
             listOf(
-                "D:\\Games\\DayZ\\DayZDiag_x64.exe",
+                diagExe,
                 "-mod=P:\\@CF;D:\\Mods\\@My Mod",
                 "-profiles=D:\\Profiles\\client",
                 "-filePatching",
@@ -41,7 +53,7 @@ class EnfusionDayZLaunchTest : TestCase() {
 
     fun testRetailClientWithoutOptions() {
         val launch = DayZLaunch(diag = false, filePatching = false, window = false)
-        assertEquals(listOf("D:\\Games\\DayZ\\DayZ_x64.exe"), DayZLaunchCommand.build(paths, launch))
+        assertEquals(listOf(retailExe), DayZLaunchCommand.build(paths, launch))
     }
 
     fun testDedicatedServerUsesTheServerProfileFromSettings() {
@@ -56,10 +68,10 @@ class EnfusionDayZLaunchTest : TestCase() {
         )
         assertEquals(
             listOf(
-                "D:\\Games\\DayZServer\\DayZServer_x64.exe",
+                server.resolve("DayZServer_x64.exe").toString(),
                 "-config=serverDZ.cfg",
                 "-port=2302",
-                "-profiles=D:\\Servers\\profile",
+                "-profiles=$serverProfile",
                 "-mod=@CF",
                 "-serverMod=@Admin",
                 "-filePatching",
@@ -71,7 +83,7 @@ class EnfusionDayZLaunchTest : TestCase() {
     fun testDiagServer() {
         val launch = DayZLaunch(mode = DayZLaunchMode.SERVER, mission = "P:\\missions\\dayzOffline.chernarusplus", profiles = "D:\\P")
         val command = DayZLaunchCommand.build(paths, launch)
-        assertEquals(listOf("D:\\Games\\DayZ\\DayZDiag_x64.exe", "-server"), command.take(2))
+        assertEquals(listOf(diagExe, "-server"), command.take(2))
         assertTrue(command.contains("-mission=P:\\missions\\dayzOffline.chernarusplus"))
         assertTrue(command.contains("-profiles=D:\\P"))
     }
@@ -80,7 +92,7 @@ class EnfusionDayZLaunchTest : TestCase() {
     fun testBuldozer() {
         val launch = DayZLaunch(mode = DayZLaunchMode.BULDOZER, filePatching = false)
         assertEquals(
-            listOf("D:\\Games\\DayZ\\DayZ_x64.exe", "-buldozer", "-window", "-noland", "-nopause", "-profiles=P:\\Buldozer", "-name:Buldozer"),
+            listOf(retailExe, "-buldozer", "-window", "-noland", "-nopause", "-profiles=P:\\Buldozer", "-name:Buldozer"),
             DayZLaunchCommand.build(paths, launch),
         )
     }
@@ -89,7 +101,7 @@ class EnfusionDayZLaunchTest : TestCase() {
         assertEquals(listOf("-a", "b c", "-d="), DayZLaunchCommand.splitArguments("-a \"b c\"  -d=\"\""))
         assertEquals(emptyList<String>(), DayZLaunchCommand.splitArguments("   "))
         val launch = DayZLaunch(diag = false, filePatching = false, window = false, extraArguments = "-nosplash -name=\"Test Player\"")
-        assertEquals(listOf("D:\\Games\\DayZ\\DayZ_x64.exe", "-nosplash", "-name=Test Player"), DayZLaunchCommand.build(paths, launch))
+        assertEquals(listOf(retailExe, "-nosplash", "-name=Test Player"), DayZLaunchCommand.build(paths, launch))
     }
 
     fun testMissingFolderIsAProblem() {
