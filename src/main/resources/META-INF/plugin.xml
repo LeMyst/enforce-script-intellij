@@ -200,6 +200,14 @@
                 enabledByDefault="true"
                 level="WARNING"
                 implementationClass="io.github.lemyst.enfusion.inspections.EnTypeNameShadowedInspection"/>
+        <localInspection
+                language="EnfusionScript"
+                shortName="EnScriptModuleVisibility"
+                displayName="Name from a later script module"
+                groupName="Enforce Script"
+                enabledByDefault="true"
+                level="WARNING"
+                implementationClass="io.github.lemyst.enfusion.inspections.EnScriptModuleVisibilityInspection"/>
         <!-- No language attribute: the same key is written in script and in layouts alike. -->
         <localInspection
                 shortName="EnUnresolvedStringTableKey"
