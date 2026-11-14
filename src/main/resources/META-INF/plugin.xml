@@ -388,6 +388,10 @@
                     class="io.github.lemyst.enfusion.tools.ExtractGameDataAction"
                     text="Extract Game Data…"
                     description="Extract the game's data onto the work drive with DayZ Tools' WorkDrive"/>
+            <action id="Enfusion.CheckScripts"
+                    class="io.github.lemyst.enfusion.tools.check.CheckScriptsAction"
+                    text="Check Scripts"
+                    description="Compile the project's scripts with DayZ Diag and show the errors"/>
             <action id="Enfusion.LaunchBuldozer"
                     class="io.github.lemyst.enfusion.tools.run.LaunchBuldozerAction"
                     text="Launch Buldozer"

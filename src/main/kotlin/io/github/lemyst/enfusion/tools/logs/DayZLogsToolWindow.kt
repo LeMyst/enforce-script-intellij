@@ -186,7 +186,7 @@ private class LogPanel(private val project: Project, folder: Path, kind: DayZLog
  * knows it, from a PBO prefix or the work drive, so it is matched from the right against the
  * project and its roots, like an asset path in script.
  */
-private class LocationFilter(private val project: Project) : Filter {
+internal class LocationFilter(private val project: Project) : Filter {
     override fun applyFilter(line: String, entireLength: Int): Filter.Result? {
         if (DumbService.isDumb(project)) return null
         val locations = DayZLogLines.locations(line)
