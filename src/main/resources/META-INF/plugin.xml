@@ -336,6 +336,11 @@
                 id="enfusion.settings"
                 displayName="Enforce Script"
                 instance="io.github.lemyst.enfusion.settings.EnfusionConfigurable"/>
+        <projectConfigurable
+                parentId="enfusion.settings"
+                id="enfusion.settings.dayz"
+                displayName="DayZ Installation"
+                instance="io.github.lemyst.enfusion.tools.DayZPathsConfigurable"/>
 
         <postStartupActivity
                 implementation="io.github.lemyst.enfusion.startup.EnfusionAutoDetect"/>

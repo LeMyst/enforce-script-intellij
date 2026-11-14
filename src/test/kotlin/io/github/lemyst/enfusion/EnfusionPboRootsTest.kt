@@ -48,7 +48,7 @@ class EnfusionPboRootsTest : BasePlatformTestCase() {
     fun testAPboRootShowsItsCacheAndItself() {
         val cacheDir = vf(cache!!)
         val pboFile = vf(pbo)
-        assertEquals(listOf(cacheDir, pboFile), EnfusionRoots.resolveForRead(listOf(pbo.toString())))
+        assertEquals(listOf(cacheDir, pboFile), EnfusionRoots.resolveForRead(EnfusionRoots.RootList(emptyList(), listOf(pbo.toString()))))
     }
 
     fun testAFolderRootBringsItsPbosCacheButNotTheFileAgain() {
@@ -56,6 +56,6 @@ class EnfusionPboRootsTest : BasePlatformTestCase() {
         PboFolders.scanAndRecord(folder.toString())
         val folderDir = vf(folder)
         val cacheDir = vf(cache!!)
-        assertEquals(listOf(folderDir, cacheDir), EnfusionRoots.resolveForRead(listOf(folder.toString())))
+        assertEquals(listOf(folderDir, cacheDir), EnfusionRoots.resolveForRead(EnfusionRoots.RootList(emptyList(), listOf(folder.toString()))))
     }
 }

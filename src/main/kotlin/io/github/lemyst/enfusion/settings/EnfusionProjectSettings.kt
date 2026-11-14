@@ -19,6 +19,25 @@ class EnfusionSettingsState : BaseState() {
     var autoDetected by property(false)
 
     /**
+     * Whether the vanilla scripts, layouts, imagesets and stringtable are indexed from the work
+     * drive. Off until the startup activity sees a DayZ addon, so that an unrelated project never
+     * gets the vanilla tree; that first open turns it on, once (see [workDriveOffered]).
+     */
+    var indexWorkDrive by property(false)
+
+    /** Whether the work drive's unpacked game (`DZ`) is indexed too, for its configs. */
+    var indexWorkDriveConfigs by property(true)
+
+    /** Set once the startup activity has turned [indexWorkDrive] on, so turning it off sticks. */
+    var workDriveOffered by property(false)
+
+    /**
+     * The server profile folder for this project, over the machine-wide one in `DayZInstallation`.
+     * The one DayZ path kept per project, since each project's server has its own.
+     */
+    var serverProfile by string()
+
+    /**
      * Replaces the root list and marks the state modified.
      *
      * Lives here rather than in the service because `incrementModificationCount()` is `protected` on
@@ -42,6 +61,12 @@ class EnfusionProjectSettings :
         get() = state.scriptRoots.toList()
         set(value) {
             state.replaceRoots(value)
+        }
+
+    var serverProfile: String?
+        get() = state.serverProfile
+        set(value) {
+            state.serverProfile = value?.trim()?.takeIf { it.isNotEmpty() }
         }
 
     companion object {

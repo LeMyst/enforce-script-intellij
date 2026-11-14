@@ -10,18 +10,20 @@ import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.startup.ProjectActivity
+import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.util.text.StringUtil
 import io.github.lemyst.enfusion.roots.EnfusionRoots
 import io.github.lemyst.enfusion.settings.EnfusionProjectSettings
+import io.github.lemyst.enfusion.tools.DayZInstallation
 import java.io.File
 
 /**
  * Finds the vanilla script tree on first open so navigation works without configuration.
  *
  * Without a vanilla root fewer than half of all type references resolve, which reads as a broken
- * feature rather than an unconfigured one. The vanilla root is therefore added silently and
- * announced; dependency mod sources are only *offered*, since adding four unrelated checkouts to
- * someone's index unasked is a different matter.
+ * feature rather than an unconfigured one. The vanilla tree is therefore indexed from the work
+ * drive unasked and announced; dependency mod sources are only *offered*, since adding four
+ * unrelated checkouts to someone's index unasked is a different matter.
  */
 class EnfusionAutoDetect : ProjectActivity {
 
@@ -52,37 +54,46 @@ class EnfusionAutoDetect : ProjectActivity {
     }
 
     private fun prepare(project: Project, indicator: ProgressIndicator) {
-        // Every open, before anything else: roots persisted from an earlier session are absent from
+        // The work drive's letter comes from DayZ Tools' settings unless it is set by hand, and the
+        // library provider never detects (it runs in read actions). So detect before the roots are
+        // refreshed below, and rescan if the letter turned out not to be the default.
+        val installation = DayZInstallation.getInstance()
+        if (installation.lastDetected == null) EnfusionRoots.updateNow(project, indicator) { installation.detect() }
+
+        // The vanilla scripts, layouts, imagesets, stringtable and configs come from the work drive
+        // rather than the root list, so they follow the letter set on this machine. Turned on once,
+        // on the first open of an addon; after that the checkbox in the settings decides.
+        val settings = EnfusionProjectSettings.getInstance(project)
+        var workDrive: String? = null
+        if (!settings.state.workDriveOffered) {
+            EnfusionRoots.updateNow(project, indicator) {
+                settings.state.workDriveOffered = true
+                settings.state.indexWorkDrive = true
+            }
+            workDrive = EnfusionRoots.workDriveScripts(project)
+        }
+
+        // Every open: roots persisted from an earlier session are absent from
         // a fresh VFS snapshot, and the library provider silently drops a root it cannot resolve.
         // Without this a vanilla root only takes effect once some unrelated refresh happens to
         // reach it, which presents as navigation that works intermittently.
         val missing = EnfusionRoots.refreshAndReportMissing(project, indicator)
         if (missing.isNotEmpty()) notify(project, missingRootsMessage(missing), emptyList())
 
-        val settings = EnfusionProjectSettings.getInstance(project)
-        if (settings.state.autoDetected) return
-        settings.state.autoDetected = true
-
-        val vanilla = EnfusionRoots.detectVanillaRoot()
-        val dependencies = EnfusionRoots.detectDependencyRoots(project)
-        // Layouts, imagesets and the stringtable travel with the scripts: they are what the string
-        // literals in vanilla-derived code point at, and they are small enough to add unasked.
-        val data = EnfusionRoots.detectDataRoots(vanilla)
-        if (vanilla == null && dependencies.isEmpty()) return
-
-        // No invokeLater: this already runs on a background thread, and hopping to the EDT is what
-        // put the VFS lookups inside EnfusionRoots.apply on the UI thread.
-        if (vanilla != null && !settings.roots.contains(vanilla)) {
-            val added = (listOf(vanilla) + data).filterNot { it in settings.roots }
-            EnfusionRoots.apply(project, settings.roots + added)
-            notify(
+        val dependencies = if (settings.state.autoDetected) {
+            emptyList()
+        } else {
+            settings.state.autoDetected = true
+            EnfusionRoots.detectDependencyRoots(project).filterNot { it in settings.roots }
+        }
+        when {
+            workDrive != null -> notify(
                 project,
-                "Indexing vanilla DayZ scripts from $vanilla. " +
+                "Indexing vanilla DayZ from the work drive (${FileUtil.toSystemDependentName(workDrive)} and its data). " +
                     "Change this in Settings | Languages & Frameworks | Enforce Script.",
                 dependencies,
             )
-        } else if (dependencies.isNotEmpty()) {
-            notify(project, "Found dependency mod sources next to this project.", dependencies)
+            dependencies.isNotEmpty() -> notify(project, "Found dependency mod sources next to this project.", dependencies)
         }
     }
 

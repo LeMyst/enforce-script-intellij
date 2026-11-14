@@ -14,6 +14,7 @@ import io.github.lemyst.enfusion.lang.EnfusionFileTypeOverrider
 import io.github.lemyst.enfusion.pbo.PboCache
 import io.github.lemyst.enfusion.pbo.PboFolders
 import io.github.lemyst.enfusion.settings.EnfusionProjectSettings
+import io.github.lemyst.enfusion.tools.DayZInstallation
 import java.io.File
 
 object EnfusionRoots {
@@ -22,17 +23,25 @@ object EnfusionRoots {
     const val CF_STUBS_LIBRARY_NAME = "Community Framework Stubs"
 
     /**
-     * Candidate vanilla script trees. `P:` is the work drive DayZ Tools mounts and extracts the game
-     * data onto, so it is the one location common to every setup; anything else is added by hand
-     * in the settings page.
+     * The vanilla script tree on the work drive, where DayZ Tools extracts the game data. Checked
+     * for its `3_game` folder before it is indexed, so that an unrelated `scripts` folder on a
+     * drive that happens to have the letter is never mistaken for it.
      */
-    private val VANILLA_CANDIDATES = listOf(
-        "P:/scripts",
-    )
+    private const val WORK_DRIVE_SCRIPTS = "scripts"
+
+    /** The unpacked game on the work drive, indexed for its configs only (see [EnfusionVanillaConfigLibrary]). */
+    private const val WORK_DRIVE_GAME_DATA = "DZ"
+
+    /** DayZ Tools' default letter, for a machine where neither the settings nor detection name one. */
+    private const val DEFAULT_WORK_DRIVE_LETTER = "P"
 
     /**
-     * Vanilla data directories, relative to the parent of the script root. Small and specific:
-     * ~330 layouts and imagesets plus one 7,300-row stringtable, about 12 MB in total.
+     * Vanilla data directories, relative to the work drive (the parent of the script tree). Small
+     * and specific: ~330 layouts and imagesets plus one 7,300-row stringtable, about 12 MB in total.
+     *
+     * Named individually rather than as their common parent, and that is not fussiness. `P:\gui`
+     * holds 4.6 MB of layouts and 7.9 MB of imagesets next to 78 MB of textures and 53 MB of fonts;
+     * rooting the library at `gui` would pull all of it into the index for no benefit.
      */
     private val DATA_CANDIDATES = listOf(
         "gui/layouts",
@@ -63,6 +72,69 @@ object EnfusionRoots {
         trusted: Boolean = TrustedProjects.isProjectTrusted(project),
     ): List<String> = if (trusted) EnfusionProjectSettings.getInstance(project).roots else emptyList()
 
+    /**
+     * The vanilla roots taken from the work drive, when the project indexes it: the script tree,
+     * the data trees its string literals point at and, unless turned off, the unpacked game for its
+     * configs. Paths only, built from the drive letter without touching the disk, so this is safe
+     * in a read action; [accepts] decides once they are resolved whether each one is really there.
+     *
+     * They are not part of the configured list because they follow the machine, not the project:
+     * the letter comes from DayZ Installation, which is per machine, so a project shared between
+     * two machines with different letters indexes the right drive on each. Empty while the project
+     * is untrusted, like the configured list, so that Safe Mode indexes nothing at all.
+     */
+    fun workDriveRoots(
+        project: Project,
+        trusted: Boolean = TrustedProjects.isProjectTrusted(project),
+    ): List<String> {
+        val state = EnfusionProjectSettings.getInstance(project).state
+        if (!trusted || !state.indexWorkDrive) return emptyList()
+        val drive = workDriveLetter() + ":/"
+        return buildList {
+            add(drive + WORK_DRIVE_SCRIPTS)
+            DATA_CANDIDATES.forEach { add(drive + it) }
+            if (state.indexWorkDriveConfigs) add(drive + WORK_DRIVE_GAME_DATA)
+        }
+    }
+
+    /**
+     * The work drive's letter: the one set in DayZ Installation, else the one detected from DayZ
+     * Tools' `settings.ini`, else DayZ Tools' default. Never detects, since detection starts
+     * `reg.exe` and this is read by the library provider; the startup activity detects first.
+     */
+    fun workDriveLetter(): String {
+        val installation = DayZInstallation.getInstance()
+        return (installation.configured.workDriveLetter ?: installation.lastDetected?.workDriveLetter)
+            ?.takeIf { it.length == 1 && it[0] in 'A'..'Z' }
+            ?: DEFAULT_WORK_DRIVE_LETTER
+    }
+
+    /** The work drive's script tree, when the project indexes the work drive and the tree is there. */
+    fun workDriveScripts(project: Project): String? =
+        workDriveRoots(project).firstOrNull()?.takeIf { File(it, "3_game").isDirectory }
+
+    /**
+     * Every root to index, in tiebreak order: the work drive's vanilla roots, then the configured
+     * list, which is where dependency mods go.
+     */
+    data class RootList(val workDrive: List<String>, val configured: List<String>) {
+        val all: List<String> get() = workDrive + configured
+    }
+
+    fun rootList(project: Project, trusted: Boolean = TrustedProjects.isProjectTrusted(project)): RootList =
+        RootList(workDriveRoots(project, trusted), configuredRoots(project, trusted))
+
+    /**
+     * Whether a work-drive root resolved to the real thing. The script tree must hold `3_game`;
+     * the game data must look like the unpacked game, since a plain folder that only shares the
+     * name would otherwise be indexed whole as a script root. The data folders need no check.
+     */
+    private fun accepts(path: String, file: VirtualFile): Boolean = when {
+        path.endsWith("/$WORK_DRIVE_SCRIPTS") -> file.findChild("3_game")?.isDirectory == true
+        path.endsWith("/$WORK_DRIVE_GAME_DATA") -> EnfusionVanillaConfigLibrary.isGameDataTree(file)
+        else -> true
+    }
+
     fun currentRootFiles(project: Project): List<VirtualFile> {
         val fs = LocalFileSystem.getInstance()
         return configuredRoots(project).mapNotNull { fs.findFileByPath(it.replace('\\', '/')) }
@@ -78,32 +150,60 @@ object EnfusionRoots {
      */
     fun apply(project: Project, newRoots: List<String>) {
         val settings = EnfusionProjectSettings.getInstance(project)
-        val oldRoots = settings.roots
-        if (oldRoots == newRoots) return
+        update(listOf(project)) { settings.roots = newRoots }
+    }
 
-        // Persisting the paths is cheap and touches no VFS, so it happens on the caller's thread
-        // and `isModified()` goes false immediately.
-        settings.roots = newRoots
-        EnfusionFileTypeOverrider.clearCache()
-
-        // The old list may be the repository's (see configuredRoots), and resolving it below would
-        // touch every path in it. While untrusted the provider offers no roots anyway, so there is
-        // nothing to rescan: the saved list takes effect when the project is next opened trusted.
-        if (!TrustedProjects.isProjectTrusted(project)) return
-
+    /**
+     * Runs [change], which edits anything the roots are built from (the configured list, the
+     * work-drive switches, the drive letter), then rescans what it changed in each of [projects].
+     * A drive letter is per machine, so a change to it passes every open project.
+     *
+     * Persisting is cheap and touches no VFS, so [change] runs on the caller's thread and
+     * `isModified()` goes false immediately.
+     */
+    fun update(projects: List<Project>, change: () -> Unit) {
         // Resolving paths to VirtualFiles is a slow operation and the platform asserts against
         // those on the EDT -- and the settings dialog's apply() is on the EDT. So the VFS work and
         // the roots-changed write action both go to a background task, and so do scanning folders
         // and unpacking PBOs, which take about a minute the first time a folder holds a thousand.
-        //
-        // The old list resolves through the existing PBO caches and folder scans only. A `.pbo` it
-        // names has nothing to unpack: it was either unpacked already or never resolved.
-        ProgressManager.getInstance().run(object : Task.Backgroundable(project, "Preparing Enforce Script roots", true) {
-            override fun run(indicator: ProgressIndicator) {
-                val old = resolveAll(oldRoots, unpack = false, indicator = null).files
-                fireChanged(project, old, resolveAll(newRoots, unpack = true, indicator).files)
-            }
-        })
+        for ((project, before, after) in changing(projects, change)) {
+            ProgressManager.getInstance().run(object : Task.Backgroundable(project, "Preparing Enforce Script roots", true) {
+                override fun run(indicator: ProgressIndicator) = rescan(project, before, after, indicator)
+            })
+        }
+    }
+
+    /** [update] on the current thread, for a caller already in a background task. */
+    fun updateNow(project: Project, indicator: ProgressIndicator?, change: () -> Unit) {
+        for ((p, before, after) in changing(listOf(project), change)) rescan(p, before, after, indicator)
+    }
+
+    /**
+     * Runs [change] and returns the projects whose roots it changed, with their lists before and
+     * after. The lists are compared as if trusted: they are only strings until resolved.
+     */
+    private fun changing(projects: List<Project>, change: () -> Unit): List<Triple<Project, RootList, RootList>> {
+        val before = projects.map { it to rootList(it, trusted = true) }
+        change()
+        val changed = before.mapNotNull { (project, old) ->
+            val new = rootList(project, trusted = true)
+            if (old == new) null else Triple(project, old, new)
+        }
+        if (changed.isNotEmpty()) EnfusionFileTypeOverrider.clearCache()
+        // The old list may be the repository's (see configuredRoots), and resolving it would touch
+        // every path in it. While untrusted the provider offers no roots anyway, so there is
+        // nothing to rescan: the saved list takes effect when the project is next opened trusted.
+        return changed.filter { TrustedProjects.isProjectTrusted(it.first) }
+    }
+
+    /**
+     * The old list resolves through the existing PBO caches and folder scans only. A `.pbo` it
+     * names has nothing to unpack: it was either unpacked already or never resolved.
+     */
+    private fun rescan(project: Project, before: RootList, after: RootList, indicator: ProgressIndicator?) {
+        if (project.isDisposed) return
+        val old = resolveAll(before, unpack = false, indicator = null).files
+        fireChanged(project, old, resolveAll(after, unpack = true, indicator).files)
     }
 
     /**
@@ -163,15 +263,16 @@ object EnfusionRoots {
      *
      * [Resolved.unresolved] lists the configured paths that came to nothing. A PBO found by a
      * folder scan is never in it: one that cannot be read is logged and skipped, since the user
-     * never named it.
+     * never named it. Nor is a work-drive root: an unmounted drive is not a mistake in the list.
      *
      * Must not run on the EDT, and must not run inside a read action.
      */
-    private fun resolveAll(paths: List<String>, unpack: Boolean, indicator: ProgressIndicator?): Resolved {
-        val expanded = expand(paths, scan = unpack)
+    private fun resolveAll(roots: RootList, unpack: Boolean, indicator: ProgressIndicator?): Resolved {
+        val expanded = expand(roots, scan = unpack)
         val files = ArrayList<VirtualFile>(expanded.size)
         val unresolved = ArrayList<String>()
-        val configured = paths.toHashSet()
+        val configured = roots.configured.toHashSet()
+        val workDrive = roots.workDrive.toHashSet()
         indicator?.isIndeterminate = false
         for ((i, path) in expanded.withIndex()) {
             indicator?.checkCanceled()
@@ -179,7 +280,7 @@ object EnfusionRoots {
             indicator?.fraction = i.toDouble() / expanded.size
             val file = resolveForWrite(path, unpack)?.first
             if (file != null && file.isDirectory) {
-                files += file
+                if (path !in workDrive || accepts(path, file)) files += file
             } else if (path in configured) {
                 unresolved += path
             }
@@ -208,21 +309,25 @@ object EnfusionRoots {
     private class Resolved(val files: List<VirtualFile>, val unresolved: List<String>)
 
     /**
-     * The configured paths with each folder followed by the `.pbo` files under it, in list order,
-     * each path once. The folder itself stays a root too: a mod checkout can hold both its sources
-     * and a packed build, and its sources then come first in the tiebreak.
+     * The work drive's roots, then the configured paths with each folder followed by the `.pbo`
+     * files under it, in list order, each path once: a configured `P:\scripts` left over from
+     * before the work drive was indexed is the same root as the work drive's, not a second one.
+     * The folder itself stays a root too: a mod checkout can hold both its sources and a packed
+     * build, and its sources then come first in the tiebreak.
      *
      * With [scan] folders are walked again ([PboFolders.scanAndRecord]); without it the last scan's
      * record is used, which walks nothing and is safe in a read action. The unpacked game data
      * (`P:\DZ`) is never scanned: it holds no PBOs, and walking it means 113,000 files.
      */
-    private fun expand(paths: List<String>, scan: Boolean): List<String> {
-        val out = ArrayList<String>(paths.size)
+    private fun expand(roots: RootList, scan: Boolean): List<String> {
+        val out = ArrayList<String>(roots.all.size)
         val seen = HashSet<String>()
         fun add(path: String) {
             if (seen.add(path.replace('\\', '/').lowercase())) out += path
         }
-        for (path in paths) {
+        // The work drive's roots are vanilla extractions, which hold no PBOs.
+        roots.workDrive.forEach(::add)
+        for (path in roots.configured) {
             add(path)
             if (PboCache.isPbo(path)) continue
             val pbos = when {
@@ -267,7 +372,7 @@ object EnfusionRoots {
      * provider never scans or unpacks anything itself.
      */
     fun refreshAndReportMissing(project: Project, indicator: ProgressIndicator? = null): List<String> {
-        val roots = configuredRoots(project)
+        val roots = rootList(project)
         val before = resolveAll(roots, unpack = false, indicator = null).files
         val after = resolveAll(roots, unpack = true, indicator)
         if (before != after.files) fireChanged(project, before, after.files)
@@ -279,42 +384,19 @@ object EnfusionRoots {
      * directory only if one exists (and for itself, see [packedFile]), and a folder brings the PBOs
      * its last scan found. Safe in a read action.
      */
-    fun resolveForRead(paths: List<String>): List<VirtualFile> {
+    fun resolveForRead(roots: RootList): List<VirtualFile> {
         val fs = LocalFileSystem.getInstance()
-        val configured = paths.toHashSet()
+        val configured = roots.configured.toHashSet()
+        val workDrive = roots.workDrive.toHashSet()
         val out = ArrayList<VirtualFile>()
-        for (path in expand(paths, scan = false)) {
+        for (path in expand(roots, scan = false)) {
             val target = if (PboCache.isPbo(path)) PboCache.existingDir(path)?.toString() else path
-            target?.let { fs.findFileByPath(it.replace('\\', '/')) }?.takeIf { it.isDirectory }?.let { out += it }
+            target?.let { fs.findFileByPath(it.replace('\\', '/')) }
+                ?.takeIf { it.isDirectory && (path !in workDrive || accepts(path, it)) }
+                ?.let { out += it }
             if (path in configured) packedFile(path, refresh = false)?.let { out += it }
         }
         return out
-    }
-
-    /**
-     * A vanilla script root, if one is present. Probing for the `3_game` subdirectory rather than
-     * just the directory itself avoids matching an unrelated drive that happens to have `scripts`.
-     */
-    fun detectVanillaRoot(): String? =
-        VANILLA_CANDIDATES.firstOrNull { File(it, "3_game").isDirectory }
-
-    /**
-     * The vanilla *data* trees that string literals navigate into: layouts, imagesets and the
-     * localization table.
-     *
-     * Named individually rather than as their common parent, and that is not fussiness. `P:\gui`
-     * holds 4.6 MB of layouts and 7.9 MB of imagesets next to 78 MB of textures and 53 MB of fonts;
-     * rooting the library at `gui` would pull all of it into the index for no benefit.
-     *
-     * Derived from wherever the script root was found, so a script root configured outside `P:`
-     * gets its own siblings rather than `P:`'s.
-     */
-    fun detectDataRoots(scriptRoot: String?): List<String> {
-        val parent = scriptRoot?.let { File(it).parentFile } ?: return emptyList()
-        return DATA_CANDIDATES
-            .map { File(parent, it) }
-            .filter { it.isDirectory }
-            .map { it.path.replace('\\', '/') }
     }
 
     /** Dependency mod checkouts sitting beside the project, if any. */

@@ -170,12 +170,22 @@ inputs.
 
 **Settings → Languages & Frameworks → Enforce Script.**
 
-The vanilla script root is auto-detected on first open of a DayZ addon (a project containing a
-`config.cpp`); dependency mod checkouts found next to the project are offered rather than added
-unasked. The list is ordered, and the order is the tiebreak when the same class name is declared in
-more than one root. The unpacked game data (`P:\DZ`) is never added automatically: add it by hand to
-navigate into vanilla configs. Only its `config.cpp` files are indexed, and the settings page warns
-first, because finding them means walking the whole folder once.
+**Vanilla comes from the work drive.** On first open of a DayZ addon (a project containing a
+`config.cpp`), the plugin indexes vanilla DayZ from the work drive: `P:\scripts`, the layouts,
+imagesets and stringtable that string literals point at (`P:\gui\layouts`, `P:\gui\imagesets`,
+`P:\languagecore`), and the configs in the unpacked game data (`P:\DZ`). The letter is the one in
+*DayZ Installation*, so it follows the machine rather than the project. A tree that is not there is
+skipped without a warning, since the drive may simply not be mounted, and `P:\scripts` must hold
+`3_game` to count. Two checkboxes at the top of the page turn this off, or leave out `P:\DZ`: only its
+`config.cpp` files are indexed, but the first indexing walks the whole unpacked game once. An
+unrelated project never gets the vanilla tree.
+
+The **root list** below is for everything else: dependency mods, and a vanilla tree kept somewhere
+other than the work drive. Dependency mod checkouts found next to the project are offered rather
+than added unasked. The work drive comes first, then the list in its order, and that order is the
+tiebreak when the same class name is declared in more than one root. A root the work drive already
+covers, left over from an earlier version, counts once. The settings page warns before a game data
+folder is added to the list by hand.
 
 ### Packed `.pbo` roots
 
@@ -226,6 +236,29 @@ The root list is saved in the project (`.idea/enfusion.xml`), so a cloned reposi
 In a project opened in **Safe Mode** the plugin therefore uses none of it: no root is indexed and
 auto-detection does not run, so navigation into vanilla and dependency sources stays empty. Trust the
 project and reopen it to enable them.
+
+### DayZ installation
+
+**Settings → Languages & Frameworks → Enforce Script → DayZ Installation** holds where things are on
+this machine: the DayZ, DayZ Server and DayZ Tools folders, the work-drive source folder and letter,
+and the client and server profile folders. The tooling features build on them.
+
+- **Detected, not typed.** A field left empty uses the detected location, shown in grey. The DayZ,
+  DayZ Server and DayZ Tools folders come from Steam's own records (`libraryfolders.vdf` and each
+  app's `appmanifest_*.acf`), so a game installed in another Steam library is found too. The
+  work-drive folder and letter come from DayZ Tools' `settings.ini`, as its launcher sets them, and
+  the client profile is `%LOCALAPPDATA%\DayZ`. The server profile is never detected: each server
+  chooses its own with `-profiles=`. *Detect Again* re-reads everything, for instance after
+  installing DayZ Tools.
+- **Checked as typed.** A folder that does not hold what it should (`DayZ_x64.exe`, `DayZServer_x64.exe`,
+  DayZ Tools' `Bin`) gets a warning under the field. It is a warning, not an error, so a drive that
+  is not connected right now does not stop the settings from being saved.
+- **Per machine.** These paths are saved in the IDE's own settings (`enfusion-dayz.xml`), which do
+  not roam with *Settings Sync*, and never in the project. The one exception is *Server profile →
+  For this project*, saved in `.idea/enfusion.xml` because a project's server is its own; like the
+  root list, it is ignored while the project is untrusted.
+- **Not supported:** detection outside Windows, and DayZ installs that Steam does not know about
+  (a copied game folder): set those by hand.
 
 ## Error reports
 
@@ -316,9 +349,9 @@ Editor basics:
 
 Navigation, opening a real DayZ mod:
 
-- A balloon reports the detected vanilla root on first open, and **Enforce Script Sources** appears
-  under *External Libraries*. A root that cannot be resolved is named in a warning rather than
-  silently ignored.
+- A balloon reports vanilla indexed from the work drive on first open, and **Enforce Script
+  Sources** and **Vanilla Configs** appear under *External Libraries*. A root in the list that
+  cannot be resolved is named in a warning rather than silently ignored.
 - Ctrl+Click a type declared in the mod → its declaration.
 - Ctrl+Click a vanilla type (`Math` in `Math.Clamp(...)`, `PlayerBase`) → the vanilla source. This is
   the one that proves library roots work, and it must succeed on the **first** click: a root only
@@ -486,6 +519,23 @@ mod called BattleRoyale):
   and scrolling and typing do not stall.
 - Open a mod's `config.cpp` with `hiddenSelectionsTextures[]` → one icon per line. Untick "Texture
   preview in configs" → they disappear from configs only.
+
+**DayZ installation**
+
+- Open *Settings → … → Enforce Script → DayZ Installation* → after a moment every field shows the
+  detected folder in grey and the line at the bottom names what was found. Settings opens without a
+  freeze while detection runs.
+- Type a wrong folder into *DayZ* → a warning that `DayZ_x64.exe` is not there; *OK* still saves.
+- Clear it again → back to the detected path. Restart the IDE → the typed paths are kept, in
+  `options/enfusion-dayz.xml` of the IDE's config folder, not in `.idea`.
+- On a machine without DayZ Tools → *Not detected* in its field and no error.
+- The *Drive letter* field shows its whole grey hint (*Detected: P*).
+- Remove every vanilla entry from the root list, keeping *Index vanilla DayZ from the work drive*
+  ticked → `PlayerBase` still resolves, and *External Libraries* still lists `P:\scripts` and
+  `P:\DZ`. Untick it → the vanilla roots go away after a re-index; tick it again → back.
+- Untick *Also index the vanilla configs* → `P:\DZ` leaves *External Libraries*, the scripts stay.
+- Set *Drive letter* to a letter with no work drive → the vanilla roots go away, with no warning.
+  Clear it → back to the detected letter and its roots.
 
 **Rename and inspections**
 
