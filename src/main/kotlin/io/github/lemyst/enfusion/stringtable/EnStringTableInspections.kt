@@ -91,12 +91,13 @@ class CreateStringTableRowFix(private val key: String) : LocalQuickFix {
     /**
      * The candidates, best first. A single one is used without asking.
      *
-     * 1. A stringtable in the file's own addon (its nearest folder with a `config.cpp`).
-     * 2. Otherwise the stringtable whose keys share the most leading `_` segments with [key], past
-     *    `STR`. In a repository of several addons every stringtable meets the file only at the
-     *    root, so folders say nothing, while `STR_AUTORUN_X` plainly belongs with `STR_AUTORUN_…`.
-     * 3. Otherwise the project's only stringtable.
-     * 4. Otherwise all of them by that score, then a new stringtable in the file's addon.
+     * A stringtable in the file's own addon (its nearest folder with a `config.cpp`) is the only
+     * case decided silently. Otherwise every project stringtable is offered, then a new one in the
+     * file's addon. Mods keep their strings in very different places (a shared language addon, one
+     * table per addon), so the list only ranks: first the tables whose keys share the most leading
+     * `_` segments with [key], since `STR_AUTORUN_X` most likely belongs with `STR_AUTORUN_…`.
+     * Folders cannot rank them, because in a repository of several addons every table meets the
+     * file only at the root.
      */
     internal fun targets(project: Project, from: VirtualFile): List<Target> {
         val addon = addonRoot(from)
@@ -111,11 +112,8 @@ class CreateStringTableRowFix(private val key: String) : LocalQuickFix {
         if (addon != null) {
             own.firstOrNull { addonRoot(it) == addon }?.let { return listOf(existing(it)) }
         }
-        val scored = own.map { it to prefixScore(key, keysOf(it)) }.sortedByDescending { it.second }
-        val best = scored.first().second
-        if (best >= MIN_SHARED_SEGMENTS && scored.count { it.second == best } == 1) return listOf(existing(scored.first().first))
-        if (own.size == 1) return listOf(existing(own.single()))
-        return scored.map { existing(it.first) } + listOfNotNull(newTable)
+        // A stable sort: equal scores keep the path order.
+        return own.sortedByDescending { prefixScore(key, keysOf(it)) }.map(::existing) + listOfNotNull(newTable)
     }
 
     private fun addTo(project: Project, target: Target) {
@@ -170,9 +168,6 @@ class CreateStringTableRowFix(private val key: String) : LocalQuickFix {
     }
 
     internal companion object {
-        /** `STR` plus one more segment, as in `STR_AUTORUN_…`; `STR_` alone is shared by every key. */
-        const val MIN_SHARED_SEGMENTS = 2
-
         /** The addon a file belongs to: its nearest folder holding a `config.cpp`. */
         fun addonRoot(file: VirtualFile): VirtualFile? {
             var dir = file.parent
