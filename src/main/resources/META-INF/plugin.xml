@@ -344,6 +344,8 @@
 
         <postStartupActivity
                 implementation="io.github.lemyst.enfusion.startup.EnfusionAutoDetect"/>
+        <postStartupActivity
+                implementation="io.github.lemyst.enfusion.tools.DayZDetectionStartup"/>
 
         <statusBarWidgetFactory
                 id="EnfusionWorkDrive"
@@ -380,6 +382,17 @@
                     text="Build All PBOs"
                     description="Pack every addon of the project with DayZ Tools' Addon Builder"/>
         </group>
+        <!-- Tools | DayZ Tools: one entry per installed desktop tool, hidden without DayZ Tools. -->
+        <group id="Enfusion.DayZTools" class="io.github.lemyst.enfusion.tools.DayZToolsGroup" text="DayZ Tools" popup="true">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+        </group>
+        <action id="Enfusion.OpenInDayZTool"
+                class="io.github.lemyst.enfusion.tools.OpenInDayZToolAction"
+                text="Open in DayZ Tool"
+                description="Open this file in the DayZ Tools program that edits it">
+            <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
+            <add-to-group group-id="EditorTabPopupMenu" anchor="last"/>
+        </action>
         <!-- On an addon folder or any file inside one: the nearest folder with a config.cpp. -->
         <group id="Enfusion.BuildPbo">
             <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
