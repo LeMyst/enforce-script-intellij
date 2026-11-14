@@ -8,6 +8,9 @@ import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.DefaultActionGroup
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.ModalityState
+import com.intellij.openapi.application.ReadAction
+import com.intellij.util.concurrency.AppExecutorUtil
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.editor.Document
 import com.intellij.openapi.editor.event.DocumentEvent
@@ -89,9 +92,25 @@ class StringTableEditor(private val project: Project, private val file: VirtualF
      * writable file, but it is a library, and an edit to it would change the game's extracted data.
      */
     private val writable: Boolean
-        get() = file.isWritable && ProjectFileIndex.getInstance(project).isInContent(file)
+        get() = inContent && file.isWritable
+
+    /**
+     * Whether the file is project content. Asking the project index is a slow operation, which the
+     * IDE forbids on the UI thread where the table, its status line and its toolbar are updated, so
+     * it is asked once in the background. Until then the table is read-only, for a few milliseconds.
+     */
+    @Volatile
+    private var inContent = false
 
     init {
+        ReadAction.nonBlocking<Boolean> { ProjectFileIndex.getInstance(project).isInContent(file) }
+            .expireWith(this)
+            .finishOnUiThread(ModalityState.any()) { known ->
+                inContent = known
+                updateStatus()
+            }
+            .submit(AppExecutorUtil.getAppExecutorService())
+
         for (table in listOf(fixed, languages)) {
             table.autoCreateColumnsFromModel = false
             table.setDefaultRenderer(Any::class.java, Renderer())
