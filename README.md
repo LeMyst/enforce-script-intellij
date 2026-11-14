@@ -334,6 +334,20 @@ three for the server profile when one is set in the DayZ Installation settings.
 - **Not supported:** a *Problems* list of the last run's errors, and attaching to a running DayZ
   run configuration's output (the game writes nothing useful to it).
 
+### Checking scripts with the engine
+
+*Tools → DayZ → Check Scripts* lets DayZ itself compile the project's scripts, which catches what the
+plugin cannot, such as a symbol the engine does not know. It starts DayZ Diag as a server
+(`DayZDiag_x64.exe -server -filePatching`, no game window) with the mods of the selected DayZ run
+configuration, or else the project's `@` folders, and a throwaway profile folder. As soon as its
+script log says the last module (`Mission`) compiled, or that a module could not be compiled, the
+server is stopped and the verdict appears in a *Run* tab and a notification, with each error as a
+link to its file and line. It takes about as long as a game start, so it is an explicit action;
+cancelling the task stops the server, and it gives up after five minutes.
+
+**Not supported:** checking without DayZ Diag, showing the errors as annotations in open files, and
+telling apart an error in the project from one in a dependency mod (both are listed).
+
 ### Building PBOs
 
 *Build PBO* on an addon folder in the *Project* view (or on any file inside one: the nearest folder
@@ -662,6 +676,14 @@ mod called BattleRoyale):
 - *Errors and Warnings Only* → a stack trace stays under its error. *Open Older Run…* → the chosen
   file; *Follow Newest* → back.
 - With no profile folder → a message pointing to the settings, no error.
+
+**Checking scripts**
+
+- *Tools → DayZ → Check Scripts* on a mod that compiles → after a game start's time, *All five
+  script modules compiled*, and no `DayZDiag_x64.exe` left running.
+- Break a `3_Game` file (use an unknown type) → *The "Game" script module does not compile*, with the
+  error linking to that file and line.
+- Cancel while it runs → the server stops.
 
 **Building PBOs**
 
