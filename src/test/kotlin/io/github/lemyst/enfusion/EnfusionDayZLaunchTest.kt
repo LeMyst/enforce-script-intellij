@@ -1,6 +1,7 @@
 package io.github.lemyst.enfusion
 
 import io.github.lemyst.enfusion.tools.detect.DayZLaunch
+import io.github.lemyst.enfusion.tools.detect.DayZLaunchCleanup
 import io.github.lemyst.enfusion.tools.detect.DayZLaunchCommand
 import io.github.lemyst.enfusion.tools.detect.DayZLaunchMode
 import io.github.lemyst.enfusion.tools.detect.DayZPaths
@@ -147,4 +148,84 @@ class EnfusionDayZLaunchTest : TestCase() {
             root.toFile().deleteRecursively()
         }
     }
+
+    fun testBareModNamesComeFromTheModsFolder() {
+        assertEquals("P:\\Mods\\@CF", DayZLaunchCommand.resolveMod("@CF", "P:\\Mods"))
+        assertEquals("P:\\Mods\\@CF", DayZLaunchCommand.resolveMod("@CF", "P:\\Mods\\"))
+        assertEquals("D:\\Other\\@X", DayZLaunchCommand.resolveMod("D:\\Other\\@X", "P:\\Mods"))
+        assertEquals("@CF", DayZLaunchCommand.resolveMod("@CF", " "))
+        val launch = DayZLaunch(diag = false, filePatching = false, window = false, mods = listOf("@CF", "@My Mod"), modsFolder = "P:\\Mods")
+        assertEquals("-mod=P:\\Mods\\@CF;P:\\Mods\\@My Mod", DayZLaunchCommand.build(paths, launch)[1])
+    }
+
+    fun testOfflineClientWithNameAndMission() {
+        val launch = DayZLaunch(filePatching = false, window = false, playerName = " Survivor ", mission = ".\\Missions\\empty.ChernarusPlus", password = "ignored offline")
+        assertEquals(
+            listOf(diagExe, "-name=Survivor", "-mission=.\\Missions\\empty.ChernarusPlus"),
+            DayZLaunchCommand.build(paths, launch),
+        )
+    }
+
+    fun testPasswordOnlyWhenJoiningAServer() {
+        val launch = DayZLaunch(filePatching = false, window = false, connect = "127.0.0.1", port = 2302, password = "secret")
+        assertEquals(listOf(diagExe, "-connect=127.0.0.1", "-port=2302", "-password=secret"), DayZLaunchCommand.build(paths, launch))
+    }
+
+    fun testConnectAndMissionTogetherIsAProblem() {
+        try {
+            DayZLaunchCommand.build(paths, DayZLaunch(connect = "127.0.0.1", mission = "m"))
+            fail("built a client that both joins a server and plays offline")
+        } catch (e: DayZLaunchCommand.Problem) {
+            assertTrue(e.message!!, e.message!!.contains("not both"))
+        }
+    }
+
+    fun testDrivesUsed() {
+        val launch = DayZLaunch(modsFolder = "p:\\Mods", mods = listOf("@CF", "Q:\\@Other"), mission = ".\\missions\\x", profiles = "F:\\Profile")
+        assertEquals(setOf('P', 'Q', 'F'), DayZLaunchCommand.drivesUsed(launch))
+    }
+
+    fun testCleanupStaysInItsFolder() {
+        val root = Files.createTempDirectory("dayz-cleanup")
+        try {
+            val profile = Files.createDirectories(root.resolve("profile"))
+            listOf("script_1.log", "DayZDiag_x64.RPT", "crash.mdmp", "server.ADM", "keep.txt").forEach { Files.writeString(profile.resolve(it), "x") }
+            val nested = Files.createDirectories(profile.resolve("nested"))
+            Files.writeString(nested.resolve("deep.log"), "x")
+            assertEquals(4, DayZLaunchCleanup.clearLogs(profile).size)
+            assertTrue(Files.exists(profile.resolve("keep.txt")))
+            assertTrue("only the profile's own files", Files.exists(nested.resolve("deep.log")))
+
+            val mission = Files.createDirectories(root.resolve("mission"))
+            Files.createDirectories(mission.resolve("storage_1").resolve("data"))
+            Files.createDirectories(mission.resolve("db"))
+            assertEquals(1, DayZLaunchCleanup.wipeStorage(mission).size)
+            assertFalse(Files.exists(mission.resolve("storage_1")))
+            assertTrue(Files.exists(mission.resolve("db")))
+
+            assertEmpty(DayZLaunchCleanup.clearLogs(root.resolve("not created yet")))
+        } finally {
+            root.toFile().deleteRecursively()
+        }
+    }
+
+    fun testCleanupRefusesADriveRoot() {
+        try {
+            DayZLaunchCleanup.clearLogs(root)
+            fail("cleaned a drive root")
+        } catch (e: DayZLaunchCommand.Problem) {
+            assertTrue(e.message!!, e.message!!.contains("drive root"))
+        }
+    }
+
+    fun testProfileAndMissionFoldersAreRelativeToTheGame() {
+        val command = listOf(diagExe, "-profiles=profiles\\a", "-mission=" + root.resolve("missions").resolve("m"))
+        assertEquals(game.resolve("profiles\\a"), DayZLaunchCleanup.profileFolder(command, null))
+        assertEquals(root.resolve("missions").resolve("m"), DayZLaunchCleanup.missionFolder(command))
+        val fallback = root.resolve("LocalAppData").resolve("DayZ")
+        assertEquals(fallback, DayZLaunchCleanup.profileFolder(listOf(diagExe), fallback))
+        assertNull(DayZLaunchCleanup.missionFolder(listOf(diagExe)))
+    }
+
+    private fun assertEmpty(list: List<*>) = assertTrue(list.toString(), list.isEmpty())
 }

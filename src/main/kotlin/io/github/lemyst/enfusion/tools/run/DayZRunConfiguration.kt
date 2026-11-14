@@ -12,18 +12,28 @@ import com.intellij.execution.configurations.RunConfigurationOptions
 import com.intellij.execution.configurations.RunProfileState
 import com.intellij.execution.configurations.RuntimeConfigurationError
 import com.intellij.execution.process.KillableColoredProcessHandler
+import com.intellij.execution.process.ProcessEvent
 import com.intellij.execution.process.ProcessHandler
+import com.intellij.execution.process.ProcessListener
+import com.intellij.execution.process.ProcessOutputTypes
 import com.intellij.execution.process.ProcessTerminatedListener
 import com.intellij.execution.runners.ExecutionEnvironment
 import com.intellij.icons.AllIcons
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.BaseState
 import com.intellij.openapi.options.SettingsEditor
+import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.NotNullLazyValue
+import com.intellij.openapi.util.SystemInfo
+import com.intellij.openapi.util.ThrowableComputable
 import io.github.lemyst.enfusion.tools.DayZInstallation
 import io.github.lemyst.enfusion.tools.detect.DayZLaunch
+import io.github.lemyst.enfusion.tools.detect.DayZLaunchCleanup
 import io.github.lemyst.enfusion.tools.detect.DayZLaunchCommand
 import io.github.lemyst.enfusion.tools.detect.DayZLaunchMode
+import io.github.lemyst.enfusion.tools.detect.DayZPaths
+import java.io.File
 
 /** *Run | Edit Configurations | DayZ*: the game, its server, or Buldozer. */
 class DayZRunConfigurationType : ConfigurationTypeBase(
@@ -60,6 +70,13 @@ class DayZRunOptions : RunConfigurationOptions() {
     var serverConfig by string()
     var mission by string()
     var extraArguments by string()
+    var modsFolder by string()
+    var playerName by string()
+    /** Saved with the configuration, in plain text: it is meant for a local test server. */
+    var password by string()
+    var stopRunning by property(false)
+    var clearLogs by property(false)
+    var wipeStorage by property(false)
 
     fun toLaunch(): DayZLaunch = DayZLaunch(
         mode = runCatching { DayZLaunchMode.valueOf(mode ?: "") }.getOrDefault(DayZLaunchMode.CLIENT),
@@ -74,6 +91,12 @@ class DayZRunOptions : RunConfigurationOptions() {
         serverConfig = serverConfig?.trim()?.ifEmpty { null },
         mission = mission?.trim()?.ifEmpty { null },
         extraArguments = extraArguments.orEmpty(),
+        modsFolder = modsFolder?.trim()?.ifEmpty { null },
+        playerName = playerName?.trim()?.ifEmpty { null },
+        password = password?.ifEmpty { null },
+        stopRunning = stopRunning,
+        clearLogs = clearLogs,
+        wipeStorage = wipeStorage,
     )
 }
 
@@ -97,15 +120,74 @@ class DayZRunConfiguration(project: Project, factory: ConfigurationFactory, name
         object : CommandLineState(environment) {
             override fun startProcess(): ProcessHandler {
                 val paths = DayZInstallation.getInstance().paths(project)
+                val launch = options.toLaunch()
                 val command = try {
-                    DayZLaunchCommand.build(paths, options.toLaunch())
+                    DayZLaunchCommand.build(paths, launch)
                 } catch (e: DayZLaunchCommand.Problem) {
                     throw ExecutionException(e.message)
                 }
-                val line = GeneralCommandLine(command).withWorkDirectory(java.io.File(command.first()).parentFile)
+                // The game starts happily without its mods and says nothing, so an unmounted work
+                // drive is refused here instead.
+                if (SystemInfo.isWindows) {
+                    val unmounted = DayZLaunchCommand.drivesUsed(launch).filter { !File("$it:\\").isDirectory }
+                    if (unmounted.isNotEmpty()) {
+                        throw ExecutionException(
+                            "${unmounted.joinToString(", ") { "$it:" }} is not mounted, and this configuration reads from it. " +
+                                "Mount the work drive with Tools | DayZ | Mount Work Drive.",
+                        )
+                    }
+                }
+                val report = beforeLaunch(launch, command, paths)
+                val line = GeneralCommandLine(command).withWorkDirectory(File(command.first()).parentFile)
                 val handler = KillableColoredProcessHandler(line)
                 ProcessTerminatedListener.attach(handler)
+                // Printed once the console is attached: text sent before startNotify is dropped.
+                if (report.isNotEmpty()) {
+                    handler.addProcessListener(object : ProcessListener {
+                        override fun startNotified(event: ProcessEvent) {
+                            report.forEach { handler.notifyTextAvailable("$it\n", ProcessOutputTypes.SYSTEM) }
+                        }
+                    })
+                }
                 return handler
+            }
+
+            /**
+             * Stops the game, clears the profile's logs and wipes the mission's storage, as asked;
+             * returns a line for each, for the console. Deleting files and waiting for processes to
+             * exit is slow, so on the EDT it runs under a modal progress.
+             */
+            private fun beforeLaunch(launch: DayZLaunch, command: List<String>, paths: DayZPaths): List<String> {
+                val wipe = launch.wipeStorage && launch.mode == DayZLaunchMode.SERVER
+                if (!launch.stopRunning && !launch.clearLogs && !wipe) return emptyList()
+                val work = ThrowableComputable<List<String>, ExecutionException> {
+                    val lines = ArrayList<String>()
+                    try {
+                        if (launch.stopRunning) lines += "Stopped ${DayZLaunchCleanup.stopRunning()} running DayZ process(es)."
+                        if (launch.clearLogs) {
+                            val default = if (launch.mode == DayZLaunchMode.CLIENT) paths.clientProfile else null
+                            DayZLaunchCleanup.profileFolder(command, default)?.let { profile ->
+                                lines += "Cleared ${DayZLaunchCleanup.clearLogs(profile).size} log file(s) in $profile."
+                            }
+                        }
+                        if (wipe) {
+                            val mission = DayZLaunchCleanup.missionFolder(command)
+                            lines += if (mission == null) {
+                                "No -mission= to wipe the storage of."
+                            } else {
+                                "Wiped ${DayZLaunchCleanup.wipeStorage(mission).size} storage folder(s) in $mission."
+                            }
+                        }
+                    } catch (e: DayZLaunchCommand.Problem) {
+                        throw ExecutionException(e.message)
+                    }
+                    lines
+                }
+                return if (ApplicationManager.getApplication().isDispatchThread) {
+                    ProgressManager.getInstance().runProcessWithProgressSynchronously(work, "Preparing to start DayZ", false, project)
+                } else {
+                    work.compute()
+                }
             }
         }
 }

@@ -418,7 +418,8 @@ Buldozer, from the folders in the DayZ Installation settings, in the *Run* tool 
 can be stopped.
 
 - **Client:** `DayZDiag_x64.exe` (or `DayZ_x64.exe` with *Use DayZ Diag* off), with `-mod=`,
-  `-profiles=`, `-filePatching`, `-window`, and `-connect=` / `-port=` to join a server at start.
+  `-profiles=`, `-name=`, `-filePatching`, `-window`, and either `-connect=` / `-port=` /
+  `-password=` to join a server at start, or `-mission=` to play offline.
 - **Server:** the dedicated `DayZServer_x64.exe`, or `DayZDiag_x64.exe -server` with DayZ Diag, with
   `-config=`, `-port=`, `-profiles=` (the server profile from the settings when empty), `-mod=`,
   `-serverMod=`, `-filePatching`, and `-mission=` for a Diag server.
@@ -426,10 +427,21 @@ can be stopped.
   `DayZ_x64.exe -buldozer -window -noland -nopause -profiles=P:\Buldozer -name:Buldozer` — plus
   the mods. *Tools → DayZ → Launch Buldozer* runs a "Buldozer" configuration, creating it the first
   time.
-- *Use the project's @mods* fills the mod list with the `@` folders at the project's roots.
+- **Mods folder:** a bare mod name such as `@CF` is taken from it (`P:\Mods\@CF`), as mod launch
+  scripts usually do; empty, the game looks beside its executable. A mod with a path is left alone.
+  The *Use the project's @mods* link fills the mod list with the `@` folders at the project's roots.
   Mods are separated by `;` as the game expects; extra arguments are split on spaces outside quotes.
-- Stopping kills the process. **Not supported:** building PBOs before launch, and starting a client
-  and a server together (a *Compound* configuration of two DayZ configurations does that).
+- **Before launch**, each off by default: stop every running DayZ, DayZ Diag and DayZ Server
+  (including a server another configuration started); clear the profile's `.log`, `.rpt`, `.mdmp`
+  and `.ADM` files; for a server, delete the mission's `storage_*` folders so that the loot spawns
+  afresh. Only the folder's own files are deleted, never its subfolders, and a drive root or the
+  home folder is refused. What was done is printed at the top of the console.
+- A configuration that reads from a drive that is not mounted (the mods folder, a mod, the profile
+  or the mission on `P:`) refuses to start and says so, rather than starting the game without its
+  mods.
+- Stopping kills the process. The password is saved with the configuration in plain text.
+  **Not supported:** building PBOs before launch, and starting a server and clients together (a
+  *Compound* configuration of several DayZ configurations does that, without a delay between them).
 
 ### Building PBOs
 
@@ -796,6 +808,11 @@ mod called BattleRoyale):
 - Add a DayZ configuration, mode *Client*, click the *Use the project's @mods* link → the
   *Mods* field fills; run → DayZ Diag starts with those mods (check the `-mod=` line in its RPT),
   and *Stop* closes it.
+- *Mods folder* `P:\Mods` with *Mods* `@CF` → the command line in the console shows
+  `-mod=P:\Mods\@CF`. Unmount `P:` and run → an error that `P:` is not mounted, nothing started.
+- Client with a *Mission* and no *Connect to* → offline play on that mission. Both set → an error.
+- Tick the three *Before Launch* boxes on a server configuration with a mission → the console's
+  first lines say what was stopped, cleared and wiped; the mission's `storage_*` folders are gone.
 - Mode *Server* with DayZ Diag and a mission → `DayZDiag_x64.exe -server` starts with it.
 - *Tools → DayZ → Launch Buldozer* → the game opens in Buldozer, and a "Buldozer" configuration
   now exists. With the DayZ folder unset → the configuration shows an error instead of running.

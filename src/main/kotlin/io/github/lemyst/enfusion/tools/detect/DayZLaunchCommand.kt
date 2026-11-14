@@ -14,7 +14,10 @@ data class DayZLaunch(
     val mode: DayZLaunchMode = DayZLaunchMode.CLIENT,
     /** Run DayZ Diag (`DayZDiag_x64.exe`) rather than the retail executable; a Diag server is the same executable with `-server`. */
     val diag: Boolean = true,
-    /** `-mod=`: folders, `;`-separated as the game takes them. */
+    /**
+     * `-mod=`: folders, `;`-separated as the game takes them. A bare name such as `@CF` is taken
+     * from [modsFolder] when one is set; otherwise the game looks for it beside its executable.
+     */
     val mods: List<String> = emptyList(),
     /** `-serverMod=`: server-only mods. */
     val serverMods: List<String> = emptyList(),
@@ -26,10 +29,25 @@ data class DayZLaunch(
     val port: Int? = null,
     /** Server: `-config=`, usually `serverDZ.cfg`. */
     val serverConfig: String? = null,
-    /** Server, Diag only: `-mission=`. */
+    /**
+     * `-mission=`: for a Diag server, or for a client playing offline (then without [connect]).
+     * A relative path is relative to the executable's folder, the game's working directory.
+     */
     val mission: String? = null,
     /** Appended as they are, split on spaces outside quotes. */
     val extraArguments: String = "",
+    /** Where bare `@Mod` names in [mods] and [serverMods] are, such as `P:\Mods`. */
+    val modsFolder: String? = null,
+    /** Client: `-name=`, the player's name in game. */
+    val playerName: String? = null,
+    /** Client joining a server: `-password=`. */
+    val password: String? = null,
+    /** Before starting: stop every running DayZ, DayZ Diag and DayZ Server process. */
+    val stopRunning: Boolean = false,
+    /** Before starting: delete the logs, RPTs, crash dumps and admin logs in the profile folder. */
+    val clearLogs: Boolean = false,
+    /** Server, before starting: delete the mission's `storage_*` folders (the persistence). */
+    val wipeStorage: Boolean = false,
 )
 
 /**
@@ -47,13 +65,21 @@ object DayZLaunchCommand {
         val args = ArrayList<String>()
         when (launch.mode) {
             DayZLaunchMode.CLIENT -> {
+                val connect = launch.connect?.trim()?.takeIf { it.isNotEmpty() }
+                val mission = launch.mission?.trim()?.takeIf { it.isNotEmpty() }
+                if (connect != null && mission != null) {
+                    throw Problem("Set either Connect to (join a server) or Mission (play offline), not both.")
+                }
                 args += executable(paths, if (launch.diag) DayZPaths.GAME_DIAG_EXE else DayZPaths.GAME_EXE)
-                mods(args, "-mod=", launch.mods)
+                mods(args, "-mod=", launch.mods, launch.modsFolder)
                 launch.profiles?.let { args += "-profiles=$it" }
+                launch.playerName?.trim()?.takeIf { it.isNotEmpty() }?.let { args += "-name=$it" }
                 if (launch.filePatching) args += "-filePatching"
                 if (launch.window) args += "-window"
-                launch.connect?.takeIf { it.isNotBlank() }?.let { args += "-connect=${it.trim()}" }
+                mission?.let { args += "-mission=$it" }
+                connect?.let { args += "-connect=$it" }
                 launch.port?.let { args += "-port=$it" }
+                if (connect != null) launch.password?.takeIf { it.isNotEmpty() }?.let { args += "-password=$it" }
             }
 
             DayZLaunchMode.SERVER -> {
@@ -68,8 +94,8 @@ object DayZLaunchCommand {
                 launch.port?.let { args += "-port=$it" }
                 val profiles = launch.profiles ?: paths.serverProfile?.toString()
                 profiles?.let { args += "-profiles=$it" }
-                mods(args, "-mod=", launch.mods)
-                mods(args, "-serverMod=", launch.serverMods)
+                mods(args, "-mod=", launch.mods, launch.modsFolder)
+                mods(args, "-serverMod=", launch.serverMods, launch.modsFolder)
                 if (launch.filePatching) args += "-filePatching"
                 if (launch.diag) launch.mission?.takeIf { it.isNotBlank() }?.let { args += "-mission=${it.trim()}" }
             }
@@ -80,7 +106,7 @@ object DayZLaunchCommand {
                 val drive = paths.workDriveLetter ?: "P"
                 args += "-profiles=${launch.profiles ?: "$drive:\\Buldozer"}"
                 args += "-name:Buldozer"
-                mods(args, "-mod=", launch.mods)
+                mods(args, "-mod=", launch.mods, launch.modsFolder)
                 if (launch.filePatching) args += "-filePatching"
             }
         }
@@ -93,10 +119,39 @@ object DayZLaunchCommand {
         return game.resolve(name).toString()
     }
 
-    private fun mods(args: MutableList<String>, flag: String, mods: List<String>) {
-        val list = mods.map { it.trim() }.filter { it.isNotEmpty() }
+    private fun mods(args: MutableList<String>, flag: String, mods: List<String>, folder: String?) {
+        val list = mods.map { it.trim() }.filter { it.isNotEmpty() }.map { resolveMod(it, folder) }
         if (list.isNotEmpty()) args += flag + list.joinToString(";")
     }
+
+    /**
+     * A bare name (`@CF`) joined to [folder]; a name with a path is left alone. Joined as text, with
+     * the folder's own separator, rather than through [Path]: the result goes to a Windows game
+     * either way, and a `P:\Mods` path does not parse as one on another OS.
+     */
+    fun resolveMod(name: String, folder: String?): String {
+        val base = folder?.trim()?.takeIf { it.isNotEmpty() } ?: return name
+        if (name.contains('\\') || name.contains('/') || name.contains(':')) return name
+        val separator = if (base.contains('\\') || !base.contains('/')) '\\' else '/'
+        return if (base.endsWith('\\') || base.endsWith('/')) base + name else "$base$separator$name"
+    }
+
+    /**
+     * The folder of the executable [build] starts, which is the game's working directory: a relative
+     * `-mission=` or `-profiles=` is resolved against it.
+     */
+    fun workingDirectory(command: List<String>): Path? =
+        command.firstOrNull()?.let { runCatching { Path.of(it).parent }.getOrNull() }
+
+    /**
+     * The drive letters the launch reads from: the mods folder, the mods, the profile and the
+     * mission. Used to refuse a launch from an unmounted work drive, which the game would otherwise
+     * start without the mods and without saying why.
+     */
+    fun drivesUsed(launch: DayZLaunch): Set<Char> =
+        (listOfNotNull(launch.modsFolder, launch.profiles, launch.mission) + launch.mods + launch.serverMods)
+            .mapNotNull { text -> text.trim().takeIf { it.length >= 2 && it[1] == ':' && it[0].isLetter() }?.get(0)?.uppercaseChar() }
+            .toSet()
 
     /** `-a "b c" d` → `-a`, `b c`, `d`. */
     fun splitArguments(text: String): List<String> {
