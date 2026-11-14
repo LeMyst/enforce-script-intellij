@@ -269,6 +269,27 @@ letter (`P:` unless DayZ Tools says otherwise), and a status-bar entry shows `P:
 - **Not supported:** extracting the game data onto the drive (tracked separately), and choosing
   the letter for WorkDrive.exe, which reads it from DayZ Tools' settings.
 
+### Building PBOs
+
+*Build PBO* on an addon folder in the *Project* view (or on any file inside one: the nearest folder
+holding a `config.cpp`) packs it with DayZ Tools' Addon Builder. *Build PBO with Options…* changes
+the options first, and *Tools → DayZ → Build All PBOs* builds every addon of the project in turn.
+
+- The first build of an addon asks for Addon Builder's options: output folder (prefilled with the
+  `Addons` folder of the project's `@Mod` folder when there is exactly one), prefix (empty takes
+  `$PBOPREFIX$`, shown in grey), signing key, *pack only*, *clear temp folder*, and under *More
+  Options* the temp folder and exclude/include lists. They are saved per addon in
+  `.idea/enfusion-builds.xml` and reused; the signing key is stored as a path only. While the project
+  is untrusted, saved options are not used and the dialog asks again.
+- The build runs in the background, with Addon Builder's output in a *Run* tab and `File …, line N`
+  config errors as links. Cancelling the task stops it.
+- Addon Builder exits with code 0 even when a build fails, so the result is read from its own last
+  line (`Build Successful` / `Build failed`), and the `.pbo` must exist.
+- A signed build is checked for its `.bisign` next to the PBO and for the matching `.bikey` in the
+  mod's `Keys` folder next to `Addons`, which servers need; a missing one is a warning.
+- **Not supported:** a native packer that works without DayZ Tools (Addon Builder is required), and
+  building before a run configuration starts.
+
 ## Error reports
 
 When the plugin throws, the IDE's *Internal Errors* dialog offers **Report to third-party plugin**.
@@ -547,6 +568,16 @@ mod called BattleRoyale):
 - Restart the IDE with `P:` unmounted → the missing-roots notification offers *Mount P:*.
 - *Mount* while `P:` is already mounted → a warning, nothing run.
 - Rename DayZ Tools' `WorkDrive.exe` temporarily → mounting falls back to `subst`.
+
+**Building PBOs**
+
+- Right-click a mod's addon folder → *Build PBO* → the options dialog, prefilled; *Build* → a *Run*
+  tab with Addon Builder's log and *Build Successful*, the PBO in the output folder, and a
+  notification. *Build PBO* again → no dialog.
+- Break `config.cpp` (delete a `}`) and build without *Pack only* → *Build failed*, an error
+  notification, and the `File …, line N` line is a link to the config.
+- Build with a signing key → the `.bisign` appears; with no `.bikey` in `@Mod\Keys` → a warning.
+- *Tools → DayZ → Build All PBOs* in a project with several addons → one tab, built one after the other.
 
 **Rename and inspections**
 

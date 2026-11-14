@@ -374,6 +374,25 @@
                     class="io.github.lemyst.enfusion.tools.UnmountWorkDriveAction"
                     text="Unmount Work Drive"
                     description="Unmount the DayZ work drive"/>
+            <separator/>
+            <action id="Enfusion.BuildAllPbos"
+                    class="io.github.lemyst.enfusion.tools.BuildAllPbosAction"
+                    text="Build All PBOs"
+                    description="Pack every addon of the project with DayZ Tools' Addon Builder"/>
+        </group>
+        <!-- On an addon folder or any file inside one: the nearest folder with a config.cpp. -->
+        <group id="Enfusion.BuildPbo">
+            <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
+            <separator/>
+            <action id="Enfusion.BuildPboAction"
+                    class="io.github.lemyst.enfusion.tools.BuildPboAction"
+                    text="Build PBO"
+                    description="Pack this addon with Addon Builder, using its saved options"/>
+            <action id="Enfusion.ConfigurePboBuild"
+                    class="io.github.lemyst.enfusion.tools.ConfigurePboBuildAction"
+                    text="Build PBO with Options…"
+                    description="Change this addon's Addon Builder options, then build it"/>
+            <separator/>
         </group>
     </actions>
 </idea-plugin>
