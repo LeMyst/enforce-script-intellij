@@ -349,6 +349,12 @@
 
         <configurationType implementation="io.github.lemyst.enfusion.tools.run.DayZRunConfigurationType"/>
 
+        <toolWindow id="DayZ Logs"
+                    anchor="bottom"
+                    secondary="true"
+                    icon="AllIcons.Debugger.Console"
+                    factoryClass="io.github.lemyst.enfusion.tools.logs.DayZLogsToolWindowFactory"/>
+
         <statusBarWidgetFactory
                 id="EnfusionWorkDrive"
                 implementation="io.github.lemyst.enfusion.tools.WorkDriveWidgetFactory"/>

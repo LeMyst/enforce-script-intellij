@@ -97,9 +97,11 @@ Vanilla DayZ sources are proprietary. Never commit them, nor fixtures copied out
   - `tools`: the DayZ tooling beyond navigation. `DayZInstallation` holds the per-machine paths
     (application level, never in `.idea`), detected from Steam and DayZ Tools' `settings.ini`;
     `WorkDrive` mounts the work drive. Its `detect` subpackage (Steam's KeyValues files, command
-    lines for DayZ Tools' executables) uses no IntelliJ API, like `texture/format`. A
-    `StatusBarWidget` is written in Java (`src/main/java/.../tools`): a Kotlin implementation gets
-    a compiler bridge for the deprecated `getPresentation(PlatformType)`, which the verifier flags.
+    lines for DayZ Tools' executables) uses no IntelliJ API, like `texture/format`. Implementations
+    of platform interfaces with deprecated or internal default methods (`StatusBarWidget`,
+    `ToolWindowFactory`) are written in Java (`src/main/java/.../tools`) and delegate to Kotlin: a
+    Kotlin class gets compiler bridges for those defaults, which the verifier reports as deprecated
+    or internal API usage.
   - `nav`, `hierarchy`, `rename`, `inspections`, `format`, `highlight`, `settings`, `startup`.
 - `src/main/resources/META-INF/plugin.xml`: extension registrations. The Marketplace description,
   change notes, version and IDE range live in `build.gradle.kts` (`pluginConfiguration`) and are
