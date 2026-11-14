@@ -384,6 +384,10 @@
                     class="io.github.lemyst.enfusion.tools.UnmountWorkDriveAction"
                     text="Unmount Work Drive"
                     description="Unmount the DayZ work drive"/>
+            <action id="Enfusion.ExtractGameData"
+                    class="io.github.lemyst.enfusion.tools.ExtractGameDataAction"
+                    text="Extract Game Data…"
+                    description="Extract the game's data onto the work drive with DayZ Tools' WorkDrive"/>
             <action id="Enfusion.LaunchBuldozer"
                     class="io.github.lemyst.enfusion.tools.run.LaunchBuldozerAction"
                     text="Launch Buldozer"

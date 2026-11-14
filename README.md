@@ -266,8 +266,17 @@ letter (`P:` unless DayZ Tools says otherwise), and a status-bar entry shows `P:
 - A mount belongs to the Windows session that made it: a drive mounted from an elevated process is
   invisible to a normal one, and the reverse. If the IDE runs elevated and DayZ Tools does not (or
   the other way round), each sees its own.
-- **Not supported:** extracting the game data onto the drive (tracked separately), and choosing
-  the letter for WorkDrive.exe, which reads it from DayZ Tools' settings.
+- **Not supported:** choosing the letter for WorkDrive.exe, which reads it from DayZ Tools' settings.
+
+**Extracting the game data.** The vanilla roots (`P:\scripts`, `P:\DZ`, `P:\gui`) exist only once
+DayZ Tools has extracted the game onto the work drive. *Tools → DayZ → Extract Game Data…* runs
+DayZ Tools' own `WorkDrive.exe /extractGameData <DayZ folder> P:\`, after a confirmation naming the
+source and the target, with its output in a *Run* tab; every open project's roots are refreshed
+when it ends. When a project opens, and after mounting, a mounted drive without `scripts`, `DZ` or
+`gui` gets a notification offering *Extract Game Data…*, *Use the DayZ install's PBOs instead* (adds
+the game's `Addons` folder as a root, which navigates into vanilla without extracting anything) and
+*Don't ask again*. It stays quiet while the drive is not mounted. **Not supported:** noticing that
+the extracted data is older than the installed game.
 
 ### DayZ Tools
 
@@ -624,6 +633,11 @@ mod called BattleRoyale):
 - Restart the IDE with `P:` unmounted → the missing-roots notification offers *Mount P:*.
 - *Mount* while `P:` is already mounted → a warning, nothing run.
 - Rename DayZ Tools' `WorkDrive.exe` temporarily → mounting falls back to `subst`.
+- Mount an empty folder as the work drive → the *Vanilla game data is not extracted* notification.
+  *Use the DayZ install's PBOs instead* → the game's `Addons` folder becomes a root and vanilla
+  navigation works. *Don't ask again* → it never returns. With `P:` unmounted → no such notification.
+- *Tools → DayZ → Extract Game Data…* → a confirmation naming the DayZ folder and `P:\`; *Extract* →
+  WorkDrive's output in a *Run* tab, and afterwards `P:\scripts` resolves.
 
 **DayZ Tools**
 
