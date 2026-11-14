@@ -269,6 +269,21 @@ letter (`P:` unless DayZ Tools says otherwise), and a status-bar entry shows `P:
 - **Not supported:** extracting the game data onto the drive (tracked separately), and choosing
   the letter for WorkDrive.exe, which reads it from DayZ Tools' settings.
 
+### DayZ Tools
+
+*Tools → DayZ Tools* lists the desktop tools installed under DayZ Tools' `Bin` folder — the DayZ
+Tools launcher, Workbench, Object Builder, Terrain Builder, TexView 2, ImageToPAA, the Material
+Editor, Addon Builder, Publisher, the Central Economy Editor, BankRev and DSUtils — and starts the
+one chosen. A tool that is not installed is not listed, and without DayZ Tools the menu is hidden.
+
+On a file, the *Project* view and the editor tab menus offer *Open in TexView 2* (`.paa`, `.edds`,
+`.tga`, `.png`), *Open in Object Builder* (`.p3d`) and *Open in Material Editor* (`.rvmat`), which
+start the tool with the file. The built-in texture viewer stays the default for textures.
+
+The installs are detected in the background when a project opens, so the menu is ready without
+visiting the settings page. **Not supported:** opening a mod folder in Workbench with its `-mod=`
+set (Workbench's command line is undocumented).
+
 ### Building PBOs
 
 *Build PBO* on an addon folder in the *Project* view (or on any file inside one: the nearest folder
@@ -568,6 +583,12 @@ mod called BattleRoyale):
 - Restart the IDE with `P:` unmounted → the missing-roots notification offers *Mount P:*.
 - *Mount* while `P:` is already mounted → a warning, nothing run.
 - Rename DayZ Tools' `WorkDrive.exe` temporarily → mounting falls back to `subst`.
+
+**DayZ Tools**
+
+- *Tools → DayZ Tools* → every installed tool is listed; each one starts.
+- Right-click a `.paa` → *Open in TexView 2* → TexView opens that texture. A `.p3d` → Object Builder.
+- On a machine without DayZ Tools → no *DayZ Tools* menu, no *Open in …* entry, no error.
 
 **Building PBOs**
 
