@@ -311,6 +311,27 @@ and the client and server profile folders. The tooling features build on them.
 - **Not supported:** detection outside Windows, and DayZ installs that Steam does not know about
   (a copied game folder): set those by hand.
 
+### Work drive
+
+*Tools → DayZ → Mount Work Drive* and *Unmount Work Drive* mount the work-drive folder as its
+letter (`P:` unless DayZ Tools says otherwise), and a status-bar entry shows `P: → <folder>` or
+`P: not mounted`, with both actions in its popup. It hides itself when no work-drive folder is found.
+
+- With DayZ Tools installed, its own `Bin\WorkDrive\WorkDrive.exe /Mount <folder>` and
+  `/Dismount` do the work, so the result is what the DayZ Tools launcher would do; WorkDrive takes
+  the letter from DayZ Tools' settings. Without DayZ Tools, `subst` does the same.
+- A letter that is already a disk or a network drive is never mounted over or unmounted.
+- After mounting, every open project's roots are refreshed, so `P:\scripts` resolves again without a
+  restart.
+- When the project indexes vanilla from the work drive, or a configured root is on it, and the
+  drive is not mounted, a notification at project open says so and offers *Mount P:*. It stays
+  quiet on a machine with no work-drive folder to mount.
+- A mount belongs to the Windows session that made it: a drive mounted from an elevated process is
+  invisible to a normal one, and the reverse. If the IDE runs elevated and DayZ Tools does not (or
+  the other way round), each sees its own.
+- **Not supported:** extracting the game data onto the drive (tracked separately), and choosing
+  the letter for WorkDrive.exe, which reads it from DayZ Tools' settings.
+
 ## Error reports
 
 When the plugin throws, the IDE's *Internal Errors* dialog offers **Report to third-party plugin**.
@@ -610,6 +631,17 @@ mod called BattleRoyale):
 - A mod whose `config.cpp` lists non-standard folders in `defs` → its files follow the config, not
   their folder names.
 - Open a few vanilla `P:\scripts\3_game` files → no warnings from this rule.
+
+**Work drive**
+
+- With `P:` mounted → the status bar shows `P: → <folder>`. *Tools → DayZ → Unmount Work Drive*
+  → a notification, the status bar shows `P: not mounted`, and `P:\scripts` navigation stops.
+- *Mount Work Drive* → `P:` returns, the status bar updates, and Ctrl+Click into vanilla works again
+  without a restart.
+- Restart the IDE with `P:` unmounted, and no vanilla entry left in the root list → a notification
+  that `P:` is not mounted, offering *Mount P:*.
+- *Mount* while `P:` is already mounted → a warning, nothing run.
+- Rename DayZ Tools' `WorkDrive.exe` temporarily → mounting falls back to `subst`.
 
 **Rename and inspections**
 
