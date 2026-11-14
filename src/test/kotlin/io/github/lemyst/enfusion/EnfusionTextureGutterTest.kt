@@ -134,7 +134,7 @@ class EnfusionTextureGutterTest : BasePlatformTestCase() {
 
     fun testUnsupportedTextureHasNoIcon() {
         val font = myFixture.tempDirFixture.createFile("MyMod/GUI/fonts/font.edds")
-        runWriteAction { font.setBinaryContent(TextureBytes.eddsBc7(8, 8)) }
+        runWriteAction { font.setBinaryContent(TextureBytes.eddsBc5(8, 8)) }
         myFixture.configureByText("hud.es", "class Hud { string m_Font = \"MyMod/GUI/fonts/font.edds\"; }")
         assertTrue(gutterTooltips().isEmpty())
     }

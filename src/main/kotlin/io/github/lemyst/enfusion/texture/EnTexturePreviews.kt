@@ -19,8 +19,8 @@ import java.lang.ref.SoftReference
  * the same reference is hovered, so many are kept. Every key includes the file's modification
  * stamp, so a re-exported texture is never shown stale.
  *
- * Failures are cached too. A corrupt or BC7 texture would otherwise be read and rejected again on
- * every hover.
+ * Failures are cached too. A corrupt or undecodable texture would otherwise be read and rejected
+ * again on every hover.
  */
 object EnTexturePreviews {
 

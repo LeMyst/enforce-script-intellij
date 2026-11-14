@@ -77,11 +77,12 @@ inputs.
   zoom (toolbar or `Ctrl`+wheel), fit to window, actual size, a transparency checkerboard that can be
   switched off (for textures that keep data in alpha), and a picker for every mip level. The status
   line gives size, pixel format, mip count and compression. For `.edds` it decodes uncompressed
-  BGRA/BGRX/RGBA, DXT1, DXT3 and DXT5, raw or LZ4-compressed, which covers every `.edds` in the
-  vanilla `gui` folder except the font atlases. For `.paa` it decodes DXT1 to DXT5, raw or
-  LZO-compressed: all but three of the 40,055 `.paa` files in the vanilla game data. **Not
-  supported:** BC7 `.edds`, used only by those 17 font atlases; the uncompressed `.paa` formats
-  (ARGB4444, ARGB1555, ARGB8888, AI88), used by three vanilla detail and noise maps; and cube maps.
+  BGRA/BGRX/RGBA, DXT1, DXT3, DXT5 and BC7, raw or LZ4-compressed, which covers every `.edds` in
+  the vanilla `gui` folder, the BC7 font atlases included. For `.paa` it decodes DXT1 to DXT5, raw
+  or LZO-compressed: all but three of the 40,055 `.paa` files in the vanilla game data. **Not
+  supported:** BC4, BC5 and BC6H `.edds`, which the game data does not use; the uncompressed
+  `.paa` formats (ARGB4444, ARGB1555, ARGB8888, AI88), used by three vanilla detail and noise maps;
+  and cube maps.
   The viewer names an unsupported format instead of showing it. It opens on the largest mip of at
   most 4096 × 4096; larger mips are in the picker. Both extensions are a binary file type, so Find
   in Files and Replace in Files skip textures instead of matching inside their bytes: there is no
@@ -107,7 +108,7 @@ inputs.
   previews' cache, so an imageset's atlas is decoded once for all its icons. Each can be turned off
   under *Settings → Editor → General → Gutter Icons*: "Texture preview", and "Texture preview in
   configs" for `config.cpp` and `mod.cpp` on their own. Textures that cannot be previewed, such as
-  BC7 font atlases, get no icon.
+  an ARGB4444 `.paa`, get no icon.
 - **Class hierarchy** (`Ctrl+H`) modelling both relationships the language has: `extends`, and
   `modded class` layering. Every layer of a class hangs off the base, which is the view that matters
   here — a `modded class X` names nothing at all, so the link to what it patches exists only because
@@ -452,7 +453,8 @@ mod called BattleRoyale):
 - `Ctrl`+wheel zooms around it; *Fit to Window* and *Actual Size* do what they say; the
   transparency toggle shows the alpha-less image.
 - The mip picker steps through every level down to 1 × 1.
-- Open one of the `P:\gui\fonts` BC7 atlases → a message naming BC7, not an error dialog.
+- Open one of the `P:\gui\fonts` BC7 atlases → the glyph sheet appears (the `sdf_*` and `*_msdf_*`
+  ones look like coloured blurs: they are distance fields), and the status line names BC7.
 - Re-export a mod's `.edds` while it is open → the view reloads.
 - Open a mod's `Mod_Logo.paa`, then a large vanilla one such as
   `P:\DZ\characters\tops\data\gorka_upper_as.paa` → each appears, and the status line names DXT1 or
@@ -472,7 +474,7 @@ mod called BattleRoyale):
 - Hover a mod's `"…/GUI/textures/….edds"` literal and a `picture="…/Mod_Logo.paa"` in a
   `config.cpp` → the whole texture, with size, format and mip count.
 - Hover the name of an `ImageSetDefClass` inside an `.imageset` → the same cut-out icon.
-- A BC7 font atlas or a broken path → a message, never an error.
+- Hover a path to a BC7 font atlas → its preview. A broken path → a message, never an error.
 
 **Texture icons in the gutter**
 
