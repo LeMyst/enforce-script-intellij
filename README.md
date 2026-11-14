@@ -172,7 +172,9 @@ inputs.
   other four) → `files[]` in the addon's `config.cpp`, and otherwise from the standard folder names
   (`3_Game`, `scripts/4_world`, ...). One visible declaration is enough: a class declared in
   `3_Game` and modded in `4_World` can be named from `3_Game`, but the members only the `4_World`
-  layer adds cannot. `proto` declarations are not checked, since the engine's own classes are known
+  layer adds cannot. A `modded class` is reported too when only a later module declares its class
+  (`modded class PlayerBase` in `3_Game`); such a layer does not compile, so it does not make the
+  class visible from its own module either. `proto` declarations are not checked, since the engine's own classes are known
   to every module (vanilla `1_core/proto/proto.c` returns `Object`, a `3_Game` class). Measured
   silent on the 2,838 vanilla files of `1_Core` to `4_World` and on 632 files of three large mods.
   **Not supported:** a file in no known module (outside the five folders and not listed in any
@@ -504,6 +506,8 @@ mod called BattleRoyale):
   `4_World`. In a `4_World` file, the same line → nothing.
 - Call, from `3_Game`, a method that only a `4_World` `modded class` layer adds → a warning on the
   method name, none on the class name.
+- In `3_Game`, write `modded class PlayerBase {}` → a warning on `PlayerBase`. A `PlayerBase` field in
+  another `3_Game` file is still reported.
 - A mod whose `config.cpp` lists non-standard folders in `defs` → its files follow the config, not
   their folder names.
 - Open a few vanilla `P:\scripts\3_game` files → no warnings from this rule.

@@ -15,4 +15,9 @@ in the addon's <code>config.cpp</code>, and otherwise from the standard folder n
 enough: a class declared in <code>3_Game</code> and modded in <code>4_World</code> can be named from
 <code>3_Game</code>, but the members that only the <code>4_World</code> layer adds cannot.
 </p>
+<p>
+A <code>modded class</code> is reported as well when only a later module declares its class, such as
+<code>modded class PlayerBase</code> in <code>3_Game</code>. That layer does not compile, so it does
+not make the class visible from its own module either.
+</p>
 </body></html>

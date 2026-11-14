@@ -75,6 +75,45 @@ class EnfusionScriptModuleTest : BasePlatformTestCase() {
         assertEquals(found.toString(), listOf("'Fly' is declared in 4_World and is not visible from 3_Game"), found)
     }
 
+    fun testModdedClassOfALaterModuleIsReported() {
+        myFixture.addFileToProject("MyMod/Scripts/4_World/player.es", "class PlayerBase {}")
+        myFixture.addFileToProject("MyMod/Scripts/3_Game/player_mod.es", "modded class PlayerBase { void Test() {} }")
+        val found = reports("MyMod/Scripts/3_Game/player_mod.es")
+        assertEquals(found.toString(), listOf("'PlayerBase' is declared in 4_World and is not visible from 3_Game"), found)
+    }
+
+    fun testModdedClassOfAnEarlierModuleIsFine() {
+        myFixture.addFileToProject("MyMod/Scripts/3_Game/man.es", "class Man {}")
+        myFixture.addFileToProject("MyMod/Scripts/4_World/man_mod.es", "modded class Man {}")
+        assertEmpty(reports("MyMod/Scripts/4_World/man_mod.es"))
+    }
+
+    /** The misplaced layer does not compile, so it must not make the class visible elsewhere. */
+    fun testMisplacedModdedLayerDoesNotHideTheClass() {
+        myFixture.addFileToProject("MyMod/Scripts/4_World/player.es", "class PlayerBase { void Walk() {} }")
+        myFixture.addFileToProject("MyMod/Scripts/3_Game/player_mod.es", "modded class PlayerBase { void Test() {} }")
+        myFixture.addFileToProject(
+            "MyMod/Scripts/3_Game/use.es",
+            "class Use { PlayerBase m_Player; void Go() { m_Player.Test(); } }",
+        )
+        val found = reports("MyMod/Scripts/3_Game/use.es")
+        assertEquals(
+            found.toString(),
+            listOf(
+                "'PlayerBase' is declared in 4_World and is not visible from 3_Game",
+                "'Test' is declared in 4_World and is not visible from 3_Game",
+            ),
+            found,
+        )
+    }
+
+    /** Nothing is claimed about a class declared only outside the known modules. */
+    fun testModdedClassOfAnUnplacedClassIsNotReported() {
+        myFixture.addFileToProject("Stubs/player.es", "class PlayerBase {}")
+        myFixture.addFileToProject("MyMod/Scripts/3_Game/player_mod.es", "modded class PlayerBase {}")
+        assertEmpty(reports("MyMod/Scripts/3_Game/player_mod.es"))
+    }
+
     fun testFieldAddedByALaterLayerIsReported() {
         myFixture.addFileToProject("MyMod/Scripts/3_Game/man.es", "class Man { void Walk() { m_Wings = 2; } }")
         myFixture.addFileToProject("MyMod/Scripts/4_World/man_mod.es", "modded class Man { int m_Wings; }")
