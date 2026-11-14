@@ -345,6 +345,10 @@
         <postStartupActivity
                 implementation="io.github.lemyst.enfusion.startup.EnfusionAutoDetect"/>
 
+        <statusBarWidgetFactory
+                id="EnfusionWorkDrive"
+                implementation="io.github.lemyst.enfusion.tools.WorkDriveWidgetFactory"/>
+
         <notificationGroup
                 id="Enforce Script"
                 displayType="BALLOON"/>
@@ -357,4 +361,19 @@
         <errorHandler
                 implementation="com.intellij.diagnostic.JetBrainsMarketplaceErrorReportSubmitter"/>
     </extensions>
+
+    <actions>
+        <!-- Tools | DayZ: the DayZ Tools features. Each action hides itself where it cannot work. -->
+        <group id="Enfusion.DayZ" text="DayZ" popup="true">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+            <action id="Enfusion.MountWorkDrive"
+                    class="io.github.lemyst.enfusion.tools.MountWorkDriveAction"
+                    text="Mount Work Drive"
+                    description="Mount the DayZ work drive from the folder set in the DayZ Installation settings"/>
+            <action id="Enfusion.UnmountWorkDrive"
+                    class="io.github.lemyst.enfusion.tools.UnmountWorkDriveAction"
+                    text="Unmount Work Drive"
+                    description="Unmount the DayZ work drive"/>
+        </group>
+    </actions>
 </idea-plugin>

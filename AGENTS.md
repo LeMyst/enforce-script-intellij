@@ -94,6 +94,12 @@ Vanilla DayZ sources are proprietary. Never commit them, nor fixtures copied out
     `PboFolders` finds the PBOs under a folder root; only the startup refresh and a settings change
     walk the disk, and the library provider reads the recorded result. `EnPboEditor` is the PBO
     browser; `PboEntryViews` decides how an entry opens and is tested without the UI.
+  - `tools`: the DayZ tooling beyond navigation. `DayZInstallation` holds the per-machine paths
+    (application level, never in `.idea`), detected from Steam and DayZ Tools' `settings.ini`;
+    `WorkDrive` mounts the work drive. Its `detect` subpackage (Steam's KeyValues files, command
+    lines for DayZ Tools' executables) uses no IntelliJ API, like `texture/format`. A
+    `StatusBarWidget` is written in Java (`src/main/java/.../tools`): a Kotlin implementation gets
+    a compiler bridge for the deprecated `getPresentation(PlatformType)`, which the verifier flags.
   - `nav`, `hierarchy`, `rename`, `inspections`, `format`, `highlight`, `settings`, `startup`.
 - `src/main/resources/META-INF/plugin.xml`: extension registrations. The Marketplace description,
   change notes, version and IDE range live in `build.gradle.kts` (`pluginConfiguration`) and are
