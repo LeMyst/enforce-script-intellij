@@ -326,6 +326,9 @@
                 extensions="pbo"/>
         <fileEditorProvider
                 implementation="io.github.lemyst.enfusion.pbo.EnPboEditorProvider"/>
+        <!-- .layout: the text editor with a read-only preview beside it (TextEditorWithPreview). -->
+        <fileEditorProvider
+                implementation="io.github.lemyst.enfusion.objfmt.preview.LayoutPreviewEditorProvider"/>
 
         <!-- .claude/worktrees holds duplicate checkouts; without this every class indexes twice. -->
         <directoryIndexExcludePolicy
