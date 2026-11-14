@@ -108,6 +108,20 @@ inputs.
   under *Settings → Editor → General → Gutter Icons*: "Texture preview", and "Texture preview in
   configs" for `config.cpp` and `mod.cpp` on their own. Textures that cannot be previewed, such as
   BC7 font atlases, get no icon.
+- **Layout preview** — a `.layout` opens as text with a read-only preview beside it (*Layout* in the
+  editor's top-right switches between text, both, and preview only). The widget tree is laid out on
+  a screen of the chosen size (1920 × 1080 by default) the way the vanilla layouts use the
+  properties: `size` / `position` in pixels or as fractions of the parent (`hexactsize`,
+  `vexactsize`, `hexactpos`, `vexactpos`), `halign` / `valign` with offsets from the matching edge,
+  grid spacers in `Rows` × `Columns` cells and wrap spacers flowing their children. Panels and buttons
+  are filled with their `color`, images show their `image0` (an imageset entry or a texture, through
+  the same cache as the texture hover), and text widgets their `text`. Every widget is outlined;
+  *Hidden widgets* shows the ones with `visible 0`, dashed. Clicking a widget puts the caret on its
+  declaration, and the caret's widget is outlined in blue. The preview updates a moment after the
+  text changes. **Approximate, not pixel-exact:** fonts, `Padding` / `Margin`, *Size To Content*,
+  `fixaspect`, scaling and image tinting are not modelled, a `#STR_…` text shows as its key, and
+  script classes do not run. Editing in the preview (moving, resizing, a properties panel) is not
+  supported.
 - **Class hierarchy** (`Ctrl+H`) modelling both relationships the language has: `extends`, and
   `modded class` layering. Every layer of a class hangs off the base, which is the view that matters
   here — a `modded class X` names nothing at all, so the link to what it patches exists only because
@@ -484,6 +498,15 @@ mod called BattleRoyale):
   and scrolling and typing do not stall.
 - Open a mod's `config.cpp` with `hiddenSelectionsTextures[]` → one icon per line. Untick "Texture
   preview in configs" → they disappear from configs only.
+
+**Layout preview**
+
+- Open `P:\gui\layouts\day_z_ingamemenu.layout` → text and preview side by side: the button column
+  on the right, the server info at the top left. Click a button in the preview → the caret jumps to
+  its `ButtonWidgetClass`. Move the caret into another widget → its outline turns blue.
+- Open a mod's layout with imageset icons → the icons are drawn. Change a `size` → the preview
+  follows a moment later. *Hidden widgets* → the `visible 0` ones appear dashed.
+- Switch the resolution → proportional widgets scale, pixel ones keep their size.
 
 **Rename and inspections**
 
