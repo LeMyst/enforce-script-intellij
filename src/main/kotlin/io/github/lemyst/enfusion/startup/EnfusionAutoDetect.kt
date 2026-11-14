@@ -15,6 +15,7 @@ import com.intellij.openapi.util.text.StringUtil
 import io.github.lemyst.enfusion.roots.EnfusionRoots
 import io.github.lemyst.enfusion.settings.EnfusionProjectSettings
 import io.github.lemyst.enfusion.tools.DayZInstallation
+import io.github.lemyst.enfusion.tools.WorkDrive
 import java.io.File
 
 /**
@@ -78,7 +79,7 @@ class EnfusionAutoDetect : ProjectActivity {
         // Without this a vanilla root only takes effect once some unrelated refresh happens to
         // reach it, which presents as navigation that works intermittently.
         val missing = EnfusionRoots.refreshAndReportMissing(project, indicator)
-        if (missing.isNotEmpty()) notify(project, missingRootsMessage(missing), emptyList())
+        notifyMissing(project, missing)
 
         val dependencies = if (settings.state.autoDetected) {
             emptyList()
@@ -123,6 +124,35 @@ class EnfusionAutoDetect : ProjectActivity {
             }
         }
         return false
+    }
+
+    /**
+     * The missing roots, and when the work drive is needed but not mounted, a *Mount* action: that
+     * is the usual reason, and it is otherwise a silent loss of navigation into vanilla.
+     *
+     * The vanilla roots taken from the work drive are never in [missing] (an unmounted drive is
+     * not a mistake in the list), so the drive is checked on its own. It is only reported then
+     * when it can be mounted: a machine with no work drive at all would be told so on every open.
+     */
+    private fun notifyMissing(project: Project, missing: List<String>) {
+        val paths = DayZInstallation.getInstance().paths(project)
+        val workDrive = WorkDrive.getInstance()
+        val letter = workDrive.letter(paths)
+        val needed = EnfusionRoots.workDriveRoots(project).isNotEmpty() || missing.any { WorkDrive.isOn(it, letter) }
+        val unmounted = needed && !File("$letter:\\").isDirectory
+        if (missing.isEmpty() && !(unmounted && paths.workDriveSource != null)) return
+        val message = if (missing.isEmpty()) {
+            "The work drive $letter: is not mounted, so vanilla DayZ is not indexed."
+        } else {
+            missingRootsMessage(missing) + if (unmounted) " The work drive $letter: is not mounted." else ""
+        }
+        val notification = NotificationGroupManager.getInstance()
+            .getNotificationGroup("Enforce Script")
+            .createNotification("Enforce Script", message, NotificationType.WARNING)
+        if (unmounted && paths.workDriveSource != null) {
+            notification.addAction(NotificationAction.createSimpleExpiring("Mount $letter:") { workDrive.mount(project) })
+        }
+        notification.notify(project)
     }
 
     private fun notify(project: Project, message: String, dependencies: List<String>) {

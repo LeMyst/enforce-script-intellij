@@ -99,6 +99,12 @@ Vanilla DayZ sources are proprietary. Never commit them, nor fixtures copied out
     quick fix. Its `format` subpackage (`StringTableCsv`) reads the CSV with every cell's offsets and
     turns each edit into text replacements; it uses no IntelliJ API, like `texture/format`. Every
     table edit goes through the document, never around it.
+  - `tools`: the DayZ tooling beyond navigation. `DayZInstallation` holds the per-machine paths
+    (application level, never in `.idea`), detected from Steam and DayZ Tools' `settings.ini`;
+    `WorkDrive` mounts the work drive. Its `detect` subpackage (Steam's KeyValues files, command
+    lines for DayZ Tools' executables) uses no IntelliJ API, like `texture/format`. A
+    `StatusBarWidget` is written in Java (`src/main/java/.../tools`): a Kotlin implementation gets
+    a compiler bridge for the deprecated `getPresentation(PlatformType)`, which the verifier flags.
   - `nav`, `hierarchy`, `rename`, `inspections`, `format`, `highlight`, `settings`, `startup`.
 - `src/main/resources/META-INF/plugin.xml`: extension registrations. The Marketplace description,
   change notes, version and IDE range live in `build.gradle.kts` (`pluginConfiguration`) and are
