@@ -14,6 +14,7 @@ import com.intellij.openapi.util.text.StringUtil
 import io.github.lemyst.enfusion.roots.EnfusionRoots
 import io.github.lemyst.enfusion.settings.EnfusionProjectSettings
 import io.github.lemyst.enfusion.tools.DayZInstallation
+import io.github.lemyst.enfusion.tools.ExtractGameData
 import io.github.lemyst.enfusion.tools.WorkDrive
 import java.io.File
 
@@ -60,6 +61,7 @@ class EnfusionAutoDetect : ProjectActivity {
         // reach it, which presents as navigation that works intermittently.
         val missing = EnfusionRoots.refreshAndReportMissing(project, indicator)
         if (missing.isNotEmpty()) notifyMissing(project, missing)
+        ExtractGameData.checkAndAsk(project)
 
         val settings = EnfusionProjectSettings.getInstance(project)
         if (settings.state.autoDetected) return
