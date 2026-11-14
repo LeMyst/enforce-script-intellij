@@ -536,6 +536,27 @@ runs in one *Run* tab, where *Stop* stops it all.
   binarised) and signing the packed addons; for those, build with Addon Builder. Starting Buldozer
   (Object Builder's viewer) is left for later.
 
+### Game logs
+
+The **DayZ Logs** tool window follows the game's logs: one tab each for `script_*.log`, the `.RPT`
+and `crash_*.log` of the client profile (`%LOCALAPPDATA%\DayZ` unless set otherwise), and the same
+three for the server profile when one is set in the DayZ Installation settings.
+
+- Each tab shows the newest file of its kind and keeps up with it once a second; when the game
+  starts again and writes a new file, the tab switches to it. *Open Older Run…* shows an earlier
+  file instead, and *Follow Newest* goes back. A file over 8 MB opens on its last 8 MB.
+- Errors are red and warnings amber. *Errors and Warnings Only* hides the rest, keeping the report
+  that follows an error (the *Can't compile* summary, a stack trace) with it. *Collapse Repeated
+  Lines* shows a line repeated back to back once, with a count, timestamps aside. The console's own
+  search (`Ctrl+F`) works as usual.
+- The three shapes of source location the game writes — `@"scripts/3_Game/human.c,17"`,
+  `MyMod/Scripts/3_Game/x.c(1):` and the stack-trace `MyMod/Scripts/5_Mission/x.c:276 Function …` —
+  are links. The path is the game's, from a PBO prefix or the work drive, so it is matched from the
+  right against the project and its roots, like an asset path: a mod's own file opens in the
+  project, a vanilla one under `P:\scripts`, and a dependency's in its PBO cache.
+- **Not supported:** a *Problems* list of the last run's errors, and attaching to a running DayZ
+  run configuration's output (the game writes nothing useful to it).
+
 ### Building PBOs
 
 *Build PBO* on an addon folder in the *Project* view (or on any file inside one: the nearest folder
@@ -936,6 +957,16 @@ mod called BattleRoyale):
 - Two players with the same name → an error in the configuration. Several players without Goldberg
   → a warning. Neither box ticked → an error.
 - *Tools → DayZ* and the toolbar's *DayZ* drop-down have no *Launch Buldozer*.
+
+**Game logs**
+
+- Open *DayZ Logs* → *Script*, *RPT* and *Crash* tabs, each naming its file; start the game → the
+  tabs switch to the new run and follow it.
+- In the *Script* tab, click an `@"scripts/3_Game/….c,17"` link → vanilla opens at
+  that line; a mod's own `…(1):` compile error → the mod's file.
+- *Errors and Warnings Only* → a stack trace stays under its error. *Open Older Run…* → the chosen
+  file; *Follow Newest* → back.
+- With no profile folder → a message pointing to the settings, no error.
 
 **Building PBOs**
 
