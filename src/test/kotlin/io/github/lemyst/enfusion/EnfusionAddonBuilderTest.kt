@@ -9,49 +9,62 @@ import java.nio.file.Path
 /** Addon Builder's command line and output, on hand-written samples shaped like its real output. */
 class EnfusionAddonBuilderTest : TestCase() {
 
-    private val bin = Path.of("D:\\Tools\\DayZ Tools\\Bin")
+    /*
+     * Paths are built a segment at a time under the real filesystem root: a literal
+     * `Path.of("D:\\Work\\...")` is a single file name on Linux, so CI would test something else.
+     */
+    private val root: Path = Path.of("").toAbsolutePath().root
+    private fun path(vararg segments: String): Path = segments.fold(root) { p, s -> p.resolve(s) }
+
+    private val tools = path("Tools", "DayZ Tools")
+    private val bin = tools.resolve("Bin")
 
     fun testMinimalCommandLine() {
-        val build = AddonBuild(Path.of("D:\\Work\\MyMod\\Scripts"), Path.of("D:\\Work\\@MyMod\\Addons"), clear = false)
+        val source = path("Work", "MyMod", "Scripts")
+        val destination = path("Work", "@MyMod", "Addons")
         assertEquals(
             listOf(
-                "D:\\Tools\\DayZ Tools\\Bin\\AddonBuilder\\AddonBuilder.exe",
-                "D:\\Work\\MyMod\\Scripts",
-                "D:\\Work\\@MyMod\\Addons",
-                "-toolsDirectory=D:\\Tools\\DayZ Tools",
+                bin.resolve("AddonBuilder").resolve("AddonBuilder.exe").toString(),
+                source.toString(),
+                destination.toString(),
+                "-toolsDirectory=$tools",
             ),
-            AddonBuilderCommand.commandLine(bin, build),
+            AddonBuilderCommand.commandLine(bin, AddonBuild(source, destination, clear = false)),
         )
     }
 
     fun testEveryOption() {
+        val temp = path("Temp")
+        val key = path("Keys", "MyMod.biprivatekey")
+        val include = path("include.lst")
+        val exclude = path("exclude.lst")
         val build = AddonBuild(
-            source = Path.of("D:\\Work\\MyMod\\Scripts"),
-            destination = Path.of("D:\\Work\\@MyMod\\Addons"),
+            source = path("Work", "MyMod", "Scripts"),
+            destination = path("Work", "@MyMod", "Addons"),
             prefix = " MyMod\\Scripts ",
-            signKey = Path.of("D:\\Keys\\MyMod.biprivatekey"),
+            signKey = key,
             packOnly = true,
             clear = true,
-            temp = Path.of("D:\\Temp"),
-            project = Path.of("P:\\"),
-            include = Path.of("D:\\include.lst"),
-            exclude = Path.of("D:\\exclude.lst"),
+            temp = temp,
+            project = root,
+            include = include,
+            exclude = exclude,
         )
         val args = AddonBuilderCommand.commandLine(bin, build).drop(3)
         assertEquals(
             listOf(
-                "-packonly", "-clear", "-temp=D:\\Temp", "-prefix=MyMod\\Scripts", "-project=P:\\",
-                "-sign=D:\\Keys\\MyMod.biprivatekey", "-include=D:\\include.lst", "-exclude=D:\\exclude.lst",
-                "-toolsDirectory=D:\\Tools\\DayZ Tools",
+                "-packonly", "-clear", "-temp=$temp", "-prefix=MyMod\\Scripts", "-project=$root",
+                "-sign=$key", "-include=$include", "-exclude=$exclude",
+                "-toolsDirectory=$tools",
             ),
             args,
         )
     }
 
     fun testPboIsNamedAfterTheSourceFolder() {
-        val build = AddonBuild(Path.of("D:\\Work\\MyMod\\Scripts"), Path.of("D:\\Out"))
+        val build = AddonBuild(path("Work", "MyMod", "Scripts"), path("Out"))
         assertEquals("Scripts.pbo", build.pboName)
-        assertEquals(Path.of("D:\\Out\\Scripts.pbo"), build.pbo)
+        assertEquals(path("Out", "Scripts.pbo"), build.pbo)
     }
 
     /** The exit code is 0 either way, so the verdict comes from the output. */
@@ -97,9 +110,9 @@ class EnfusionAddonBuilderTest : TestCase() {
     }
 
     fun testSigningFiles() {
-        val build = AddonBuild(Path.of("D:\\Work\\MyMod\\Scripts"), Path.of("D:\\Work\\@MyMod\\Addons"))
-        val key = Path.of("D:\\Keys\\MyMod.biprivatekey")
-        assertEquals(Path.of("D:\\Work\\@MyMod\\Addons\\Scripts.pbo.MyMod.bisign"), AddonBuilderCommand.signatureFor(build, key))
-        assertEquals(Path.of("D:\\Work\\@MyMod\\Keys\\MyMod.bikey"), AddonBuilderCommand.publicKeyFor(build, key))
+        val build = AddonBuild(path("Work", "MyMod", "Scripts"), path("Work", "@MyMod", "Addons"))
+        val key = path("Keys", "MyMod.biprivatekey")
+        assertEquals(path("Work", "@MyMod", "Addons", "Scripts.pbo.MyMod.bisign"), AddonBuilderCommand.signatureFor(build, key))
+        assertEquals(path("Work", "@MyMod", "Keys", "MyMod.bikey"), AddonBuilderCommand.publicKeyFor(build, key))
     }
 }
