@@ -793,8 +793,9 @@ mod called BattleRoyale):
 
 **Running DayZ**
 
-- Add a DayZ configuration, mode *Client*, *Use the project's @mods* → the list fills; run → DayZ
-  Diag starts with those mods (check the `-mod=` line in its RPT), and *Stop* closes it.
+- Add a DayZ configuration, mode *Client*, click the *Use the project's @mods* link → the
+  *Mods* field fills; run → DayZ Diag starts with those mods (check the `-mod=` line in its RPT),
+  and *Stop* closes it.
 - Mode *Server* with DayZ Diag and a mission → `DayZDiag_x64.exe -server` starts with it.
 - *Tools → DayZ → Launch Buldozer* → the game opens in Buldozer, and a "Buldozer" configuration
   now exists. With the DayZ folder unset → the configuration shows an error instead of running.

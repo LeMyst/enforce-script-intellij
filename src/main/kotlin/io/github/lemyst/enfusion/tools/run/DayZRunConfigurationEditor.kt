@@ -8,6 +8,9 @@ import com.intellij.ui.SimpleListCellRenderer
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBTextField
 import com.intellij.ui.dsl.builder.AlignX
+import com.intellij.ui.dsl.builder.COLUMNS_MEDIUM
+import com.intellij.ui.dsl.builder.COLUMNS_TINY
+import com.intellij.ui.dsl.builder.columns
 import com.intellij.ui.dsl.builder.panel
 import io.github.lemyst.enfusion.tools.detect.DayZLaunchCommand
 import io.github.lemyst.enfusion.tools.detect.DayZLaunchMode
@@ -44,7 +47,8 @@ class DayZRunConfigurationEditor(private val project: Project) : SettingsEditor<
         row("Mode:") { cell(mode) }
         row { cell(diag) }
         row("Mods:") {
-            cell(mods).align(AlignX.FILL).comment("-mod= folders, separated by ;")
+            // Two cells share this row, so the field must be the resizable column to fill it.
+            cell(mods).resizableColumn().align(AlignX.FILL).comment("-mod= folders, separated by ;")
             link("Use the project's @mods") {
                 val roots = ProjectRootManager.getInstance(project).contentRoots.map { it.toNioPath() }
                 mods.text = DayZLaunchCommand.modFolders(roots).joinToString(";")
@@ -54,8 +58,8 @@ class DayZRunConfigurationEditor(private val project: Project) : SettingsEditor<
         row("Profiles:") { cell(profiles).align(AlignX.FILL).comment("-profiles=; empty uses the game's default, or the server profile from the DayZ Installation settings") }
         row { cell(filePatching) }
         row { cell(window) }
-        row("Connect to:") { cell(connect).comment("Client: -connect=, such as 127.0.0.1") }
-        row("Port:") { cell(port).comment("-port=") }
+        row("Connect to:") { cell(connect).columns(COLUMNS_MEDIUM).comment("Client: -connect=, such as 127.0.0.1") }
+        row("Port:") { cell(port).columns(COLUMNS_TINY).comment("-port=") }
         row("Server config:") { cell(serverConfig).align(AlignX.FILL).comment("Server: -config=, such as serverDZ.cfg") }
         row("Mission:") { cell(mission).align(AlignX.FILL).comment("Diag server: -mission=") }
         row("Extra arguments:") { cell(extra).align(AlignX.FILL) }
