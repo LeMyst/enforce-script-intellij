@@ -208,6 +208,15 @@
                 enabledByDefault="true"
                 level="WARNING"
                 implementationClass="io.github.lemyst.enfusion.inspections.EnUnresolvedStringTableKeyInspection"/>
+        <!-- No language attribute: a .csv is plain text in one IDE and the Database plugin's CSV
+             in another. The visitor is empty for any file not named stringtable.csv. -->
+        <localInspection
+                shortName="EnStringTableStructure"
+                displayName="Malformed stringtable row"
+                groupName="Enforce Script"
+                enabledByDefault="true"
+                level="ERROR"
+                implementationClass="io.github.lemyst.enfusion.stringtable.EnStringTableStructureInspection"/>
 
         <lang.findUsagesProvider
                 language="EnfusionScript"
@@ -326,6 +335,8 @@
                 extensions="pbo"/>
         <fileEditorProvider
                 implementation="io.github.lemyst.enfusion.pbo.EnPboEditorProvider"/>
+        <fileEditorProvider
+                implementation="io.github.lemyst.enfusion.stringtable.StringTableEditorProvider"/>
 
         <!-- .claude/worktrees holds duplicate checkouts; without this every class indexes twice. -->
         <directoryIndexExcludePolicy

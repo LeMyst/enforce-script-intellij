@@ -108,6 +108,39 @@ inputs.
   under *Settings → Editor → General → Gutter Icons*: "Texture preview", and "Texture preview in
   configs" for `config.cpp` and `mod.cpp` on their own. Textures that cannot be previewed, such as
   BC7 font atlases, get no icon.
+- **Stringtable editor** — a `stringtable.csv` opens as text with a *Table* tab next to it: one
+  row per key and one column per language, named from the file's own header, with the key and
+  `original` columns kept on the left while the languages scroll. Editing a cell edits the text, so
+  undo, the text tab and version control all see the change, and only that cell's characters change.
+  - **What still needs translating stands out:** an empty cell, and a cell that still holds exactly
+    the `original` text (never `english`, which normally equals it), each with its own background
+    and a tooltip. Each language's header shows its coverage (`french 412/430`), and *Show* lists
+    only the rows missing a translation in one language. A search field filters by key or text.
+  - **Add Key…** writes a correctly quoted row from one field per language. The key starts with the
+    prefix most of the file's keys share and must be new in every indexed stringtable. **Add
+    Language…** adds a column to the header and every row, empty or filled from `original`;
+    **Remove Language…** takes one out; **Fill from Original…** copies `original` into the empty
+    cells of a language for a first pass.
+  - **Changing `original` updates its copies:** the cells of that row that still held the old
+    `original`, `english` included, follow it in the same undoable edit, while real translations are
+    left alone and tinted *original changed since this was translated* for the rest of the session.
+    A notification counts both. *Update Copies of Original* in the toolbar turns this off.
+  - *Show in Text* opens the selected row in the text tab; switching back to *Table* selects the row
+    under the caret.
+  - **Malformed rows are errors** in the text: a row with more or fewer cells than the header (which
+    shifts every translation after it into the wrong language), an unclosed quote, text after a
+    closing quote, and a duplicate key. The table marks the key of such a row in red.
+  - **From the code:** *Localization key with no stringtable row* offers *Create stringtable row
+    for 'STR_…'*. The row goes into the project's own stringtable nearest the file, never a
+    library's, and when there is none a `stringtable.csv` is created at the addon root (the folder
+    with `config.cpp`) with the vanilla header. The caret lands in the new row's `original` cell.
+  - **Not supported:** column colouring and the column name at the caret in the text tab, and
+    translation hints on `"#STR_…"` strings. The *original changed* tint is not saved: it is gone
+    after a restart, since the CSV has no room for it. A cell holding a line break shows it as `⏎`
+    in the table and is edited on one line. The IDE writes a file back with one line separator
+    throughout, so in a CRLF stringtable that has line breaks *inside* cells (the vanilla one has
+    250), saving turns those into CRLF too. Library stringtables, such as the vanilla one, open
+    read-only.
 - **Class hierarchy** (`Ctrl+H`) modelling both relationships the language has: `extends`, and
   `modded class` layering. Every layer of a class hangs off the base, which is the view that matters
   here — a `modded class X` names nothing at all, so the link to what it patches exists only because
@@ -415,6 +448,17 @@ mod called BattleRoyale):
   the file. This is the one that proves `EnConstantEvaluator` folds through a `const string`.
 - Ctrl+Click a bare `"STR_BR_..."` (server-side, no `#`) → its row in `LanguageCore/stringtable.csv`;
   and a `"#STR_PARTY_..."` inside a `.layout` → `Party/stringtable.csv`.
+- Open the mod's `stringtable.csv` → a *Table* tab next to the text. In it, untranslated cells
+  are tinted, and the headers show coverage. Edit a `french` cell → the text tab changes on that
+  one line; `Ctrl+Z` undoes it. Change an `original` whose `english` is a copy → `english` follows,
+  and a notification counts it. *Add Key…*, *Add Language…* and *Fill from Original…* each
+  produce one undoable change.
+- Open `P:\languagecore\stringtable.csv` (about 7,300 rows) → the table opens without a pause,
+  scrolls and filters smoothly, and is read-only.
+- Type `"#STR_MOD_SOMETHING_NEW"` in a script → *Alt+Enter* → *Create stringtable row* → the row
+  appears at the end of the mod's stringtable with the caret in its `original` cell.
+- Break a row in the text tab (delete a comma) → the row is an error, and the table's status line
+  counts it.
 - Ctrl+Click each half of `"set:battleroyale_gui image:DayZBRLogo_White"` separately → the
   `ImageSetClass` and the `ImageSetDefClass` respectively.
 - Ctrl+Click the RPC name in `AddRPC(RPC_DAYZBR_NAMESPACE, "SetPlayerCount", this)` → the handler
