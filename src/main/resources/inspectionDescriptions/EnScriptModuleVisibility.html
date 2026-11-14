@@ -1,0 +1,18 @@
+<html><body>
+Reports a type, function, field or method that is declared only in a later script module than the
+file using it, such as <code>PlayerBase</code> (<code>4_World</code>) named from a
+<code>3_Game</code> file.
+<p>
+DayZ compiles scripts in five modules, in order: <code>1_Core</code>, <code>2_GameLib</code>,
+<code>3_Game</code>, <code>4_World</code>, <code>5_Mission</code>. Each one sees its own declarations
+and those of the modules before it, never those after. Such a file stops the game at start with
+<i>Can't compile "Game" script module</i>.
+</p>
+<p>
+A file's module comes from the <code>files[]</code> of <code>CfgMods</code> &rarr; <code>defs</code>
+in the addon's <code>config.cpp</code>, and otherwise from the standard folder names
+(<code>3_Game</code>, ...). A file in no known module is not checked, and one visible declaration is
+enough: a class declared in <code>3_Game</code> and modded in <code>4_World</code> can be named from
+<code>3_Game</code>, but the members that only the <code>4_World</code> layer adds cannot.
+</p>
+</body></html>

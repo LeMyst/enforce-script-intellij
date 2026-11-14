@@ -164,6 +164,19 @@ inputs.
   stringtable row. The two `override` ones carry quick fixes. Each is gated so that a class whose
   parent the plugin never indexed produces no report at all, and the duplicate-local rule is measured
   against 120 vanilla files to prove it stays silent on code that compiles.
+- **Script modules** — DayZ compiles scripts in five modules, `1_Core` to `5_Mission`, and each one
+  sees only itself and the modules before it. *Name from a later script module* reports a type,
+  function, field or method used from a module that cannot see it, such as `PlayerBase`
+  (`4_World`) named from `3_Game`, which the game otherwise reports only at launch as *Can't compile
+  "Game" script module*. A file's module comes from `CfgMods` → `defs` → `gameScriptModule` (and the
+  other four) → `files[]` in the addon's `config.cpp`, and otherwise from the standard folder names
+  (`3_Game`, `scripts/4_world`, ...). One visible declaration is enough: a class declared in
+  `3_Game` and modded in `4_World` can be named from `3_Game`, but the members only the `4_World`
+  layer adds cannot. `proto` declarations are not checked, since the engine's own classes are known
+  to every module (vanilla `1_core/proto/proto.c` returns `Object`, a `3_Game` class). Measured
+  silent on the 2,838 vanilla files of `1_Core` to `4_World` and on 632 files of three large mods.
+  **Not supported:** a file in no known module (outside the five folders and not listed in any
+  `files[]`) is not checked, and completion still offers everything, visible or not.
 
 ## Configuration
 
@@ -484,6 +497,16 @@ mod called BattleRoyale):
   and scrolling and typing do not stall.
 - Open a mod's `config.cpp` with `hiddenSelectionsTextures[]` → one icon per line. Untick "Texture
   preview in configs" → they disappear from configs only.
+
+**Script modules**
+
+- In a mod's `3_Game` file, declare a field of type `PlayerBase` → a warning that it is declared in
+  `4_World`. In a `4_World` file, the same line → nothing.
+- Call, from `3_Game`, a method that only a `4_World` `modded class` layer adds → a warning on the
+  method name, none on the class name.
+- A mod whose `config.cpp` lists non-standard folders in `defs` → its files follow the config, not
+  their folder names.
+- Open a few vanilla `P:\scripts\3_game` files → no warnings from this rule.
 
 **Rename and inspections**
 
