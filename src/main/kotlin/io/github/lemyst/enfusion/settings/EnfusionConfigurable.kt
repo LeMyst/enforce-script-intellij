@@ -9,9 +9,11 @@ import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.util.text.StringUtil
 import com.intellij.ui.ToolbarDecorator
+import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBList
 import com.intellij.ui.dsl.builder.Align
 import com.intellij.ui.dsl.builder.panel
+import com.intellij.ui.layout.selected
 import io.github.lemyst.enfusion.pbo.PboCache
 import io.github.lemyst.enfusion.pbo.PboFolders
 import io.github.lemyst.enfusion.roots.EnfusionRoots
@@ -35,6 +37,8 @@ class EnfusionConfigurable(private val project: Project) : Configurable {
 
     private val model = DefaultListModel<String>()
     private val list = JBList(model)
+    private val workDrive = JBCheckBox()
+    private val workDriveConfigs = JBCheckBox()
     private var component: JComponent? = null
 
     override fun getDisplayName(): String = "Enforce Script"
@@ -50,15 +54,32 @@ class EnfusionConfigurable(private val project: Project) : Configurable {
 
         // The UI DSL's text() wraps at a readable line length. A plain JBLabel in a BorderLayout
         // takes its one-line preferred width and is cut off at the settings dialog's default size.
+        // The letter is this machine's (DayZ Installation), read when the page opens.
+        val drive = EnfusionRoots.workDriveLetter() + ":\\"
+        workDrive.text = "Index vanilla DayZ from the work drive ($drive)"
+        workDriveConfigs.text = "Also index the vanilla configs in ${drive}DZ"
         val panel = panel {
+            row { cell(workDrive) }
+                .rowComment(
+                    "<code>${drive}scripts</code>, with the layouts, imagesets and stringtable that " +
+                        "string literals point at. The drive letter is set in DayZ Installation.",
+                )
+            indent {
+                row { cell(workDriveConfigs) }
+                    .rowComment(
+                        "For navigation into vanilla configs. Only its <code>config.cpp</code> files " +
+                            "are indexed, but the first indexing walks the whole unpacked game once.",
+                    )
+                    .enabledIf(workDrive.selected)
+            }
             row {
                 text(
-                    "Script roots indexed for navigation &mdash; the vanilla DayZ script tree and " +
-                        "any dependency mod sources, as folders or packed <code>.pbo</code> files. " +
+                    "Script roots indexed for navigation &mdash; dependency mod sources, as folders " +
+                        "or packed <code>.pbo</code> files, and a vanilla tree kept anywhere but the " +
+                        "work drive. " +
                         "A folder brings the <code>.pbo</code> files under it too, so a whole " +
                         "<code>@Mod</code> or <code>!Workshop</code> folder can be added at once.<br>" +
-                        "Add the unpacked game data (<code>P:\\DZ</code>) too to navigate into vanilla " +
-                        "configs.<br>Changing this triggers a re-index."
+                        "Changing this triggers a re-index."
                 )
             }
             row { cell(toolbar).align(Align.FILL) }.resizableRow()
@@ -153,16 +174,28 @@ class EnfusionConfigurable(private val project: Project) : Configurable {
 
     override fun isModified(): Boolean {
         val settings = EnfusionProjectSettings.getInstance(project)
-        return currentModel() != settings.roots
+        return currentModel() != settings.roots ||
+            workDrive.isSelected != settings.state.indexWorkDrive ||
+            workDriveConfigs.isSelected != settings.state.indexWorkDriveConfigs
     }
 
     override fun apply() {
-        EnfusionRoots.apply(project, currentModel())
+        val settings = EnfusionProjectSettings.getInstance(project)
+        EnfusionRoots.update(listOf(project)) {
+            settings.roots = currentModel()
+            settings.state.indexWorkDrive = workDrive.isSelected
+            settings.state.indexWorkDriveConfigs = workDriveConfigs.isSelected
+            // A choice made here is the user's: the first-open default must not overrule it.
+            settings.state.workDriveOffered = true
+        }
     }
 
     override fun reset() {
+        val settings = EnfusionProjectSettings.getInstance(project)
         model.clear()
-        EnfusionProjectSettings.getInstance(project).roots.forEach { model.addElement(it) }
+        settings.roots.forEach { model.addElement(it) }
+        workDrive.isSelected = settings.state.indexWorkDrive
+        workDriveConfigs.isSelected = settings.state.indexWorkDriveConfigs
     }
 
     override fun disposeUIResources() {

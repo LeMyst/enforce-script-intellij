@@ -5,15 +5,18 @@ import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
 import com.intellij.openapi.options.BoundConfigurable
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.project.ProjectManager
 import com.intellij.openapi.ui.DialogPanel
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.ui.components.JBTextField
 import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.COLUMNS_LARGE
+import com.intellij.ui.dsl.builder.COLUMNS_SHORT
 import com.intellij.ui.dsl.builder.Panel
 import com.intellij.ui.dsl.builder.bindText
 import com.intellij.ui.dsl.builder.columns
 import com.intellij.ui.dsl.builder.panel
+import io.github.lemyst.enfusion.roots.EnfusionRoots
 import io.github.lemyst.enfusion.settings.EnfusionProjectSettings
 import io.github.lemyst.enfusion.tools.detect.DayZPathChecks
 import io.github.lemyst.enfusion.tools.detect.DayZPaths
@@ -59,7 +62,8 @@ class DayZPathsConfigurable(private val project: Project) : BoundConfigurable("D
                 folderRow("Source folder:", state::workDriveSource, DayZPathChecks::folder, { it.workDriveSource }, "The folder DayZ Tools mounts as the work drive.")
                 row("Drive letter:") {
                     val field = textField()
-                        .columns(3)
+                        // Wide enough for its grey "Detected: P" hint, which three columns cut to "Dete".
+                        .columns(COLUMNS_SHORT)
                         .bindText({ state.workDriveLetter ?: "" }, { state.workDriveLetter = it.trim().trimEnd(':').uppercase().ifEmpty { null } })
                         .validationOnInput { f ->
                             f.text.trim().trimEnd(':').takeIf { it.isNotEmpty() }?.let(DayZPathChecks::driveLetter)?.let { warning(it) }
@@ -84,6 +88,14 @@ class DayZPathsConfigurable(private val project: Project) : BoundConfigurable("D
         }
         installation.lastDetected?.let(::showDetected) ?: detectInBackground()
         return panel
+    }
+
+    /**
+     * The work drive's letter decides where every open project indexes vanilla from, so saving
+     * rescans the projects whose roots it changed.
+     */
+    override fun apply() {
+        EnfusionRoots.update(ProjectManager.getInstance().openProjects.toList()) { super.apply() }
     }
 
     private fun Panel.folderRow(
