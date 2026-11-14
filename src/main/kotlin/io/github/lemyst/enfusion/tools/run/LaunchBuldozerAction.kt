@@ -28,7 +28,7 @@ class LaunchBuldozerAction : DumbAwareAction() {
         val type = DayZRunConfigurationType::class.java
         val existing = runManager.getConfigurationSettingsList(type)
             .firstOrNull { (it.configuration as? DayZRunConfiguration)?.options?.mode == DayZLaunchMode.BULDOZER.name }
-        val factory = ConfigurationTypeUtil.findConfigurationType(type).configurationFactories.first()
+        val factory = ConfigurationTypeUtil.findConfigurationType(type).factory(DayZLaunchMode.BULDOZER)
         val settings = existing ?: runManager.createConfiguration("Buldozer", factory).also {
             (it.configuration as DayZRunConfiguration).options.mode = DayZLaunchMode.BULDOZER.name
             runManager.addConfiguration(it)

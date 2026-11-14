@@ -413,9 +413,10 @@ the Run widget's job, through the DayZ run configurations below.
 
 ### Running DayZ
 
-A **DayZ** run configuration (*Run → Edit Configurations → + → DayZ*) starts the game, a server or
-Buldozer, from the folders in the DayZ Installation settings, in the *Run* tool window where it
-can be stopped.
+A **DayZ** run configuration starts the game, a server or Buldozer, from the folders in the DayZ
+Installation settings, in the *Run* tool window where it can be stopped. *Run → Edit Configurations
+→ + → DayZ* has one entry for each, *Client*, *Server* and *Buldozer*, and each one's editor shows
+only the fields it uses.
 
 - **Client:** `DayZDiag_x64.exe` (or `DayZ_x64.exe` with *Use DayZ Diag* off), with `-mod=`,
   `-profiles=`, `-name=`, `-filePatching`, `-window`, and either `-connect=` / `-port=` /
@@ -805,7 +806,9 @@ mod called BattleRoyale):
 
 **Running DayZ**
 
-- Add a DayZ configuration, mode *Client*, click the *Use the project's @mods* link → the
+- *+ → DayZ* lists *Client*, *Server* and *Buldozer*; each editor shows only its own fields (no
+  *Connect to* on a server, no *Server config* on a client, neither on Buldozer).
+- Add *DayZ → Client*, click the *Use the project's @mods* link → the
   *Mods* field fills; run → DayZ Diag starts with those mods (check the `-mod=` line in its RPT),
   and *Stop* closes it.
 - *Mods folder* `P:\Mods` with *Mods* `@CF` → the command line in the console shows
@@ -813,7 +816,8 @@ mod called BattleRoyale):
 - Client with a *Mission* and no *Connect to* → offline play on that mission. Both set → an error.
 - Tick the three *Before Launch* boxes on a server configuration with a mission → the console's
   first lines say what was stopped, cleared and wiped; the mission's `storage_*` folders are gone.
-- Mode *Server* with DayZ Diag and a mission → `DayZDiag_x64.exe -server` starts with it.
+- *DayZ → Server* with DayZ Diag and a mission → `DayZDiag_x64.exe -server` starts with it. Untick
+  DayZ Diag → *Mission* is disabled, since the dedicated server reads it from its config.
 - *Tools → DayZ → Launch Buldozer* → the game opens in Buldozer, and a "Buldozer" configuration
   now exists. With the DayZ folder unset → the configuration shows an error instead of running.
 

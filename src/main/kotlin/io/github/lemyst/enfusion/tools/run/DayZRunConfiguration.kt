@@ -35,7 +35,11 @@ import io.github.lemyst.enfusion.tools.detect.DayZLaunchMode
 import io.github.lemyst.enfusion.tools.detect.DayZPaths
 import java.io.File
 
-/** *Run | Edit Configurations | DayZ*: the game, its server, or Buldozer. */
+/**
+ * *Run | Edit Configurations | DayZ*, with one entry per [DayZLaunchMode] under it in the *+* menu,
+ * as Docker does: each editor then shows only the fields its mode uses, instead of one editor with
+ * the other modes' fields disabled.
+ */
 class DayZRunConfigurationType : ConfigurationTypeBase(
     ID,
     "DayZ",
@@ -43,18 +47,31 @@ class DayZRunConfigurationType : ConfigurationTypeBase(
     NotNullLazyValue.createValue { AllIcons.Nodes.Console },
 ) {
     init {
-        addFactory(object : ConfigurationFactory(this) {
-            override fun getId(): String = ID
-            override fun createTemplateConfiguration(project: Project): RunConfiguration =
-                DayZRunConfiguration(project, this, "DayZ")
-
-            override fun getOptionsClass(): Class<out BaseState> = DayZRunOptions::class.java
-        })
+        DayZLaunchMode.entries.forEach { addFactory(DayZRunConfigurationFactory(this, it)) }
     }
+
+    fun factory(mode: DayZLaunchMode): ConfigurationFactory =
+        configurationFactories.first { (it as DayZRunConfigurationFactory).mode == mode }
 
     companion object {
         const val ID = "EnfusionDayZ"
     }
+}
+
+class DayZRunConfigurationFactory(type: DayZRunConfigurationType, val mode: DayZLaunchMode) : ConfigurationFactory(type) {
+
+    /**
+     * The client keeps the ID of the single factory there was before the split, so that a
+     * configuration saved then still loads; its saved mode, not the factory, decides its editor.
+     */
+    override fun getId(): String = if (mode == DayZLaunchMode.CLIENT) DayZRunConfigurationType.ID else "${DayZRunConfigurationType.ID}.${mode.name}"
+
+    override fun getName(): String = mode.title
+
+    override fun createTemplateConfiguration(project: Project): RunConfiguration =
+        DayZRunConfiguration(project, this, "DayZ ${mode.title}").also { it.options.mode = mode.name }
+
+    override fun getOptionsClass(): Class<out BaseState> = DayZRunOptions::class.java
 }
 
 class DayZRunOptions : RunConfigurationOptions() {
@@ -105,7 +122,8 @@ class DayZRunConfiguration(project: Project, factory: ConfigurationFactory, name
 
     public override fun getOptions(): DayZRunOptions = super.getOptions() as DayZRunOptions
 
-    override fun getConfigurationEditor(): SettingsEditor<out RunConfiguration> = DayZRunConfigurationEditor(project)
+    override fun getConfigurationEditor(): SettingsEditor<out RunConfiguration> =
+        DayZRunConfigurationEditor(project, options.toLaunch().mode)
 
     override fun checkConfiguration() {
         val paths = DayZInstallation.getInstance().configured.orElse(DayZInstallation.getInstance().lastDetected ?: return)
