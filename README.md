@@ -408,8 +408,28 @@ gets four buttons:
 
 They are hidden in projects without an addon and on machines without Windows. *Show the DayZ buttons
 in the main toolbar* in *Settings → Languages & Frameworks → Enforce Script → DayZ Installation*
-hides them everywhere. *Customize Toolbar* removes a single one. **Not included:** launching the
-game or a server.
+hides them everywhere. *Customize Toolbar* removes a single one. Launching the game or a server is
+the Run widget's job, through the DayZ run configurations below.
+
+### Running DayZ
+
+A **DayZ** run configuration (*Run → Edit Configurations → + → DayZ*) starts the game, a server or
+Buldozer, from the folders in the DayZ Installation settings, in the *Run* tool window where it
+can be stopped.
+
+- **Client:** `DayZDiag_x64.exe` (or `DayZ_x64.exe` with *Use DayZ Diag* off), with `-mod=`,
+  `-profiles=`, `-filePatching`, `-window`, and `-connect=` / `-port=` to join a server at start.
+- **Server:** the dedicated `DayZServer_x64.exe`, or `DayZDiag_x64.exe -server` with DayZ Diag, with
+  `-config=`, `-port=`, `-profiles=` (the server profile from the settings when empty), `-mod=`,
+  `-serverMod=`, `-filePatching`, and `-mission=` for a Diag server.
+- **Buldozer:** exactly what DayZ Tools' Object Builder starts as its external viewer —
+  `DayZ_x64.exe -buldozer -window -noland -nopause -profiles=P:\Buldozer -name:Buldozer` — plus
+  the mods. *Tools → DayZ → Launch Buldozer* runs a "Buldozer" configuration, creating it the first
+  time.
+- *Use the project's @mods* fills the mod list with the `@` folders at the project's roots.
+  Mods are separated by `;` as the game expects; extra arguments are split on spaces outside quotes.
+- Stopping kills the process. **Not supported:** building PBOs before launch, and starting a client
+  and a server together (a *Compound* configuration of two DayZ configurations does that).
 
 ### Building PBOs
 
@@ -770,6 +790,14 @@ mod called BattleRoyale):
   buttons. The work-drive button is pressed while the drive is mounted, and clicking it unmounts,
   then mounts. In a project without a `config.cpp` → none of them. Turn off *Show the DayZ buttons in
   the main toolbar* → they disappear, without a restart.
+
+**Running DayZ**
+
+- Add a DayZ configuration, mode *Client*, *Use the project's @mods* → the list fills; run → DayZ
+  Diag starts with those mods (check the `-mod=` line in its RPT), and *Stop* closes it.
+- Mode *Server* with DayZ Diag and a mission → `DayZDiag_x64.exe -server` starts with it.
+- *Tools → DayZ → Launch Buldozer* → the game opens in Buldozer, and a "Buldozer" configuration
+  now exists. With the DayZ folder unset → the configuration shows an error instead of running.
 
 **Building PBOs**
 
