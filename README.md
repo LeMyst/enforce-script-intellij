@@ -284,6 +284,26 @@ The installs are detected in the background when a project opens, so the menu is
 visiting the settings page. **Not supported:** opening a mod folder in Workbench with its `-mod=`
 set (Workbench's command line is undocumented).
 
+### Running DayZ
+
+A **DayZ** run configuration (*Run → Edit Configurations → + → DayZ*) starts the game, a server or
+Buldozer, from the folders in the DayZ Installation settings, in the *Run* tool window where it
+can be stopped.
+
+- **Client:** `DayZDiag_x64.exe` (or `DayZ_x64.exe` with *Use DayZ Diag* off), with `-mod=`,
+  `-profiles=`, `-filePatching`, `-window`, and `-connect=` / `-port=` to join a server at start.
+- **Server:** the dedicated `DayZServer_x64.exe`, or `DayZDiag_x64.exe -server` with DayZ Diag, with
+  `-config=`, `-port=`, `-profiles=` (the server profile from the settings when empty), `-mod=`,
+  `-serverMod=`, `-filePatching`, and `-mission=` for a Diag server.
+- **Buldozer:** exactly what DayZ Tools' Object Builder starts as its external viewer —
+  `DayZ_x64.exe -buldozer -window -noland -nopause -profiles=P:\Buldozer -name:Buldozer` — plus
+  the mods. *Tools → DayZ → Launch Buldozer* runs a "Buldozer" configuration, creating it the first
+  time.
+- *Use the project's @mods* fills the mod list with the `@` folders at the project's roots.
+  Mods are separated by `;` as the game expects; extra arguments are split on spaces outside quotes.
+- Stopping kills the process. **Not supported:** building PBOs before launch, and starting a client
+  and a server together (a *Compound* configuration of two DayZ configurations does that).
+
 ### Building PBOs
 
 *Build PBO* on an addon folder in the *Project* view (or on any file inside one: the nearest folder
@@ -589,6 +609,14 @@ mod called BattleRoyale):
 - *Tools → DayZ Tools* → every installed tool is listed; each one starts.
 - Right-click a `.paa` → *Open in TexView 2* → TexView opens that texture. A `.p3d` → Object Builder.
 - On a machine without DayZ Tools → no *DayZ Tools* menu, no *Open in …* entry, no error.
+
+**Running DayZ**
+
+- Add a DayZ configuration, mode *Client*, *Use the project's @mods* → the list fills; run → DayZ
+  Diag starts with those mods (check the `-mod=` line in its RPT), and *Stop* closes it.
+- Mode *Server* with DayZ Diag and a mission → `DayZDiag_x64.exe -server` starts with it.
+- *Tools → DayZ → Launch Buldozer* → the game opens in Buldozer, and a "Buldozer" configuration
+  now exists. With the DayZ folder unset → the configuration shows an error instead of running.
 
 **Building PBOs**
 

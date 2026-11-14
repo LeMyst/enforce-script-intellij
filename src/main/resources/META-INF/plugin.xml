@@ -347,6 +347,8 @@
         <postStartupActivity
                 implementation="io.github.lemyst.enfusion.tools.DayZDetectionStartup"/>
 
+        <configurationType implementation="io.github.lemyst.enfusion.tools.run.DayZRunConfigurationType"/>
+
         <statusBarWidgetFactory
                 id="EnfusionWorkDrive"
                 implementation="io.github.lemyst.enfusion.tools.WorkDriveWidgetFactory"/>
@@ -376,6 +378,10 @@
                     class="io.github.lemyst.enfusion.tools.UnmountWorkDriveAction"
                     text="Unmount Work Drive"
                     description="Unmount the DayZ work drive"/>
+            <action id="Enfusion.LaunchBuldozer"
+                    class="io.github.lemyst.enfusion.tools.run.LaunchBuldozerAction"
+                    text="Launch Buldozer"
+                    description="Start the game in Buldozer mode, as Object Builder's external viewer does"/>
             <separator/>
             <action id="Enfusion.BuildAllPbos"
                     class="io.github.lemyst.enfusion.tools.BuildAllPbosAction"
