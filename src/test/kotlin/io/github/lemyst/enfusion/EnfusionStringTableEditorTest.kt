@@ -155,12 +155,21 @@ class EnfusionStringTableEditorTest : BasePlatformTestCase() {
     private fun targets(key: String, from: String): List<String> =
         CreateStringTableRowFix(key).targets(project, myFixture.findFileInTempDir(from)!!).map { it.label }
 
-    /** Every stringtable meets a file in GUI only at the repository root; the key prefix decides. */
-    fun testQuickFixFollowsTheKeyPrefixAcrossAddons() {
+    /**
+     * GUI has no stringtable, so every table is offered and the user picks: the key prefix only
+     * ranks them, since mods keep strings in a shared language addon as often as per addon.
+     */
+    fun testQuickFixRanksTablesByKeyPrefix() {
         addons()
         myFixture.addFileToProject("Repo/GUI/layouts/menu.es", "")
-        assertEquals(listOf("Repo/AutoRun/stringtable.csv"), targets("STR_AUTORUN_NEW", "Repo/GUI/layouts/menu.es"))
-        assertEquals(listOf("Repo/Map/stringtable.csv"), targets("str_map_new", "Repo/GUI/layouts/menu.es"))
+        assertEquals(
+            listOf("Repo/AutoRun/stringtable.csv", "Repo/Map/stringtable.csv", "New stringtable.csv in Repo/GUI"),
+            targets("STR_AUTORUN_NEW", "Repo/GUI/layouts/menu.es"),
+        )
+        assertEquals(
+            listOf("Repo/Map/stringtable.csv", "Repo/AutoRun/stringtable.csv", "New stringtable.csv in Repo/GUI"),
+            targets("str_map_new", "Repo/GUI/layouts/menu.es"),
+        )
     }
 
     fun testQuickFixPrefersTheFilesOwnAddon() {
@@ -169,8 +178,8 @@ class EnfusionStringTableEditorTest : BasePlatformTestCase() {
         assertEquals(listOf("Repo/Map/stringtable.csv"), targets("STR_AUTORUN_NEW", "Repo/Map/Scripts/marker.es"))
     }
 
-    /** No addon of its own and no telling prefix: every stringtable is offered, then a new one. */
-    fun testQuickFixOffersEveryTableWhenUnsure() {
+    /** No telling prefix: the tables in path order, then a new one. */
+    fun testQuickFixOffersEveryTableInPathOrderWithoutAPrefix() {
         addons()
         myFixture.addFileToProject("Repo/GUI/layouts/menu.es", "")
         assertEquals(
