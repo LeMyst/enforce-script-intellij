@@ -25,9 +25,22 @@ object LayoutRenderer {
 
     private val TEXT_TYPES = setOf(
         "TextWidgetClass", "RichTextWidgetClass", "MultilineTextWidgetClass", "ButtonWidgetClass",
-        "EditBoxWidgetClass", "MultilineEditBoxWidgetClass", "CheckBoxWidgetClass",
+        "EditBoxWidgetClass", "MultilineEditBoxWidgetClass", "CheckBoxWidgetClass", "ThreeStateCheckboxWidgetClass",
     )
-    private val FILLED_TYPES = setOf("PanelWidgetClass", "ButtonWidgetClass", "ProgressBarWidgetClass", "SliderWidgetClass")
+    private val CHECK_BOXES = setOf("CheckBoxWidgetClass", "ThreeStateCheckboxWidgetClass")
+
+    /** Workbench's scroll bar, as it draws `day_z_server_browser_new`'s list. */
+    private val SCROLL_BAR = Color(0xE0, 0x33, 0x2E)
+    private const val SCROLL_BAR_WIDTH = 15.0
+    /**
+     * Filled with their `color`. Not buttons: a button's colour tints its style's pictures, and
+     * vanilla writes `color 1 0 0 1` on plain-looking dialog buttons and `color 1 1 1 1` on the
+     * digital lock's keys, which came out as red and white blocks.
+     */
+    private val FILLED_TYPES = setOf("PanelWidgetClass", "ProgressBarWidgetClass", "SliderWidgetClass")
+
+    /** Styles that draw nothing, so a panel wearing one is not filled whatever its colour. */
+    private val EMPTY_STYLES = setOf("blank", "empty", "emptyhighlight")
     private val SCREEN = Color(0x2B, 0x2D, 0x30)
 
     /** The whole layout as a picture at 1:1, for tests and exports. */
@@ -113,9 +126,10 @@ object LayoutRenderer {
                 }
             }
 
-            spec.type in FILLED_TYPES && color != null -> fill(g, color, r)
+            spec.type in FILLED_TYPES && color != null && spec.value("style")?.lowercase() !in EMPTY_STYLES -> fill(g, color, r)
         }
-        if (spec.type in TEXT_TYPES) shown(spec)?.takeIf { it.isNotBlank() }?.let { text(g, spec, it, r, color) }
+        val textBox = controls(g, spec, r, pixel)
+        if (spec.type in TEXT_TYPES) shown(spec)?.takeIf { it.isNotBlank() }?.let { text(g, spec, it, textBox, color) }
         g.transform = saved
         g.color = if (p.hidden) Color(255, 255, 255, 70) else Color(255, 255, 255, 55)
         g.stroke = if (p.hidden) {
@@ -137,6 +151,56 @@ object LayoutRenderer {
 
     /** Text sized from the widget's height (the engine's fonts are not available), aligned as `text halign` says. */
     /**
+     * The parts of a control that are not its children, drawn plainly: a check box's box, a combo
+     * box's arrows, a scroll widget's bars (`"Scrollbar V"`, `"Scrollbar V Left"`, `"Scrollbar H"`;
+     * a server browser always has the vertical one). Returns where the control's text goes: after
+     * a check box's box, else the whole box.
+     */
+    private fun controls(g: Graphics2D, spec: WidgetSpec, r: Rect, pixel: Float): Rect {
+        when (spec.type) {
+            in CHECK_BOXES -> {
+                val side = (r.h * 0.75).coerceAtMost(r.w)
+                val box = Rect(r.x + r.h * 0.1, r.y + (r.h - side) / 2, side, side)
+                g.color = Color(0x1E, 0x1E, 0x1E)
+                g.fill(box.shape())
+                g.color = Color(0x6F, 0xB3, 0xC9)
+                g.stroke = BasicStroke(maxOf(pixel, (side / 10).toFloat()))
+                g.draw(inset(box, side / 20))
+                val start = box.x + side + r.h * 0.15
+                return Rect(start, r.y, maxOf(0.0, r.x + r.w - start), r.h)
+            }
+
+            "XComboBoxWidgetClass" -> {
+                g.color = Color.WHITE
+                val arrow = r.h * 0.3
+                val cy = r.y + r.h / 2
+                g.stroke = BasicStroke(maxOf(pixel, (r.h / 14).toFloat()))
+                for ((tip, back) in listOf(r.x + arrow to r.x + 2 * arrow, r.x + r.w - arrow to r.x + r.w - 2 * arrow)) {
+                    val path = java.awt.geom.Path2D.Double()
+                    path.moveTo(back, cy - arrow / 2)
+                    path.lineTo(tip, cy)
+                    path.lineTo(back, cy + arrow / 2)
+                    g.draw(path)
+                }
+            }
+
+            "ServerBrowserWidgetClass", "ScrollWidgetClass" -> {
+                g.color = SCROLL_BAR
+                val bar = SCROLL_BAR_WIDTH.coerceAtMost(r.w / 2)
+                val inset = 4.0
+                if (spec.type == "ServerBrowserWidgetClass" || spec.flag("Scrollbar V", false)) {
+                    val x = if (spec.flag("Scrollbar V Left", false)) r.x else r.x + r.w - bar
+                    g.fill(Rectangle2D.Double(x, r.y + inset, bar, maxOf(0.0, r.h - 2 * inset)))
+                }
+                if (spec.flag("Scrollbar H", false)) {
+                    g.fill(Rectangle2D.Double(r.x + inset, r.y + r.h - bar, maxOf(0.0, r.w - 2 * inset), bar))
+                }
+            }
+        }
+        return r
+    }
+
+    /**
      * `rotation x y z` turns the widget's picture and text by `z` degrees about its `pivot` (fractions
      * of its box, 0 0 by default), negative being anticlockwise: the car HUD's needles are drawn
      * upright and turned, `RPMPointer` by -90 to point left. The outline stays upright, as in
@@ -151,10 +215,8 @@ object LayoutRenderer {
     /**
      * The font size a text widget asks for, in layout pixels: `"exact text size"` when it says
      * `"exact text" 1` (1,262 vanilla widgets do), else its box's height times `text_proportion`
-     * (1 by default: vanilla writes every value from 0 to 0.9, never 1). It is the height of a line,
-     * not the font's em: sized by em, the IDE's font came out an eighth too big, and the in-game
-     * menu's server name overflowed its box where Workbench fits it. The fonts themselves are not
-     * Enfusion's.
+     * (1 by default: vanilla writes every value from 0 to 0.9, never 1). See [fontSize] for how it
+     * becomes a font. The fonts themselves are not Enfusion's.
      */
     internal fun textSize(spec: WidgetSpec, r: Rect): Double =
         if (spec.flag("exact text", false)) {
@@ -162,6 +224,16 @@ object LayoutRenderer {
         } else {
             r.h * spec.number("text_proportion", 0, 1.0)
         }
+
+    /**
+     * The IDE font size, in layout pixels, for [textSize]. An `"exact text size"` is the font's em:
+     * `day_z_connection_dialogue`'s description, 20, and the in-game menu's modded warning, 20, are
+     * that size in Workbench. A proportional size is the height of a whole line: sized by em, the
+     * in-game menu's server name overflowed the box Workbench fits it in. [perEm] is the line height
+     * of a one-pixel font.
+     */
+    internal fun fontSize(spec: WidgetSpec, r: Rect, perEm: Double): Double =
+        if (spec.flag("exact text", false)) textSize(spec, r) else textSize(spec, r) / perEm
 
     /** [text] broken into lines no wider than [width] by [measure], at spaces; a word wider than that keeps its own line. */
     internal fun wrap(text: String, width: Double, measure: (String) -> Double): List<String> {
@@ -185,19 +257,23 @@ object LayoutRenderer {
     /**
      * The text at [textSize], wrapped to the box when it says `wrap 1`, placed by `"text halign"` and
      * `"text valign"`, top left by default: vanilla only ever writes `center`, `right` and, five
-     * times, `left`, never `top`. A button's own text is centred both ways.
+     * times, `left`, never `top`. A button's own text and a check box's label are centred
+     * vertically, a button's also across unless it says otherwise (`HostColumnBtn`'s
+     * `text_halign left`). `text_offset` moves it.
      */
     private fun text(g: Graphics2D, spec: WidgetSpec, text: String, r: Rect, color: Int?) {
         val reference = Font(Font.SANS_SERIF, Font.PLAIN, 1).deriveFont(100f)
         val perEm = g.getFontMetrics(reference).let { (it.ascent + it.descent) / 100.0 }
-        g.font = reference.deriveFont((textSize(spec, r) / perEm).toFloat().coerceAtLeast(1f))
+        g.font = reference.deriveFont(fontSize(spec, r, perEm).toFloat().coerceAtLeast(1f))
         val metrics = g.fontMetrics
         val line = (metrics.ascent + metrics.descent).toDouble()
         val measure = { s: String -> metrics.getStringBounds(s, g).width }
         val button = spec.type == "ButtonWidgetClass"
         val lines = if (spec.flag("wrap", false)) wrap(text, r.w, measure) else text.split('\n')
-        val halign = if (button) "center" else spec.value("text halign") ?: spec.value("text_halign")
-        val valign = if (button) "center" else spec.value("text valign") ?: spec.value("text_valign")
+        val halign = spec.value("text halign") ?: spec.value("text_halign") ?: if (button) "center" else null
+        val valign = spec.value("text valign") ?: spec.value("text_valign") ?: if (button || spec.type in CHECK_BOXES) "center" else null
+        val dx = spec.number("text_offset", 0, 0.0)
+        val dy = spec.number("text_offset", 1, 0.0)
         val block = lines.size * line
         val top = when (valign) {
             "center" -> r.y + (r.h - block) / 2
@@ -205,7 +281,9 @@ object LayoutRenderer {
             else -> r.y
         }
         val clip = g.clip
-        g.clip(r.shape())
+        // Text sized to its text is laid out from its key, before translation, so its box can be
+        // a line short of the translated text: drawn past the box rather than cut off.
+        if (!spec.flag("size to text v", false)) g.clip(r.shape())
         g.color = if (button || color == null) Color.WHITE else Color(color or (0xFF shl 24), true)
         lines.forEachIndexed { i, row ->
             val w = measure(row)
@@ -214,7 +292,7 @@ object LayoutRenderer {
                 "right" -> r.x + r.w - w
                 else -> r.x
             }
-            g.drawString(row, tx.toFloat(), (top + i * line + metrics.ascent).toFloat())
+            g.drawString(row, (tx + dx).toFloat(), (top + dy + i * line + metrics.ascent).toFloat())
         }
         g.clip = clip
     }

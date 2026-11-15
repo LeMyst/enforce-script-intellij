@@ -273,6 +273,35 @@ class EnfusionLayoutPreviewTest : BasePlatformTestCase() {
         assertEquals("no picture at all: a tinted quad", 0xFFFF0000.toInt(), picture(plain).getRGB(5, 5))
     }
 
+    fun testExactTextIsTheEmAndProportionalTextTheLine() {
+        val box = Rect(0.0, 0.0, 444.0, 20.0)
+        assertEquals(20.0, LayoutRenderer.fontSize(widget("TextWidgetClass", "exact text" to "1", "exact text size" to "20"), box, 1.15))
+        assertEquals(20.0 / 1.15, LayoutRenderer.fontSize(widget("TextWidgetClass"), box, 1.15), 1e-9)
+    }
+
+    fun testGridCountsProportionalChildrenAgainstItsDeclaredSize() {
+        // day_z_connection_dialogue: a 0.015-high separator between rows sized to content.
+        val line = widget("PanelWidgetClass", "size" to "0.85 0.015")
+        val grid = widget("GridSpacerWidgetClass", "size" to "0.45 0.3", "Size To Content V" to "1", "Columns" to "1", children = listOf(line))
+        val placed = LayoutGeometry.layout(listOf(grid), 1920.0, 1080.0).associate { it.spec to it.rect }
+        assertEquals(0.015 * 0.3 * 1080, placed.getValue(line).h, 1e-9)
+    }
+
+    fun testRowsAloneGiveTheColumns() {
+        val keys = (1..12).map { widget("ButtonWidgetClass", "size" to "50 40", "hexactsize" to "1", "vexactsize" to "1") }
+        val keypad = widget("GridSpacerWidgetClass", "Rows" to "4", "Size To Content H" to "1", "Size To Content V" to "1", children = keys)
+        val placed = LayoutGeometry.layout(listOf(keypad), 1920.0, 1080.0).associate { it.spec to it.rect }
+        assertEquals(Rect(0.0, 0.0, 150.0, 160.0), placed[keypad])
+        assertEquals("the fourth key starts the second row", Rect(0.0, 40.0, 50.0, 40.0), placed[keys[3]])
+    }
+
+    fun testButtonsAndBlankPanelsAreNotFilled() {
+        fun centre(spec: WidgetSpec) = LayoutRenderer.render(LayoutGeometry.layout(listOf(spec), 10.0, 10.0), 10, 10, false, null) { _, _ -> null }.getRGB(5, 5)
+        assertFalse(centre(widget("ButtonWidgetClass", "color" to "1 0 0 1")) == 0xFFFF0000.toInt())
+        assertFalse(centre(widget("PanelWidgetClass", "color" to "1 0 0 1", "style" to "blank")) == 0xFFFF0000.toInt())
+        assertEquals(0xFFFF0000.toInt(), centre(widget("PanelWidgetClass", "color" to "1 0 0 1", "style" to "rover_sim_colorable")))
+    }
+
     fun testTextSize() {
         val box = Rect(0.0, 0.0, 444.0, 100.0)
         assertEquals(20.0, LayoutRenderer.textSize(widget("MultilineTextWidgetClass", "exact text" to "1", "exact text size" to "20", "text_proportion" to "0.5"), box))
@@ -295,6 +324,60 @@ class EnfusionLayoutPreviewTest : BasePlatformTestCase() {
         val placed = LayoutGeometry.layout(listOf(panel), 1000.0, 500.0)
         assertSame(needle, LayoutGeometry.hit(placed, 5.0, 5.0, includeHidden = false)?.spec)
         assertEquals("then larger and larger", listOf(needle, panel, shadow), LayoutGeometry.hits(placed, 5.0, 5.0, includeHidden = false).map { it.spec })
+    }
+
+    fun testGridSpacerSizedToContent() {
+        // day_z_map's legend, reduced: a 145 x 142 compass beside a 256-wide column, in a grid
+        // declared 600 x 250 that fits its content, with padding and margins.
+        fun px(w: Int, h: Int, vararg more: Pair<String, String>) =
+            widget("PanelWidgetClass", "size" to "$w $h", "hexactsize" to "1", "vexactsize" to "1", *more)
+        val compass = px(145, 142)
+        val column = widget(
+            "GridSpacerWidgetClass", "size" to "145 142", "hexactsize" to "1", "vexactsize" to "1",
+            "Size To Content H" to "1", "Size To Content V" to "1", "Columns" to "1", "Rows" to "2",
+            children = listOf(px(256, 20), px(256, 20)),
+        )
+        val grid = widget(
+            "GridSpacerWidgetClass", "size" to "600 250", "hexactsize" to "1", "vexactsize" to "1",
+            "Size To Content H" to "1", "Size To Content V" to "1", "Columns" to "2", "Rows" to "1",
+            "Padding" to "5", "Margin" to "4", children = listOf(compass, column),
+        )
+        val placed = LayoutGeometry.layout(listOf(grid), 1920.0, 1080.0).associate { it.spec to it.rect }
+        // Padding inside the edges, a margin round every cell.
+        assertEquals(Rect(0.0, 0.0, 5 + 4 + 145 + 4 + 256 + 4 + 5.0, 5 + 4 + 142 + 4 + 5.0), placed[grid])
+        assertEquals(Rect(9.0, 9.0, 145.0, 142.0), placed[compass])
+        assertEquals(Rect(158.0, 9.0, 256.0, 40.0), placed[column])
+    }
+
+    fun testGridAddsRowsAndTextSizedToItsText() {
+        // day_z_respawn_dialogue's tooltip: Rows 2, three children, the last a body whose text is
+        // declared one pixel tall and sized to its text.
+        val header = widget("PanelWidgetClass", "size" to "1 36", "vexactsize" to "1")
+        val line = widget("PanelWidgetClass", "size" to "1 2", "vexactsize" to "1")
+        val content = widget(
+            "RichTextWidgetClass", "size" to "1 1", "vexactsize" to "1", "text" to "this is details",
+            "exact text" to "1", "exact text size" to "16", "size to text v" to "1", "wrap" to "1",
+        )
+        val body = widget("GridSpacerWidgetClass", "Margin" to "15", "Size To Content V" to "1", "Columns" to "1", "Rows" to "1", children = listOf(content))
+        val tooltip = widget(
+            "GridSpacerWidgetClass", "size" to "0.2 1", "Size To Content V" to "1", "Columns" to "1", "Rows" to "2",
+            children = listOf(header, line, body),
+        )
+        val placed = LayoutGeometry.layout(listOf(tooltip), 1920.0, 1080.0).associate { it.spec to it.rect }
+        assertEquals(16.0, placed.getValue(content).h)
+        assertEquals(15.0, placed.getValue(content).y - placed.getValue(body).y)
+        assertEquals("a third row for the third child", 36 + 2 + (15 + 16 + 15.0), placed.getValue(tooltip).h)
+    }
+
+    fun testHigherPriorityIsDrawnOnTop() {
+        // dialog_input_password: the window, priority 1, then a full-screen background without one.
+        val button = widget("ButtonWidgetClass", "size" to "130 40", "hexactsize" to "1", "vexactsize" to "1")
+        val window = widget("WindowWidgetClass", "size" to "540 223", "hexactsize" to "1", "vexactsize" to "1", "priority" to "1", children = listOf(button))
+        val background = widget("ImageWidgetClass")
+        val root = widget("WindowWidgetClass", children = listOf(window, background))
+        val placed = LayoutGeometry.layout(listOf(root), 1920.0, 1080.0)
+        assertEquals("the window and its button after the background", listOf(root, background, window, button), placed.map { it.spec })
+        assertEquals(Rect(0.0, 0.0, 540.0, 223.0), placed.first { it.spec === window }.rect)
     }
 
     fun testKeysShownInTheChosenLanguage() {

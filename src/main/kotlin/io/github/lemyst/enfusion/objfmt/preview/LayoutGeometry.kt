@@ -79,7 +79,7 @@ class Placed(val spec: WidgetSpec, val rect: Rect, val depth: Int, val hidden: B
  * - `fixaspect` shapes the widget's box, not its picture ([fixedAspect]): vanilla sets it on a
  *   `FrameWidgetClass` too, which has no picture. An image is stretched into the box.
  *
- * Everything else the engine does (`Padding` and `Margin` on spacers, `Size To Content` on other
+ * Everything else the engine does (`Padding` and `Margin` on wrap spacers, `Size To Content` on other
  * widgets, scaling) is left out: the preview shows the arrangement, not a pixel-exact frame.
  */
 object LayoutGeometry {
@@ -88,8 +88,32 @@ object LayoutGeometry {
         val out = ArrayList<Placed>()
         val screen = Rect(0.0, 0.0, width, height)
         for (root in roots) place(root, screen, null, 0, false, screen, out)
+        byPriority(out, 0, 0)
         return out
     }
+
+    /**
+     * Puts the subtrees of the widgets at [depth] from [from] on in drawing order: by `priority`,
+     * lowest first, and in declaration order among equals. `dialog_input_password` declares its
+     * full-screen `Background` picture after the dialog window and shows the window on top, because
+     * the window says `priority 1`. Only the drawing order changes, never where anything goes.
+     */
+    private fun byPriority(out: MutableList<Placed>, from: Int, depth: Int) {
+        val subtrees = ArrayList<List<Placed>>()
+        var i = from
+        while (i < out.size) {
+            var end = i + 1
+            while (end < out.size && out[end].depth > depth) end++
+            subtrees += out.subList(i, end).toList()
+            i = end
+        }
+        if (subtrees.size > 1 && subtrees.any { priority(it[0].spec) != priority(subtrees[0][0].spec) }) {
+            val sorted = subtrees.sortedBy { priority(it[0].spec) }.flatten()
+            for (k in sorted.indices) out[from + k] = sorted[k]
+        }
+    }
+
+    private fun priority(spec: WidgetSpec) = spec.number("priority", 0, 0.0)
 
     /** Where [spec] lands inside [parent], by its own position, size and alignment. */
     fun rectOf(spec: WidgetSpec, parent: Rect): Rect {
@@ -157,28 +181,90 @@ object LayoutGeometry {
     }
 
     private fun place(spec: WidgetSpec, parent: Rect, slot: Rect?, depth: Int, hiddenAbove: Boolean, clip: Rect, out: MutableList<Placed>) {
-        val rect = sizedToContent(spec, parent, slot ?: rectOf(spec, parent), slot != null)
+        val declared = slot ?: rectOf(spec, parent)
+        val rect = sizedToContent(spec, parent, declared, slot != null)
         val hidden = hiddenAbove || !spec.visible
         out += Placed(spec, rect, depth, hidden, clip)
+        val children = out.size
         val inner = if (spec.flag("clipchildren", true)) clip.intersect(rect) else clip
         when (spec.type) {
-            "GridSpacerWidgetClass" -> grid(spec, rect, depth, hidden, inner, out)
+            "GridSpacerWidgetClass" -> grid(spec, rect, declared, depth, hidden, inner, out)
             "WrapSpacerWidgetClass" -> wrap(spec, rect, depth, hidden, inner, out)
             else -> spec.children.forEach { place(it, rect, null, depth + 1, hidden, inner, out) }
         }
+        byPriority(out, children, depth + 1)
     }
 
-    private fun grid(spec: WidgetSpec, rect: Rect, depth: Int, hidden: Boolean, clip: Rect, out: MutableList<Placed>) {
-        val columns = spec.number("Columns", 0, 1.0).toInt().coerceAtLeast(1)
-        val shown = spec.children.count { it.visible }
-        val rows = spec.number("Rows", 0, Math.ceil(shown / columns.toDouble())).toInt().coerceAtLeast(1)
-        val cw = rect.w / columns
-        val ch = rect.h / rows
+    /** [declared] is the spacer's size before *Size To Content*, which its proportional children are measured against. */
+    private fun grid(spec: WidgetSpec, rect: Rect, declared: Rect, depth: Int, hidden: Boolean, clip: Rect, out: MutableList<Placed>) {
+        val g = Grid.of(spec, declared)
         var i = 0
         for (child in spec.children) {
-            val cell = Rect(rect.x + (i % columns) * cw, rect.y + (i / columns) * ch, cw, ch)
+            val cell = g.cell(rect, i % g.columns.size, i / g.columns.size)
             place(child, cell, cell, depth + 1, hidden, clip, out)
             if (child.visible) i++
+        }
+    }
+
+    /**
+     * A grid spacer's column widths and row heights. `Columns` x `Rows` cells, with more rows when
+     * the visible children need them (`day_z_respawn_dialogue`'s tooltip declares `Rows 2` and
+     * stacks three), `Padding` inside the spacer's edges and `Margin` round every cell, the outer
+     * edges included: the tooltip body's `Margin 15` insets its text by 15 pixels in Workbench. An axis with `Size To Content` takes each column (row) as wide (tall) as its widest
+     * (tallest) child, as Workbench draws `day_z_map`'s legend: a 145-pixel compass beside the
+     * coordinates, not each in half of the 600 pixels the legend declares. A proportional child
+     * counts with its share of the size the spacer declares: `day_z_connection_dialogue`'s red
+     * separator, `0.015` high, is a few pixels in Workbench, not nothing. Without the flag, the room
+     * is shared equally.
+     */
+    private class Grid(val columns: DoubleArray, val rows: DoubleArray, val padding: Double, val margin: Double) {
+        val width: Double get() = columns.sum() + margin * (columns.size + 1) + 2 * padding
+        val height: Double get() = rows.sum() + margin * (rows.size + 1) + 2 * padding
+
+        fun cell(rect: Rect, column: Int, row: Int): Rect {
+            val c = column.coerceAtMost(columns.size - 1)
+            val r = row.coerceAtMost(rows.size - 1)
+            var x = rect.x + padding + margin
+            for (k in 0 until c) x += columns[k] + margin
+            var y = rect.y + padding + margin
+            for (k in 0 until r) y += rows[k] + margin
+            return Rect(x, y, columns[c], if (row < rows.size) rows[r] else 0.0)
+        }
+
+        companion object {
+            fun of(spec: WidgetSpec, rect: Rect): Grid {
+                val padding = spec.number("Padding", 0, 0.0)
+                val margin = spec.number("Margin", 0, 0.0)
+                val shown = spec.children.filter { it.visible }
+                // `Rows` alone gives the columns: `day_z_digital_lock`'s keypad says `Rows 4` and
+                // shows its twelve keys three to a row.
+                val declaredRows = spec.number("Rows", 0, 0.0).toInt()
+                val columnCount = if (spec.value("Columns") == null && declaredRows > 0) {
+                    maxOf(1, Math.ceil(shown.size / declaredRows.toDouble()).toInt())
+                } else {
+                    spec.number("Columns", 0, 1.0).toInt().coerceAtLeast(1)
+                }
+                val needed = Math.ceil(shown.size / columnCount.toDouble()).toInt()
+                val rowCount = maxOf(spec.number("Rows", 0, needed.toDouble()).toInt(), needed, 1)
+                val shared = { length: Double, count: Int -> DoubleArray(count) { ((length - 2 * padding - margin * (count + 1)) / count).coerceAtLeast(0.0) } }
+                val columns = shared(rect.w, columnCount)
+                val rows = shared(rect.h, rowCount)
+                val fitW = spec.flag("Size To Content H", false)
+                val fitH = spec.flag("Size To Content V", false)
+                if (fitW || fitH) {
+                    if (fitW) columns.fill(0.0)
+                    if (fitH) rows.fill(0.0)
+                    shown.forEachIndexed { i, child ->
+                        val c = i % columnCount
+                        val r = i / columnCount
+                        val size = sizedToContent(child, rect, rectOf(child, rect), inSlot = true)
+                        if (fitW && c < columnCount) columns[c] = maxOf(columns[c], size.w)
+                        if (fitH && r < rowCount) rows[r] = maxOf(rows[r], size.h)
+                    }
+                }
+                return Grid(columns, rows, padding, margin)
+            }
+
         }
     }
 
@@ -255,20 +341,57 @@ object LayoutGeometry {
     }
 
     /**
-     * [rect] shrunk or grown to what a wrap spacer holds, on each axis its `Size To Content` flag
+     * [rect] shrunk or grown to what a wrap or grid spacer holds, on each axis its `Size To Content` flag
      * asks for, then aligned again with that size. A spacer placed in another spacer's slot keeps
      * the slot's corner: its position is the outer spacer's to choose.
      */
     private fun sizedToContent(spec: WidgetSpec, parent: Rect, rect: Rect, inSlot: Boolean): Rect {
-        if (spec.type != "WrapSpacerWidgetClass") return rect
+        if (sizedToText(spec, horizontal = true) || sizedToText(spec, horizontal = false)) {
+            val (w, h) = textExtent(spec, rect)
+            return if (inSlot) Rect(rect.x, rect.y, w, h) else aligned(spec, parent, w, h)
+        }
+        if (spec.type != "WrapSpacerWidgetClass" && spec.type != "GridSpacerWidgetClass") return rect
         val fitW = spec.flag("Size To Content H", false)
         val fitH = spec.flag("Size To Content V", false)
         if (!fitW && !fitH) return rect
+        if (spec.type == "GridSpacerWidgetClass") {
+            val g = Grid.of(spec, rect)
+            val w = if (fitW) g.width else rect.w
+            val h = if (fitH) g.height else rect.h
+            return if (inSlot) Rect(rect.x, rect.y, w, h) else aligned(spec, parent, w, h)
+        }
         val lines = lines(spec, rect).filter { line -> line.items.any { it.first.visible } }
         if (lines.isEmpty()) return rect
         val w = if (fitW) lines.maxOf { it.w } else rect.w
         val h = if (fitH) lines.sumOf { it.h } else rect.h
         return if (inSlot) Rect(rect.x, rect.y, w, h) else aligned(spec, parent, w, h)
+    }
+
+    private val TEXT_TYPES = setOf("TextWidgetClass", "MultilineTextWidgetClass", "RichTextWidgetClass")
+
+    /** Whether a text widget sizes that side to its text (`"size to text h"` / `"size to text v"`); never the width of wrapped text. */
+    private fun sizedToText(spec: WidgetSpec, horizontal: Boolean): Boolean =
+        spec.type in TEXT_TYPES && !spec.text.isNullOrEmpty() &&
+            if (horizontal) spec.flag("size to text h", false) && !spec.flag("wrap", false) else spec.flag("size to text v", false)
+
+    /**
+     * Roughly what a text widget's text measures, for `"size to text"`: lines of the widget's text
+     * size, letters half as wide on average. Layout has no fonts, and the text may yet be translated,
+     * so this only needs to be about right: `day_z_respawn_dialogue`'s tooltip body is declared one
+     * pixel tall and grows to its one line.
+     */
+    private fun textExtent(spec: WidgetSpec, rect: Rect): Pair<Double, Double> {
+        val size = LayoutRenderer.textSize(spec, rect)
+        val text = spec.text.orEmpty()
+        val longest = text.split('\n').maxOf { it.length } * size * 0.5
+        val w = if (sizedToText(spec, horizontal = true)) longest else rect.w
+        val lines = if (spec.flag("wrap", false) && w > 0) {
+            text.split('\n').sumOf { maxOf(1, Math.ceil(it.length * size * 0.5 / w).toInt()) }
+        } else {
+            text.count { it == '\n' } + 1
+        }
+        val h = if (sizedToText(spec, horizontal = false)) lines * size else rect.h
+        return w to h
     }
 
     /** The innermost widget whose declaration holds [offset], for going from the text to the preview. */

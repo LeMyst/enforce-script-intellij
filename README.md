@@ -150,18 +150,24 @@ inputs.
   a screen of the chosen size (1920 × 1080 by default) the way the vanilla layouts use the
   properties: `size` / `position` in pixels or as fractions of the parent (`hexactsize`,
   `vexactsize`, `hexactpos`, `vexactpos`), `halign` / `valign` with offsets from the matching edge,
-  grid spacers in `Rows` × `Columns` cells and wrap spacers flowing their children (lines placed by
+  grid spacers in `Rows` × `Columns` cells (more rows when the children need them, sized to their
+  content on an axis with *Size To Content*, `Padding` inside and `Margin` round each cell), text
+  sized to its text with `"size to text h"` / `"size to text v"` (estimated: the layout has no
+  fonts), and wrap spacers flowing their children (lines placed by
   `content_halign` / `content_valign`, `bottom` stacking them upwards), a `visible 0`
   child taking no slot, a wrap spacer's *Size To Content* fitting it to its children, and children
-  cut off at their parent's edges unless it says `clipchildren 0`. With `fixaspect`, a proportional
+  cut off at their parent's edges unless it says `clipchildren 0`. Siblings are drawn by `priority`,
+  lowest first. With `fixaspect`, a proportional
   `size` gives only a ratio: `outside` covers the parent with a box of that ratio, `inside` fits
-  one in it (`size 1.6 0.9` is a full 16:9 screen). Panels and buttons are filled with
-  their `color`, images show their `image0` (an imageset entry or a texture) or `imageTexture`,
+  one in it (`size 1.6 0.9` is a full 16:9 screen). Panels are filled with their
+  `color` (not `blank` ones; a button's colour tints its style, so buttons are not), images show their `image0` (an imageset entry or a texture) or `imageTexture`,
   through the same cache as the texture hover, stretched to their box, tinted by their `color`,
   cut by their `Mask` at their `Progress` and mirrored by `flip u` / `flip v`, and turned by their
   `rotation` about their `pivot` (the outline stays upright, as in Workbench). Text widgets show
   their `text` at `"exact text size"` pixels, or `text_proportion` of their height, wrapped to the
-  box with `wrap 1` and placed by `"text halign"` / `"text valign"` (top left by default). A texture path no root holds, such as vanilla's `Gui/textures/…`, is looked up on
+  box with `wrap 1` and placed by `"text halign"` / `"text valign"` (top left by default) and
+  `text_offset`. Check boxes get their box, combo boxes their arrows, and scroll widgets and the
+  server browser their scroll bars, drawn plainly. A texture path no root holds, such as vanilla's `Gui/textures/…`, is looked up on
   the work drive when the project indexes it; an image that is not found is only outlined. A `#key` text shows in the language chosen in the toolbar, from the stringtables that
   declare the key (the project's and the vanilla one), falling back to `original`, then to the key;
   *Keys* shows the keys themselves. The choice is kept for every layout. Every widget is outlined; *Hidden widgets* shows the ones with `visible 0`, dashed.
@@ -171,7 +177,8 @@ inputs.
   pans, *Fit* fits the screen to the pane again and *100%* shows it at one layout pixel per screen
   pixel; outlines stay one pixel wide at any zoom. The preview updates a moment after the text
   changes. **Approximate, not pixel-exact:** the typeface is the IDE's, not the layout's `font`;
-  `Padding` / `Margin`, *Size To Content* outside wrap spacers, `"size to text"`, scaling, the
+  panel `style`s (the imageset frames of `dayzwidgets.styles`) are drawn as their plain `color`;
+  `Padding` / `Margin` on wrap spacers, *Size To Content* outside spacers, scaling, the
   rotation of children and blend modes (`mode additive`) are not modelled, and script classes do
   not run. Editing in the preview (moving, resizing, a properties panel) is not
   supported.
