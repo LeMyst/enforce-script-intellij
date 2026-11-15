@@ -158,8 +158,10 @@ inputs.
   one in it (`size 1.6 0.9` is a full 16:9 screen). Panels and buttons are filled with
   their `color`, images show their `image0` (an imageset entry or a texture) or `imageTexture`,
   through the same cache as the texture hover, stretched to their box, tinted by their `color`,
-  cut by their `Mask` at their `Progress` and mirrored by `flip u` / `flip v`, and text widgets
-  their `text`. A texture path no root holds, such as vanilla's `Gui/textures/…`, is looked up on
+  cut by their `Mask` at their `Progress` and mirrored by `flip u` / `flip v`, and turned by their
+  `rotation` about their `pivot` (the outline stays upright, as in Workbench). Text widgets show
+  their `text` at `"exact text size"` pixels, or `text_proportion` of their height, wrapped to the
+  box with `wrap 1` and placed by `"text halign"` / `"text valign"` (top left by default). A texture path no root holds, such as vanilla's `Gui/textures/…`, is looked up on
   the work drive when the project indexes it; an image that is not found is only outlined. A `#key` text shows in the language chosen in the toolbar, from the stringtables that
   declare the key (the project's and the vanilla one), falling back to `original`, then to the key;
   *Keys* shows the keys themselves. The choice is kept for every layout. Every widget is outlined; *Hidden widgets* shows the ones with `visible 0`, dashed.
@@ -167,8 +169,9 @@ inputs.
   its whole box even where its parent cuts it off. The wheel zooms around the pointer, dragging
   pans, *Fit* fits the screen to the pane again and *100%* shows it at one layout pixel per screen
   pixel; outlines stay one pixel wide at any zoom. The preview updates a moment after the text
-  changes. **Approximate, not pixel-exact:** fonts, `Padding` / `Margin`, *Size To Content* outside
-  wrap spacers, scaling and blend modes (`mode additive`) are not modelled, and script classes do
+  changes. **Approximate, not pixel-exact:** the typeface is the IDE's, not the layout's `font`;
+  `Padding` / `Margin`, *Size To Content* outside wrap spacers, `"size to text"`, scaling, the
+  rotation of children and blend modes (`mode additive`) are not modelled, and script classes do
   not run. Editing in the preview (moving, resizing, a properties panel) is not
   supported.
 - **Class hierarchy** (`Ctrl+H`) modelling both relationships the language has: `extends`, and
@@ -738,6 +741,8 @@ mod called BattleRoyale):
   A mod layout using its own `STR_…` keys shows the mod's stringtable text.
 - Open `P:\gui\layouts\day_z_hud_cars.layout` → the dials are grey arcs, not filled boxes; the RPM
   dial's last fifth is red, as are the low ends of the fuel and temperature dials.
+- In `day_z_ingamemenu`, the modded-version warning wraps over three lines at the size Workbench
+  shows. In `day_z_hud_cars`, the RPM needle points left.
 - At 3840 × 2160 every outline is still visible. Scroll the wheel over a button → it zooms in around
   the pointer; drag → the view pans; a click without dragging still selects. *Fit* → back to the
   whole screen; *100%* → one layout pixel per screen pixel.

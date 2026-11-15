@@ -273,6 +273,20 @@ class EnfusionLayoutPreviewTest : BasePlatformTestCase() {
         assertEquals("no picture at all: a tinted quad", 0xFFFF0000.toInt(), picture(plain).getRGB(5, 5))
     }
 
+    fun testTextSize() {
+        val box = Rect(0.0, 0.0, 444.0, 100.0)
+        assertEquals(20.0, LayoutRenderer.textSize(widget("MultilineTextWidgetClass", "exact text" to "1", "exact text size" to "20", "text_proportion" to "0.5"), box))
+        assertEquals(50.0, LayoutRenderer.textSize(widget("TextWidgetClass", "exact text" to "0", "text_proportion" to "0.5"), box))
+        assertEquals(100.0, LayoutRenderer.textSize(widget("TextWidgetClass"), box))
+    }
+
+    fun testWrapBreaksAtSpaces() {
+        val measure = { line: String -> line.length * 10.0 }
+        assertEquals(listOf("one two", "three", "four"), LayoutRenderer.wrap("one two three four", 75.0, measure))
+        assertEquals("a long word keeps its own line", listOf("a", "extraordinary", "b"), LayoutRenderer.wrap("a extraordinary b", 50.0, measure))
+        assertEquals(listOf("first", "second"), LayoutRenderer.wrap("first\nsecond", 500.0, measure))
+    }
+
     fun testKeysShownInTheChosenLanguage() {
         myFixture.addFileToProject(
             "stringtable.csv",

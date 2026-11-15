@@ -93,16 +93,18 @@ object LayoutRenderer {
         val alpha = if (p.hidden) 0.35f else 1f
         g.composite = AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha)
         val color = spec.color
+        val saved = g.transform
+        rotate(g, spec, r)
         when {
             spec.type == "ImageWidgetClass" -> {
                 val picture = image(spec, (maxOf(r.w, r.h) * scale).toInt().coerceAtLeast(1))
                 if (picture != null) {
                     // Stretched to the box: `fixaspect` has already shaped the box itself.
-                    val saved = g.transform
+                    val before = g.transform
                     g.translate(r.x, r.y)
                     g.scale(r.w / picture.width, r.h / picture.height)
                     g.drawImage(picture, 0, 0, null)
-                    g.transform = saved
+                    g.transform = before
                 } else if (color != null && !LayoutSpecs.hasImage(spec)) {
                     // A widget with no picture is a tinted white quad in the game. One whose picture
                     // was not found shows only its outline: filling it with the tint, as before,
@@ -114,6 +116,7 @@ object LayoutRenderer {
             spec.type in FILLED_TYPES && color != null -> fill(g, color, r)
         }
         if (spec.type in TEXT_TYPES) shown(spec)?.takeIf { it.isNotBlank() }?.let { text(g, spec, it, r, color) }
+        g.transform = saved
         g.color = if (p.hidden) Color(255, 255, 255, 70) else Color(255, 255, 255, 55)
         g.stroke = if (p.hidden) {
             BasicStroke(pixel, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 1f, floatArrayOf(4 * pixel, 3 * pixel), 0f)
@@ -133,21 +136,80 @@ object LayoutRenderer {
     }
 
     /** Text sized from the widget's height (the engine's fonts are not available), aligned as `text halign` says. */
-    private fun text(g: Graphics2D, spec: WidgetSpec, text: String, r: Rect, color: Int?) {
-        val size = (r.h * 0.6).toFloat().coerceIn(8f, 40f)
-        g.font = Font(Font.SANS_SERIF, Font.PLAIN, 1).deriveFont(size)
-        val metrics = g.fontMetrics
-        val textWidth = metrics.getStringBounds(text, g).width
-        val tx = when (spec.value("text halign") ?: spec.value("text_halign")) {
-            "center" -> r.x + (r.w - textWidth) / 2
-            "right" -> r.x + r.w - textWidth
-            else -> r.x
+    /**
+     * `rotation x y z` turns the widget's picture and text by `z` degrees about its `pivot` (fractions
+     * of its box, 0 0 by default), negative being anticlockwise: the car HUD's needles are drawn
+     * upright and turned, `RPMPointer` by -90 to point left. The outline stays upright, as in
+     * Workbench, and children are not turned.
+     */
+    private fun rotate(g: Graphics2D, spec: WidgetSpec, r: Rect) {
+        val degrees = spec.number("rotation", 2, 0.0)
+        if (degrees == 0.0) return
+        g.rotate(Math.toRadians(degrees), r.x + spec.number("pivot", 0, 0.0) * r.w, r.y + spec.number("pivot", 1, 0.0) * r.h)
+    }
+
+    /**
+     * The font size a text widget asks for, in layout pixels: `"exact text size"` when it says
+     * `"exact text" 1` (1,262 vanilla widgets do), else its box's height times `text_proportion`.
+     * The fonts themselves are not Enfusion's.
+     */
+    internal fun textSize(spec: WidgetSpec, r: Rect): Double =
+        if (spec.flag("exact text", false)) {
+            spec.number("exact text size", 0, 22.0)
+        } else {
+            r.h * spec.number("text_proportion", 0, 1.0)
         }
-        val ty = r.y + (r.h - metrics.height) / 2 + metrics.ascent
+
+    /** [text] broken into lines no wider than [width] by [measure], at spaces; a word wider than that keeps its own line. */
+    internal fun wrap(text: String, width: Double, measure: (String) -> Double): List<String> {
+        val lines = ArrayList<String>()
+        for (paragraph in text.split('\n')) {
+            var line = ""
+            for (word in paragraph.split(' ').filter { it.isNotEmpty() }) {
+                val candidate = if (line.isEmpty()) word else "$line $word"
+                if (line.isNotEmpty() && measure(candidate) > width) {
+                    lines += line
+                    line = word
+                } else {
+                    line = candidate
+                }
+            }
+            lines += line
+        }
+        return lines
+    }
+
+    /**
+     * The text at [textSize], wrapped to the box when it says `wrap 1`, placed by `"text halign"` and
+     * `"text valign"`, top left by default: vanilla only ever writes `center`, `right` and, five
+     * times, `left`, never `top`. A button's own text is centred both ways.
+     */
+    private fun text(g: Graphics2D, spec: WidgetSpec, text: String, r: Rect, color: Int?) {
+        g.font = Font(Font.SANS_SERIF, Font.PLAIN, 1).deriveFont(textSize(spec, r).toFloat().coerceAtLeast(1f))
+        val metrics = g.fontMetrics
+        val measure = { line: String -> metrics.getStringBounds(line, g).width }
+        val button = spec.type == "ButtonWidgetClass"
+        val lines = if (spec.flag("wrap", false)) wrap(text, r.w, measure) else text.split('\n')
+        val halign = if (button) "center" else spec.value("text halign") ?: spec.value("text_halign")
+        val valign = if (button) "center" else spec.value("text valign") ?: spec.value("text_valign")
+        val block = lines.size * metrics.height.toDouble()
+        val top = when (valign) {
+            "center" -> r.y + (r.h - block) / 2
+            "bottom" -> r.y + r.h - block
+            else -> r.y
+        }
         val clip = g.clip
         g.clip(r.shape())
-        g.color = if (spec.type == "ButtonWidgetClass" || color == null) Color.WHITE else Color(color or (0xFF shl 24), true)
-        g.drawString(text, tx.toFloat(), ty.toFloat())
+        g.color = if (button || color == null) Color.WHITE else Color(color or (0xFF shl 24), true)
+        lines.forEachIndexed { i, line ->
+            val w = measure(line)
+            val tx = when (halign) {
+                "center" -> r.x + (r.w - w) / 2
+                "right" -> r.x + r.w - w
+                else -> r.x
+            }
+            g.drawString(line, tx.toFloat(), (top + i * metrics.height + metrics.ascent).toFloat())
+        }
         g.clip = clip
     }
 
