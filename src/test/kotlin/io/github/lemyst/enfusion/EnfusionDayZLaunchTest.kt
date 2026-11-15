@@ -149,6 +149,21 @@ class EnfusionDayZLaunchTest : TestCase() {
         }
     }
 
+    fun testModOfABuildOutput() {
+        assertEquals("P:\\Mods\\@MyMod", DayZLaunchCommand.modOfBuildOutput("P:\\Mods\\@MyMod\\Addons"))
+        assertEquals("P:\\Mods\\@MyMod", DayZLaunchCommand.modOfBuildOutput("P:\\Mods\\@MyMod\\addons\\"))
+        assertNull("not an Addons folder", DayZLaunchCommand.modOfBuildOutput("C:\\temp\\testpbo"))
+        assertNull("Addons not in an @ folder", DayZLaunchCommand.modOfBuildOutput("P:\\Mods\\MyMod\\Addons"))
+        assertNull(DayZLaunchCommand.modOfBuildOutput(null))
+    }
+
+    fun testAddingModsKeepsTheList() {
+        assertEquals("@CF;@MyMod", DayZLaunchCommand.withMods("@CF", listOf("P:\\Mods\\@MyMod"), "P:\\Mods"))
+        assertEquals("bare @CF already means P:\\Mods\\@CF", "@CF", DayZLaunchCommand.withMods("@CF", listOf("P:\\Mods\\@cf"), "P:\\Mods\\"))
+        assertEquals("outside the mods folder: the full path", "@CF;D:\\Other\\@X", DayZLaunchCommand.withMods("@CF", listOf("D:\\Other\\@X"), "P:\\Mods"))
+        assertEquals("P:\\Mods\\@MyMod", DayZLaunchCommand.withMods("", listOf("P:\\Mods\\@MyMod"), null))
+    }
+
     fun testBareModNamesComeFromTheModsFolder() {
         assertEquals("P:\\Mods\\@CF", DayZLaunchCommand.resolveMod("@CF", "P:\\Mods"))
         assertEquals("P:\\Mods\\@CF", DayZLaunchCommand.resolveMod("@CF", "P:\\Mods\\"))

@@ -4,7 +4,12 @@ import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
 import com.intellij.openapi.options.SettingsEditor
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.ProjectRootManager
+import com.intellij.openapi.ui.MessageType
 import com.intellij.openapi.ui.TextFieldWithBrowseButton
+import com.intellij.openapi.ui.popup.Balloon
+import com.intellij.openapi.ui.popup.JBPopupFactory
+import com.intellij.openapi.util.text.StringUtil
+import com.intellij.ui.awt.RelativePoint
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBPasswordField
 import com.intellij.ui.components.JBTextField
@@ -14,6 +19,7 @@ import com.intellij.ui.dsl.builder.COLUMNS_TINY
 import com.intellij.ui.dsl.builder.columns
 import com.intellij.ui.dsl.builder.panel
 import com.intellij.ui.layout.selected
+import io.github.lemyst.enfusion.tools.AddonBuilds
 import io.github.lemyst.enfusion.tools.detect.DayZLaunchCommand
 import io.github.lemyst.enfusion.tools.detect.DayZLaunchMode
 import javax.swing.JComponent
@@ -49,6 +55,30 @@ class DayZRunConfigurationEditor(
     private val clearLogs = JBCheckBox("Clear the profile's logs (.log, .rpt, .mdmp, .ADM)")
     private val wipeStorage = JBCheckBox("Wipe the mission's storage_* folders")
 
+    /**
+     * Adds the `@` folders at the project's roots and the `@Mod` folders its PBO builds write into
+     * (see [DayZLaunchCommand.modOfBuildOutput]), and says so when there are none: a project kept as
+     * sources has no `@` folder, and an unchanged field looked like a link that does nothing.
+     */
+    private fun addProjectMods(link: JComponent?) {
+        val roots = ProjectRootManager.getInstance(project).contentRoots.map { it.toNioPath() }
+        val built = AddonBuilds.getInstance(project).all().mapNotNull { DayZLaunchCommand.modOfBuildOutput(it.destination) }
+        val found = (DayZLaunchCommand.modFolders(roots) + built).distinctBy { it.lowercase() }
+        val message = if (found.isEmpty()) {
+            "No @ folder at the project's roots, and no Build PBO output folder inside one (such as P:\\Mods\\@MyMod\\Addons)."
+        } else {
+            val before = mods.text
+            mods.text = DayZLaunchCommand.withMods(before, found, modsFolder.text)
+            if (mods.text == before) "The project's mods are already in the list." else null
+        }
+        if (message != null && link != null) {
+            JBPopupFactory.getInstance().createHtmlTextBalloonBuilder(StringUtil.escapeXmlEntities(message), MessageType.INFO, null)
+                .setFadeoutTime(6000)
+                .createBalloon()
+                .show(RelativePoint.getSouthOf(link), Balloon.Position.below)
+        }
+    }
+
     override fun createEditor(): JComponent = panel {
         if (mode != DayZLaunchMode.BULDOZER) row { cell(diag) }
         row("Mods folder:") {
@@ -58,10 +88,7 @@ class DayZRunConfigurationEditor(
         row("Mods:") {
             // Two cells share this row, so the field must be the resizable column to fill it.
             cell(mods).resizableColumn().align(AlignX.FILL).comment("-mod= folders, separated by ;")
-            link("Use the project's @mods") {
-                val roots = ProjectRootManager.getInstance(project).contentRoots.map { it.toNioPath() }
-                mods.text = DayZLaunchCommand.modFolders(roots).joinToString(";")
-            }
+            link("Add the project's @mods") { event -> addProjectMods(event.source as? JComponent) }
         }
         if (mode == DayZLaunchMode.SERVER) {
             row("Server mods:") { cell(serverMods).align(AlignX.FILL).comment("-serverMod=") }

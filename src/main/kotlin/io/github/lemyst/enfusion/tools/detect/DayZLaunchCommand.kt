@@ -186,6 +186,37 @@ object DayZLaunchCommand {
     fun splitMods(text: String?): List<String> =
         text.orEmpty().split(';').map { it.trim() }.filter { it.isNotEmpty() }
 
+    /**
+     * The `@Mod` folder a PBO build writes into: the parent of an `Addons` output folder, when that
+     * parent is named `@…` (`P:\Mods\@MyMod\Addons` gives `P:\Mods\@MyMod`). A project kept as
+     * sources (`Scripts`, `Data`, …) has no `@` folder of its own, and this is where its mod is.
+     * Text, not [Path], for the reason [resolveMod] gives.
+     */
+    fun modOfBuildOutput(destination: String?): String? {
+        val output = destination?.trim()?.trimEnd('\\', '/')?.takeIf { it.isNotEmpty() } ?: return null
+        val cut = output.lastIndexOfAny(charArrayOf('\\', '/'))
+        if (cut < 0 || !output.substring(cut + 1).equals("Addons", ignoreCase = true)) return null
+        val mod = output.substring(0, cut)
+        val name = mod.substring(mod.lastIndexOfAny(charArrayOf('\\', '/')) + 1)
+        return mod.takeIf { name.startsWith("@") && name.length > 1 }
+    }
+
+    /**
+     * The [current] `-mod=` list with each of [found] added unless it is already there, as a bare
+     * name when it lies directly in [modsFolder]. Nothing the user typed is removed or reordered.
+     */
+    fun withMods(current: String?, found: List<String>, modsFolder: String?): String {
+        val mods = splitMods(current).toMutableList()
+        val base = modsFolder?.trim()?.trimEnd('\\', '/')?.takeIf { it.isNotEmpty() }
+        for (mod in found) {
+            val known = mods.any { resolveMod(it, modsFolder).trimEnd('\\', '/').equals(mod.trimEnd('\\', '/'), ignoreCase = true) }
+            if (known) continue
+            val rest = base?.let { b -> mod.takeIf { it.length > b.length + 1 && it.startsWith(b, ignoreCase = true) && it[b.length] in "\\/" }?.substring(b.length + 1) }
+            mods += rest?.takeIf { r -> r.none { it == '\\' || it == '/' } } ?: mod
+        }
+        return mods.joinToString(";")
+    }
+
     /** The `@Mod` folders directly under [roots], as a starting `-mod=` list. */
     fun modFolders(roots: List<Path>): List<String> =
         roots.flatMap { root ->

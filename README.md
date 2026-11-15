@@ -431,8 +431,11 @@ only the fields it uses.
   time.
 - **Mods folder:** a bare mod name such as `@CF` is taken from it (`P:\Mods\@CF`), as mod launch
   scripts usually do; empty, the game looks beside its executable. A mod with a path is left alone.
-  The *Use the project's @mods* link fills the mod list with the `@` folders at the project's roots.
-  Mods are separated by `;` as the game expects; extra arguments are split on spaces outside quotes.
+  The *Add the project's @mods* link adds the `@` folders at the project's roots and, for a project
+  kept as sources, the `@Mod` folder its *Build PBO* output goes into (`P:\Mods\@MyMod\Addons` gives
+  `@MyMod`), as a bare name when it is in the mods folder. Mods already listed stay; when it finds
+  none, it says so. Mods are separated by `;` as the game expects; extra arguments are split on
+  spaces outside quotes.
 - **Before launch**, each off by default: stop every running DayZ, DayZ Diag and DayZ Server
   (including a server another configuration started); clear the profile's `.log`, `.rpt`, `.mdmp`
   and `.ADM` files; for a server, delete the mission's `storage_*` folders so that the loot spawns
@@ -811,9 +814,10 @@ mod called BattleRoyale):
 
 - *+ → DayZ* lists *Client*, *Server* and *Buldozer*; each editor shows only its own fields (no
   *Connect to* on a server, no *Server config* on a client, neither on Buldozer).
-- Add *DayZ → Client*, click the *Use the project's @mods* link → the
-  *Mods* field fills; run → DayZ Diag starts with those mods (check the `-mod=` line in its RPT),
-  and *Stop* closes it.
+- Add *DayZ → Client*, click the *Add the project's @mods* link → the project's mod is added to
+  *Mods*, after what was there; run → DayZ Diag starts with those mods (check the `-mod=` line in
+  its RPT), and *Stop* closes it. In a project with no `@` folder and no *Build PBO* output in one →
+  a balloon says so, and *Mods* is unchanged.
 - *Mods folder* `P:\Mods` with *Mods* `@CF` → the command line in the console shows
   `-mod=P:\Mods\@CF`. Unmount `P:` and run → an error that `P:` is not mounted, nothing started.
 - Client with a *Mission* and no *Connect to* → offline play on that mission. Both set → an error.
