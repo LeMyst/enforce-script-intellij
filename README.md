@@ -429,32 +429,63 @@ only the fields it uses.
   `DayZ_x64.exe -buldozer -window -noland -nopause -profiles=P:\Buldozer -name:Buldozer` — plus
   the mods. *Tools → DayZ → Launch Buldozer* runs a "Buldozer" configuration, creating it the first
   time.
-- **Mods folder:** a bare mod name such as `@CF` is taken from it (`P:\Mods\@CF`), as mod launch
-  scripts usually do; empty, the game looks beside its executable. A mod with a path is left alone.
-  The *Add the project's @mods* link adds the `@` folders at the project's roots and, for a project
-  kept as sources, the `@Mod` folder its *Build PBO* output goes into (`P:\Mods\@MyMod\Addons` gives
-  `@MyMod`), as a bare name when it is in the mods folder. Mods already listed stay; when it finds
-  none, it says so. Mods are separated by `;` as the game expects; extra arguments are split on
-  spaces outside quotes.
+- **The mod list** is a table in load order. Each row has a checkbox: an unticked mod is kept but
+  not passed, so it can be turned off and on again. In a server configuration, *Server only* rows go
+  to `-serverMod=`. The toolbar adds three kinds of row:
+  - **Mods:**
+    - *Add Mods…* lists the `@` folders of the *Mods folder* and of the game's `!Workshop` (where
+      the DayZ launcher links subscribed Workshop mods), one checkbox each.
+    - *Add Folder…* takes a mod folder anywhere.
+    - A bare name such as `@CF` is taken from the *Mods folder*.
+  - **Unpacked addons:** *Rescan Project Addons* adds every `config.cpp` folder of the project, as
+    *Build All PBOs* finds them, and its `@` folders.
+    - Addons load unpacked: each goes to `-mod=` as a folder of its own, with `-filePatching`, which
+      a ticked addon turns on. Nothing has to be built first.
+    - File patching reads the work drive, so an addon is passed through the link at the drive's root
+      that mod setup scripts create (`P:\MyMod` → the checkout): `P:\MyMod\Scripts`, not
+      `C:\…\MyMod\Scripts`. Without such a link the row keeps its own path and the configuration
+      warns.
+    - A rescan adds new addons, ticked, and drops those whose folder is gone. It never re-ticks a
+      row you unticked, and leaves the other rows alone.
+  - **PBOs:** *Add PBO Files…* adds loose `.pbo` files, such as third-party PBOs a mod ships inside
+    its own.
+    - The game loads PBOs only from a mod's `Addons` folder, so at launch they are copied, with
+      their `.bisign` files, into a generated `@ExtraPBOs\Addons` in the IDE's system folder, which
+      takes the first PBO row's place in `-mod=`.
+    - Only changed files are copied again, and files no longer listed are removed.
+    - A server checking signatures also needs their `.bikey` files in its `keys` folder; the plugin
+      does not copy those.
+- A configuration saved with the older `;`-separated *Mods* and *Server mods* fields opens with
+  them as rows. Extra arguments are split on spaces outside quotes.
 - **Before launch**, each off by default: stop every running DayZ, DayZ Diag and DayZ Server
   (including a server another configuration started); clear the profile's `.log`, `.rpt`, `.mdmp`
   and `.ADM` files; for a server, delete the mission's `storage_*` folders so that the loot spawns
   afresh. Only the folder's own files are deleted, never its subfolders, and a drive root or the
   home folder is refused. What was done is printed at the top of the console.
-- **Several local clients:** with the real Steam client every local client is the same Steam user,
-  and the server kicks one when the next joins. A *Client* configuration's *Write a Goldberg Steam
-  emulator identity* writes its player name and Steam ID to `%APPDATA%\Goldberg SteamEmu
-  Saves\settings` (`account_name.txt`, `user_steam_id.txt`) before it starts, as mod launch scripts
-  do. An empty Steam ID is derived from the player name. Make one configuration per client, each
-  with its own player name and profile, and start them with a *Compound*: each client waits until
-  the previous one has had 4 seconds to read its identity. The emulator's `steam_api64.dll` in the
-  game's folder is yours to install; the plugin only writes the identity.
+- **Several local clients:** a Client configuration's *Players* table has one row per client: its
+  name (`-name=`), its Goldberg Steam ID, and its profile.
+  - **Starting:** one run starts every row, one after the other, in one *Run* tab. Each line of
+    output starts with the player's name, and *Stop* stops them all.
+  - **Profiles:** each client needs its own profile. An empty one is a folder of the player's name
+    under *Profiles*, or under the game's default profile.
+  - **Steam identity:** with the real Steam client every local client is the same Steam user, and
+    the server kicks one when the next joins.
+    - *Write a Goldberg Steam emulator identity for each player* writes each player's name and Steam
+      ID to `%APPDATA%\Goldberg SteamEmu Saves\settings` (`account_name.txt`, `user_steam_id.txt`)
+      just before that client starts, as mod launch scripts do.
+    - Each client waits until the previous one has had 4 seconds to read its identity.
+    - An empty Steam ID is derived from the name.
+    - The emulator's `steam_api64.dll` in the game's folder is yours to install; the plugin only
+      writes the identity.
+  - **With a server:** *Wait before starting* gives a server started in the same *Compound* a head
+    start.
 - A configuration that reads from a drive that is not mounted (the mods folder, a mod, the profile
   or the mission on `P:`) refuses to start and says so, rather than starting the game without its
   mods.
 - Stopping kills the process. The password is saved with the configuration in plain text.
-  **Not supported:** building PBOs before launch, and starting a server and clients together (a
-  *Compound* configuration of several DayZ configurations does that, without a delay between them).
+  **Not supported:** building PBOs before launch (unpacked addons make it unnecessary for testing).
+  Starting a server and its clients together is done with a *Compound* configuration of the server
+  and a Client configuration.
 
 ### Building PBOs
 
@@ -822,18 +853,30 @@ mod called BattleRoyale):
 
 - *+ → DayZ* lists *Client*, *Server* and *Buldozer*; each editor shows only its own fields (no
   *Connect to* on a server, no *Server config* on a client, neither on Buldozer).
-- Add *DayZ → Client*, click the *Add the project's @mods* link → the project's mod is added to
-  *Mods*, after what was there; run → DayZ Diag starts with those mods (check the `-mod=` line in
-  its RPT), and *Stop* closes it. In a project with no `@` folder and no *Build PBO* output in one →
-  a balloon says so, and *Mods* is unchanged.
-- *Mods folder* `P:\Mods` with *Mods* `@CF` → the command line in the console shows
-  `-mod=P:\Mods\@CF`. Unmount `P:` and run → an error that `P:` is not mounted, nothing started.
+- Add *DayZ → Client*:
+  - *Rescan Project Addons* → the project's `config.cpp` folders are listed as
+    `P:\MyMod\…` and *-filePatching* is ticked and locked.
+  - *Add Mods…* → the mods folder's and `!Workshop`'s `@` folders; tick `@CF` → it is added.
+  - Run → DayZ Diag starts with the mod loaded unpacked (check the `-mod=` line in its RPT), and
+    *Stop* closes it.
+- Untick an addon, *Rescan* again → it stays unticked. Delete an addon folder, *Rescan* → its row
+  goes.
+- *Add PBO Files…* with two PBOs and their `.bisign` → run → the console's `-mod=` has
+  `…\@ExtraPBOs` where the first PBO row was, and the RPT loads them.
+- Unmount `P:` and run → an error that `P:` is not mounted, nothing started.
+- A configuration saved before the mod list (with `;`-separated *Mods*) → its mods appear as rows.
 - Client with a *Mission* and no *Connect to* → offline play on that mission. Both set → an error.
 - Tick the three *Before Launch* boxes on a server configuration with a mission → the console's
   first lines say what was stopped, cleared and wiped; the mission's `storage_*` folders are gone.
-- Two *Client* configurations with different player names, *Write a Goldberg Steam emulator
-  identity* ticked, in a *Compound* with a server → the console of each shows its own identity line,
-  the second about 4 seconds after the first, and both clients stay connected.
+- A Client configuration with three players, Goldberg ticked and *Wait before starting* 5, in a
+  *Compound* with a server:
+  - The console says it waits, then shows each player's identity line about 4 seconds apart, each
+    line prefixed with the player's name.
+  - All three stay connected, each with its own profile folder.
+  - *Stop* closes the three.
+- Two players with the same name → an error in the configuration. Several players without Goldberg
+  → a warning.
+- *DayZ → Server* with a *Server only* row → it is passed as `-serverMod=`.
 - *DayZ → Server* with DayZ Diag and a mission → `DayZDiag_x64.exe -server` starts with it. Untick
   DayZ Diag → *Mission* is disabled, since the dedicated server reads it from its config.
 - *Tools → DayZ → Launch Buldozer* → the game opens in Buldozer, and a "Buldozer" configuration

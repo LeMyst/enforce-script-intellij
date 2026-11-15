@@ -15,12 +15,16 @@ data class DayZLaunch(
     /** Run DayZ Diag (`DayZDiag_x64.exe`) rather than the retail executable; a Diag server is the same executable with `-server`. */
     val diag: Boolean = true,
     /**
-     * `-mod=`: folders, `;`-separated as the game takes them. A bare name such as `@CF` is taken
-     * from [modsFolder] when one is set; otherwise the game looks for it beside its executable.
+     * The mod list, in load order: ticked rows go to `-mod=`, or `-serverMod=` for a server's
+     * *Server only* rows. A bare name such as `@CF` is taken from [modsFolder] when one is set;
+     * otherwise the game looks for it beside its executable.
      */
-    val mods: List<String> = emptyList(),
-    /** `-serverMod=`: server-only mods. */
-    val serverMods: List<String> = emptyList(),
+    val modList: List<DayZMod> = emptyList(),
+    /**
+     * Client: the clients to start, one each. Empty is one client with no `-name=`. With several,
+     * each needs its own profile and, to stay connected together, its own Goldberg identity.
+     */
+    val players: List<DayZPlayer> = emptyList(),
     val profiles: String? = null,
     val filePatching: Boolean = true,
     val window: Boolean = true,
@@ -36,10 +40,8 @@ data class DayZLaunch(
     val mission: String? = null,
     /** Appended as they are, split on spaces outside quotes. */
     val extraArguments: String = "",
-    /** Where bare `@Mod` names in [mods] and [serverMods] are, such as `P:\Mods`. */
+    /** Where bare `@Mod` names in [modList] are, such as `P:\Mods`. */
     val modsFolder: String? = null,
-    /** Client: `-name=`, the player's name in game. */
-    val playerName: String? = null,
     /** Client joining a server: `-password=`. */
     val password: String? = null,
     /** Before starting: stop every running DayZ, DayZ Diag and DayZ Server process. */
@@ -48,10 +50,10 @@ data class DayZLaunch(
     val clearLogs: Boolean = false,
     /** Server, before starting: delete the mission's `storage_*` folders (the persistence). */
     val wipeStorage: Boolean = false,
-    /** Client, before starting: write a Goldberg Steam emulator identity (see [GoldbergIdentity]). */
+    /** Client, before starting each client: write its Goldberg Steam emulator identity (see [GoldbergIdentity]). */
     val steamEmulator: Boolean = false,
-    /** The identity's Steam ID; empty derives one from the player name. */
-    val steamId: String? = null,
+    /** Client: seconds to wait before the first client starts, so that a server started with it is up. */
+    val waitSeconds: Int = 0,
 )
 
 /**
@@ -65,8 +67,15 @@ object DayZLaunchCommand {
 
     class Problem(message: String) : Exception(message)
 
-    fun build(paths: DayZPaths, launch: DayZLaunch): List<String> {
+    /**
+     * The command line of one process: for a client, the one of [player] (by default the first);
+     * [pboMod] is the folder the mod list's PBOs were staged into, put where the first PBO row is.
+     * Without it the PBO rows are left out, as when only checking a configuration.
+     */
+    fun build(paths: DayZPaths, launch: DayZLaunch, player: DayZPlayer? = launch.players.firstOrNull(), pboMod: String? = null): List<String> {
         val args = ArrayList<String>()
+        val (mods, serverMods) = modArguments(launch, pboMod)
+        val filePatching = launch.filePatching || DayZMods.needsFilePatching(launch.modList)
         when (launch.mode) {
             DayZLaunchMode.CLIENT -> {
                 val connect = launch.connect?.trim()?.takeIf { it.isNotEmpty() }
@@ -75,10 +84,10 @@ object DayZLaunchCommand {
                     throw Problem("Set either Connect to (join a server) or Mission (play offline), not both.")
                 }
                 args += executable(paths, if (launch.diag) DayZPaths.GAME_DIAG_EXE else DayZPaths.GAME_EXE)
-                mods(args, "-mod=", launch.mods, launch.modsFolder)
-                launch.profiles?.let { args += "-profiles=$it" }
-                launch.playerName?.trim()?.takeIf { it.isNotEmpty() }?.let { args += "-name=$it" }
-                if (launch.filePatching) args += "-filePatching"
+                if (mods.isNotEmpty()) args += "-mod=" + mods.joinToString(";")
+                profileOf(paths, launch, player)?.let { args += "-profiles=$it" }
+                player?.name?.trim()?.takeIf { it.isNotEmpty() }?.let { args += "-name=$it" }
+                if (filePatching) args += "-filePatching"
                 if (launch.window) args += "-window"
                 mission?.let { args += "-mission=$it" }
                 connect?.let { args += "-connect=$it" }
@@ -98,9 +107,9 @@ object DayZLaunchCommand {
                 launch.port?.let { args += "-port=$it" }
                 val profiles = launch.profiles ?: paths.serverProfile?.toString()
                 profiles?.let { args += "-profiles=$it" }
-                mods(args, "-mod=", launch.mods, launch.modsFolder)
-                mods(args, "-serverMod=", launch.serverMods, launch.modsFolder)
-                if (launch.filePatching) args += "-filePatching"
+                if (mods.isNotEmpty()) args += "-mod=" + mods.joinToString(";")
+                if (serverMods.isNotEmpty()) args += "-serverMod=" + serverMods.joinToString(";")
+                if (filePatching) args += "-filePatching"
                 if (launch.diag) launch.mission?.takeIf { it.isNotBlank() }?.let { args += "-mission=${it.trim()}" }
             }
 
@@ -110,8 +119,8 @@ object DayZLaunchCommand {
                 val drive = paths.workDriveLetter ?: "P"
                 args += "-profiles=${launch.profiles ?: "$drive:\\Buldozer"}"
                 args += "-name:Buldozer"
-                mods(args, "-mod=", launch.mods, launch.modsFolder)
-                if (launch.filePatching) args += "-filePatching"
+                if (mods.isNotEmpty()) args += "-mod=" + mods.joinToString(";")
+                if (filePatching) args += "-filePatching"
             }
         }
         args += splitArguments(launch.extraArguments)
@@ -123,9 +132,44 @@ object DayZLaunchCommand {
         return game.resolve(name).toString()
     }
 
-    private fun mods(args: MutableList<String>, flag: String, mods: List<String>, folder: String?) {
-        val list = mods.map { it.trim() }.filter { it.isNotEmpty() }.map { resolveMod(it, folder) }
-        if (list.isNotEmpty()) args += flag + list.joinToString(";")
+    /**
+     * `-mod=` and `-serverMod=` entries from the ticked rows, in order. Only a server splits them:
+     * a client or Buldozer passes every row to `-mod=`. The staged [pboMod] goes once, where the
+     * first ticked PBO row is, and to `-serverMod=` only when every ticked PBO row is server only.
+     */
+    fun modArguments(launch: DayZLaunch, pboMod: String?): Pair<List<String>, List<String>> {
+        val server = launch.mode == DayZLaunchMode.SERVER
+        val rows = launch.modList.filter { it.enabled && it.path.isNotBlank() }
+        val pbos = rows.filter { it.kind == DayZModKind.PBO }
+        val pbosServerOnly = server && pbos.isNotEmpty() && pbos.all { it.serverOnly }
+        val mods = ArrayList<String>()
+        val serverMods = ArrayList<String>()
+        var pbosPlaced = false
+        for (row in rows) {
+            val toServer = server && row.serverOnly
+            if (row.kind == DayZModKind.PBO) {
+                if (pboMod == null || pbosPlaced) continue
+                pbosPlaced = true
+                (if (pbosServerOnly) serverMods else mods) += pboMod
+                continue
+            }
+            (if (toServer) serverMods else mods) += resolveMod(row.path.trim(), launch.modsFolder)
+        }
+        return mods to serverMods
+    }
+
+    /**
+     * A client's `-profiles=`: the player's own, or the configuration's. Several clients cannot
+     * share one (each writes its logs and settings there), so with more than one player an empty
+     * profile is the configuration's folder, or else the game's default, with the player's name
+     * under it.
+     */
+    fun profileOf(paths: DayZPaths, launch: DayZLaunch, player: DayZPlayer?): String? {
+        player?.profile?.trim()?.takeIf { it.isNotEmpty() }?.let { return it }
+        if (launch.players.size <= 1) return launch.profiles
+        val base = launch.profiles ?: paths.clientProfile?.toString() ?: return null
+        val name = player?.name?.trim()?.takeIf { it.isNotEmpty() } ?: "Player ${launch.players.indexOf(player) + 1}"
+        return resolveMod(name, base)
     }
 
     /**
@@ -153,7 +197,11 @@ object DayZLaunchCommand {
      * start without the mods and without saying why.
      */
     fun drivesUsed(launch: DayZLaunch): Set<Char> =
-        (listOfNotNull(launch.modsFolder, launch.profiles, launch.mission) + launch.mods + launch.serverMods)
+        (
+            listOfNotNull(launch.modsFolder, launch.profiles, launch.mission) +
+                launch.modList.filter { it.enabled }.map { it.path } +
+                launch.players.mapNotNull { it.profile }
+            )
             .mapNotNull { text -> text.trim().takeIf { it.length >= 2 && it[1] == ':' && it[0].isLetter() }?.get(0)?.uppercaseChar() }
             .toSet()
 
@@ -189,37 +237,6 @@ object DayZLaunchCommand {
     /** `a;b; c` → `a`, `b`, `c`. */
     fun splitMods(text: String?): List<String> =
         text.orEmpty().split(';').map { it.trim() }.filter { it.isNotEmpty() }
-
-    /**
-     * The `@Mod` folder a PBO build writes into: the parent of an `Addons` output folder, when that
-     * parent is named `@…` (`P:\Mods\@MyMod\Addons` gives `P:\Mods\@MyMod`). A project kept as
-     * sources (`Scripts`, `Data`, …) has no `@` folder of its own, and this is where its mod is.
-     * Text, not [Path], for the reason [resolveMod] gives.
-     */
-    fun modOfBuildOutput(destination: String?): String? {
-        val output = destination?.trim()?.trimEnd('\\', '/')?.takeIf { it.isNotEmpty() } ?: return null
-        val cut = output.lastIndexOfAny(charArrayOf('\\', '/'))
-        if (cut < 0 || !output.substring(cut + 1).equals("Addons", ignoreCase = true)) return null
-        val mod = output.substring(0, cut)
-        val name = mod.substring(mod.lastIndexOfAny(charArrayOf('\\', '/')) + 1)
-        return mod.takeIf { name.startsWith("@") && name.length > 1 }
-    }
-
-    /**
-     * The [current] `-mod=` list with each of [found] added unless it is already there, as a bare
-     * name when it lies directly in [modsFolder]. Nothing the user typed is removed or reordered.
-     */
-    fun withMods(current: String?, found: List<String>, modsFolder: String?): String {
-        val mods = splitMods(current).toMutableList()
-        val base = modsFolder?.trim()?.trimEnd('\\', '/')?.takeIf { it.isNotEmpty() }
-        for (mod in found) {
-            val known = mods.any { resolveMod(it, modsFolder).trimEnd('\\', '/').equals(mod.trimEnd('\\', '/'), ignoreCase = true) }
-            if (known) continue
-            val rest = base?.let { b -> mod.takeIf { it.length > b.length + 1 && it.startsWith(b, ignoreCase = true) && it[b.length] in "\\/" }?.substring(b.length + 1) }
-            mods += rest?.takeIf { r -> r.none { it == '\\' || it == '/' } } ?: mod
-        }
-        return mods.joinToString(";")
-    }
 
     /** The `@Mod` folders directly under [roots], as a starting `-mod=` list. */
     fun modFolders(roots: List<Path>): List<String> =

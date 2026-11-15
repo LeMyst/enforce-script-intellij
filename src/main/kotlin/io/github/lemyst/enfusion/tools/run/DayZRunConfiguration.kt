@@ -11,6 +11,7 @@ import com.intellij.execution.configurations.RunConfigurationBase
 import com.intellij.execution.configurations.RunConfigurationOptions
 import com.intellij.execution.configurations.RunProfileState
 import com.intellij.execution.configurations.RuntimeConfigurationError
+import com.intellij.execution.configurations.RuntimeConfigurationWarning
 import com.intellij.execution.process.KillableColoredProcessHandler
 import com.intellij.execution.process.ProcessEvent
 import com.intellij.execution.process.ProcessHandler
@@ -20,6 +21,7 @@ import com.intellij.execution.process.ProcessTerminatedListener
 import com.intellij.execution.runners.ExecutionEnvironment
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.components.BaseState
 import com.intellij.openapi.options.SettingsEditor
 import com.intellij.openapi.progress.ProgressManager
@@ -27,12 +29,18 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.NotNullLazyValue
 import com.intellij.openapi.util.SystemInfo
 import com.intellij.openapi.util.ThrowableComputable
+import com.intellij.util.xmlb.annotations.Tag
 import io.github.lemyst.enfusion.tools.DayZInstallation
 import io.github.lemyst.enfusion.tools.detect.DayZLaunch
 import io.github.lemyst.enfusion.tools.detect.DayZLaunchCleanup
 import io.github.lemyst.enfusion.tools.detect.DayZLaunchCommand
 import io.github.lemyst.enfusion.tools.detect.DayZLaunchMode
+import io.github.lemyst.enfusion.tools.detect.DayZMod
+import io.github.lemyst.enfusion.tools.detect.DayZModKind
+import io.github.lemyst.enfusion.tools.detect.DayZMods
 import io.github.lemyst.enfusion.tools.detect.DayZPaths
+import io.github.lemyst.enfusion.tools.detect.DayZPboStaging
+import io.github.lemyst.enfusion.tools.detect.DayZPlayer
 import io.github.lemyst.enfusion.tools.detect.GoldbergIdentity
 import java.io.File
 import java.io.IOException
@@ -77,11 +85,60 @@ class DayZRunConfigurationFactory(type: DayZRunConfigurationType, val mode: DayZ
     override fun getOptionsClass(): Class<out BaseState> = DayZRunOptions::class.java
 }
 
+/** A row of the mod list, as saved. */
+@Tag("mod")
+class DayZModState : BaseState() {
+    var path by string()
+    var kind by string(DayZModKind.MOD.name)
+    var enabled by property(true)
+    var serverOnly by property(false)
+
+    fun toMod(): DayZMod? {
+        val path = path?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        val kind = runCatching { DayZModKind.valueOf(kind ?: "") }.getOrDefault(DayZMods.kindOf(path))
+        return DayZMod(path, kind, enabled, serverOnly)
+    }
+
+    companion object {
+        fun of(mod: DayZMod) = DayZModState().also {
+            it.path = mod.path
+            it.kind = mod.kind.name
+            it.enabled = mod.enabled
+            it.serverOnly = mod.serverOnly
+        }
+    }
+}
+
+/** A client of a Client configuration, as saved. */
+@Tag("player")
+class DayZPlayerState : BaseState() {
+    var name by string()
+    var steamId by string()
+    var profile by string()
+
+    fun toPlayer() = DayZPlayer(name?.trim()?.ifEmpty { null }, steamId?.trim()?.ifEmpty { null }, profile?.trim()?.ifEmpty { null })
+
+    companion object {
+        fun of(player: DayZPlayer) = DayZPlayerState().also {
+            it.name = player.name
+            it.steamId = player.steamId
+            it.profile = player.profile
+        }
+    }
+}
+
 class DayZRunOptions : RunConfigurationOptions() {
     var mode by string(DayZLaunchMode.CLIENT.name)
     var diag by property(true)
+    var modList by list<DayZModState>()
+
+    /** Before the mod list: `;`-separated, read once to fill it (see [mods]), never written again. */
     var mods by string()
     var serverMods by string()
+    var players by list<DayZPlayerState>()
+
+    /** Before the players list: the one client's name, read once to fill it. */
+    var playerName by string()
     var profiles by string()
     var filePatching by property(true)
     var window by property(true)
@@ -91,20 +148,50 @@ class DayZRunOptions : RunConfigurationOptions() {
     var mission by string()
     var extraArguments by string()
     var modsFolder by string()
-    var playerName by string()
     /** Saved with the configuration, in plain text: it is meant for a local test server. */
     var password by string()
     var stopRunning by property(false)
     var clearLogs by property(false)
     var wipeStorage by property(false)
     var steamEmulator by property(false)
+
+    /** Before the players list: the one client's Steam ID. */
     var steamId by string()
+    var waitSeconds by string()
+
+    /** The mod list, or, for a configuration saved before there was one, its mod strings converted. */
+    fun modRows(): List<DayZMod> =
+        modList.mapNotNull { it.toMod() }.ifEmpty {
+            DayZMods.fromLegacy(DayZLaunchCommand.splitMods(mods), DayZLaunchCommand.splitMods(serverMods))
+        }
+
+    /** The players, or the one client a configuration saved before the list described. */
+    fun playerRows(): List<DayZPlayer> =
+        players.map { it.toPlayer() }.ifEmpty {
+            val name = playerName?.trim()?.ifEmpty { null }
+            val id = steamId?.trim()?.ifEmpty { null }
+            if (name == null && id == null) emptyList() else listOf(DayZPlayer(name, id))
+        }
+
+    fun setModRows(rows: List<DayZMod>) {
+        modList.clear()
+        modList.addAll(rows.map { DayZModState.of(it) })
+        mods = null
+        serverMods = null
+    }
+
+    fun setPlayerRows(rows: List<DayZPlayer>) {
+        players.clear()
+        players.addAll(rows.map { DayZPlayerState.of(it) })
+        playerName = null
+        steamId = null
+    }
 
     fun toLaunch(): DayZLaunch = DayZLaunch(
         mode = runCatching { DayZLaunchMode.valueOf(mode ?: "") }.getOrDefault(DayZLaunchMode.CLIENT),
         diag = diag,
-        mods = DayZLaunchCommand.splitMods(mods),
-        serverMods = DayZLaunchCommand.splitMods(serverMods),
+        modList = modRows(),
+        players = playerRows(),
         profiles = profiles?.trim()?.ifEmpty { null },
         filePatching = filePatching,
         window = window,
@@ -114,13 +201,12 @@ class DayZRunOptions : RunConfigurationOptions() {
         mission = mission?.trim()?.ifEmpty { null },
         extraArguments = extraArguments.orEmpty(),
         modsFolder = modsFolder?.trim()?.ifEmpty { null },
-        playerName = playerName?.trim()?.ifEmpty { null },
         password = password?.ifEmpty { null },
         stopRunning = stopRunning,
         clearLogs = clearLogs,
         wipeStorage = wipeStorage,
         steamEmulator = steamEmulator,
-        steamId = steamId?.trim()?.ifEmpty { null },
+        waitSeconds = waitSeconds?.trim()?.toIntOrNull()?.coerceIn(0, 600) ?: 0,
     )
 }
 
@@ -146,9 +232,23 @@ class DayZRunConfiguration(project: Project, factory: ConfigurationFactory, name
         } catch (e: DayZLaunchCommand.Problem) {
             throw RuntimeConfigurationError("${e.message} Set it in Settings | Languages & Frameworks | Enforce Script | DayZ Installation.")
         }
-        val steamId = launch.steamId
-        if (launch.mode == DayZLaunchMode.CLIENT && launch.steamEmulator && steamId != null && !GoldbergIdentity.isSteamId(steamId)) {
-            throw RuntimeConfigurationError("The Steam ID must be 17 digits starting with 7656119, or empty to derive one from the player name.")
+        if (launch.mode != DayZLaunchMode.CLIENT) return
+        val players = launch.players
+        players.mapNotNull { it.steamId }.firstOrNull { !GoldbergIdentity.isSteamId(it) }?.let {
+            throw RuntimeConfigurationError("The Steam ID $it must be 17 digits starting with 7656119, or empty to derive one from the player name.")
+        }
+        val names = players.map { GoldbergIdentity.accountName(it.name).lowercase() }
+        if (names.size != names.toSet().size) throw RuntimeConfigurationError("Two players have the same name.")
+        val profiles = players.mapNotNull { DayZLaunchCommand.profileOf(paths, launch, it)?.let(DayZMods::key) }
+        if (profiles.size != profiles.toSet().size) throw RuntimeConfigurationError("Two players have the same profile folder.")
+        if (players.size > 1 && !launch.steamEmulator) {
+            throw RuntimeConfigurationWarning(
+                "Several clients on one Steam account kick each other off a server: tick Write a Goldberg Steam emulator identity.",
+            )
+        }
+        val letter = paths.workDriveLetter ?: "P"
+        launch.modList.firstOrNull { it.enabled && it.kind == DayZModKind.ADDON && !it.path.startsWith("$letter:", ignoreCase = true) }?.let {
+            throw RuntimeConfigurationWarning("${it.path} is not on the work drive ($letter:), which file patching reads from.")
         }
     }
 
@@ -157,8 +257,10 @@ class DayZRunConfiguration(project: Project, factory: ConfigurationFactory, name
             override fun startProcess(): ProcessHandler {
                 val paths = DayZInstallation.getInstance().paths(project)
                 val launch = options.toLaunch()
-                val command = try {
-                    DayZLaunchCommand.build(paths, launch)
+                val players = if (launch.mode == DayZLaunchMode.CLIENT) launch.players.ifEmpty { listOf(DayZPlayer()) } else listOf(null)
+                val pboMod = stagePbos(launch)
+                val commands = try {
+                    players.map { DayZLaunchCommand.build(paths, launch, it, pboMod) }
                 } catch (e: DayZLaunchCommand.Problem) {
                     throw ExecutionException(e.message)
                 }
@@ -173,9 +275,18 @@ class DayZRunConfiguration(project: Project, factory: ConfigurationFactory, name
                         )
                     }
                 }
-                val report = beforeLaunch(launch, command, paths)
-                val line = GeneralCommandLine(command).withWorkDirectory(File(command.first()).parentFile)
-                val handler = KillableColoredProcessHandler(line)
+                val report = beforeLaunch(launch, commands, paths)
+                val handler = if (launch.mode == DayZLaunchMode.CLIENT) {
+                    val clients = players.zip(commands).mapIndexed { index, (player, command) ->
+                        val name = player?.name ?: "Client ${index + 1}"
+                        DayZClientsProcessHandler.Client(name, commandLine(command)) {
+                            if (launch.steamEmulator) writeIdentity(player) else null
+                        }
+                    }
+                    DayZClientsProcessHandler(clients, launch.waitSeconds * 1000L)
+                } else {
+                    KillableColoredProcessHandler(commandLine(commands.single()))
+                }
                 ProcessTerminatedListener.attach(handler)
                 // Printed once the console is attached: text sent before startNotify is dropped.
                 if (report.isNotEmpty()) {
@@ -188,34 +299,53 @@ class DayZRunConfiguration(project: Project, factory: ConfigurationFactory, name
                 return handler
             }
 
+            private fun commandLine(command: List<String>) = GeneralCommandLine(command).withWorkDirectory(File(command.first()).parentFile)
+
             /**
-             * Stops the game, clears the profile's logs and wipes the mission's storage, as asked;
-             * returns a line for each, for the console. Deleting files and waiting for processes to
-             * exit is slow, so on the EDT it runs under a modal progress.
+             * Copies the mod list's ticked PBOs into a mod folder of this configuration's own, in
+             * the IDE's system folder rather than the project, since it is generated.
              */
-            private fun beforeLaunch(launch: DayZLaunch, command: List<String>, paths: DayZPaths): List<String> {
+            private fun stagePbos(launch: DayZLaunch): String? {
+                val pbos = launch.modList.filter { it.enabled && it.kind == DayZModKind.PBO }.map { Path.of(it.path.trim()) }
+                if (pbos.isEmpty()) return null
+                val folder = Path.of(PathManager.getSystemPath(), "enfusion", "run-pbos", "${project.locationHash}-${stagingName(name)}")
+                return try {
+                    DayZPboStaging.stage(pbos, folder).toString()
+                } catch (e: DayZLaunchCommand.Problem) {
+                    throw ExecutionException(e.message)
+                } catch (e: IOException) {
+                    throw ExecutionException("Could not copy the mod list's PBOs to $folder: ${e.message}")
+                }
+            }
+
+            /**
+             * Stops the game, clears each client's or the server's profile logs and wipes the
+             * mission's storage, as asked; returns a line for each, for the console. Deleting files
+             * and waiting for processes to exit is slow, so on the EDT it runs under a modal progress.
+             */
+            private fun beforeLaunch(launch: DayZLaunch, commands: List<List<String>>, paths: DayZPaths): List<String> {
                 val wipe = launch.wipeStorage && launch.mode == DayZLaunchMode.SERVER
-                val identity = launch.steamEmulator && launch.mode == DayZLaunchMode.CLIENT
-                if (!launch.stopRunning && !launch.clearLogs && !wipe && !identity) return emptyList()
+                if (!launch.stopRunning && !launch.clearLogs && !wipe) return emptyList()
                 val work = ThrowableComputable<List<String>, ExecutionException> {
                     val lines = ArrayList<String>()
                     try {
                         if (launch.stopRunning) lines += "Stopped ${DayZLaunchCleanup.stopRunning()} running DayZ process(es)."
                         if (launch.clearLogs) {
                             val default = if (launch.mode == DayZLaunchMode.CLIENT) paths.clientProfile else null
-                            DayZLaunchCleanup.profileFolder(command, default)?.let { profile ->
-                                lines += "Cleared ${DayZLaunchCleanup.clearLogs(profile).size} log file(s) in $profile."
+                            for (command in commands) {
+                                DayZLaunchCleanup.profileFolder(command, default)?.let { profile ->
+                                    lines += "Cleared ${DayZLaunchCleanup.clearLogs(profile).size} log file(s) in $profile."
+                                }
                             }
                         }
                         if (wipe) {
-                            val mission = DayZLaunchCleanup.missionFolder(command)
+                            val mission = DayZLaunchCleanup.missionFolder(commands.single())
                             lines += if (mission == null) {
                                 "No -mission= to wipe the storage of."
                             } else {
                                 "Wiped ${DayZLaunchCleanup.wipeStorage(mission).size} storage folder(s) in $mission."
                             }
                         }
-                        if (identity) lines += writeIdentity(launch)
                     } catch (e: DayZLaunchCommand.Problem) {
                         throw ExecutionException(e.message)
                     }
@@ -229,27 +359,28 @@ class DayZRunConfiguration(project: Project, factory: ConfigurationFactory, name
             }
 
             /**
-             * Writes this client's Goldberg identity, after the previous client has had
-             * [GoldbergIdentity.SPACING_MS] to read its own: every client reads the same two files,
-             * and a Compound configuration starts its clients back to back.
+             * Writes [player]'s Goldberg identity, after the previous client has had
+             * [GoldbergIdentity.SPACING_MS] to read its own: every client reads the same two
+             * files. Runs off the EDT, as each client is about to start.
              */
-            private fun writeIdentity(launch: DayZLaunch): String {
+            private fun writeIdentity(player: DayZPlayer?): String {
                 val appData = System.getenv("APPDATA")?.takeIf { it.isNotBlank() }
-                    ?: throw ExecutionException("%APPDATA% is not set, so the Goldberg identity has nowhere to go.")
-                val name = GoldbergIdentity.accountName(launch.playerName)
-                val steamId = GoldbergIdentity.steamId(launch.steamId, name)
+                    ?: throw IOException("%APPDATA% is not set, so the Goldberg identity has nowhere to go.")
+                val name = GoldbergIdentity.accountName(player?.name)
+                val steamId = GoldbergIdentity.steamId(player?.steamId, name)
                 val folder = GoldbergIdentity.settingsFolder(Path.of(appData))
                 synchronized(GoldbergSpacing) {
                     val wait = GoldbergIdentity.waitBeforeWriting(GoldbergSpacing.lastWrite, System.currentTimeMillis())
                     if (wait > 0) Thread.sleep(wait)
-                    try {
-                        GoldbergIdentity.write(folder, name, steamId)
-                    } catch (e: IOException) {
-                        throw ExecutionException("Could not write the Goldberg identity to $folder: ${e.message}")
-                    }
+                    GoldbergIdentity.write(folder, name, steamId)
                     GoldbergSpacing.lastWrite = System.currentTimeMillis()
                 }
                 return "Goldberg Steam identity: $name, $steamId (in $folder)."
             }
         }
+
+    private companion object {
+        /** A configuration's name as a folder name. */
+        fun stagingName(name: String): String = name.replace(Regex("[^A-Za-z0-9._-]+"), "_").take(60)
+    }
 }

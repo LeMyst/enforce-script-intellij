@@ -4,7 +4,10 @@ import io.github.lemyst.enfusion.tools.detect.DayZLaunch
 import io.github.lemyst.enfusion.tools.detect.DayZLaunchCleanup
 import io.github.lemyst.enfusion.tools.detect.DayZLaunchCommand
 import io.github.lemyst.enfusion.tools.detect.DayZLaunchMode
+import io.github.lemyst.enfusion.tools.detect.DayZMod
+import io.github.lemyst.enfusion.tools.detect.DayZModKind
 import io.github.lemyst.enfusion.tools.detect.DayZPaths
+import io.github.lemyst.enfusion.tools.detect.DayZPlayer
 import junit.framework.TestCase
 import java.nio.file.Files
 import java.nio.file.Path
@@ -33,7 +36,7 @@ class EnfusionDayZLaunchTest : TestCase() {
 
     fun testDiagClient() {
         val launch = DayZLaunch(
-            mods = listOf("P:\\@CF", " D:\\Mods\\@My Mod "),
+            modList = listOf(mod("P:\\@CF"), mod(" D:\\Mods\\@My Mod "), mod("P:\\@Off", enabled = false)),
             profiles = "D:\\Profiles\\client",
             connect = "127.0.0.1",
             port = 2302,
@@ -61,8 +64,7 @@ class EnfusionDayZLaunchTest : TestCase() {
         val launch = DayZLaunch(
             mode = DayZLaunchMode.SERVER,
             diag = false,
-            mods = listOf("@CF"),
-            serverMods = listOf("@Admin"),
+            modList = listOf(mod("@CF"), mod("@Admin", serverOnly = true)),
             serverConfig = "serverDZ.cfg",
             port = 2302,
             mission = "ignored without Diag",
@@ -123,13 +125,13 @@ class EnfusionDayZLaunchTest : TestCase() {
     fun testStoredOptionsBecomeALaunch() {
         val options = io.github.lemyst.enfusion.tools.run.DayZRunOptions()
         options.mode = "SERVER"
-        options.mods = "@CF; @MyMod"
         options.port = " 2402 "
         options.connect = "  "
         options.extraArguments = "-dologs"
+        options.setModRows(listOf(DayZMod("P:\\MyMod\\Scripts", DayZModKind.ADDON, serverOnly = true)))
         val launch = options.toLaunch()
         assertEquals(DayZLaunchMode.SERVER, launch.mode)
-        assertEquals(listOf("@CF", "@MyMod"), launch.mods)
+        assertEquals(listOf(DayZMod("P:\\MyMod\\Scripts", DayZModKind.ADDON, serverOnly = true)), launch.modList)
         assertEquals(2402, launch.port)
         assertNull(launch.connect)
         options.mode = "NOT_A_MODE"
@@ -149,19 +151,54 @@ class EnfusionDayZLaunchTest : TestCase() {
         }
     }
 
-    fun testModOfABuildOutput() {
-        assertEquals("P:\\Mods\\@MyMod", DayZLaunchCommand.modOfBuildOutput("P:\\Mods\\@MyMod\\Addons"))
-        assertEquals("P:\\Mods\\@MyMod", DayZLaunchCommand.modOfBuildOutput("P:\\Mods\\@MyMod\\addons\\"))
-        assertNull("not an Addons folder", DayZLaunchCommand.modOfBuildOutput("C:\\temp\\testpbo"))
-        assertNull("Addons not in an @ folder", DayZLaunchCommand.modOfBuildOutput("P:\\Mods\\MyMod\\Addons"))
-        assertNull(DayZLaunchCommand.modOfBuildOutput(null))
+    /** A configuration saved with `;`-separated mod strings and one player name opens converted. */
+    fun testLegacyOptionsAreConverted() {
+        val options = io.github.lemyst.enfusion.tools.run.DayZRunOptions()
+        options.mods = "@CF; P:\\Extra\\one.pbo"
+        options.serverMods = "@Admin"
+        options.playerName = "Survivor"
+        assertEquals(
+            listOf(mod("@CF"), DayZMod("P:\\Extra\\one.pbo", DayZModKind.PBO), mod("@Admin", serverOnly = true)),
+            options.toLaunch().modList,
+        )
+        assertEquals(listOf(DayZPlayer("Survivor")), options.toLaunch().players)
+        options.setModRows(listOf(mod("@CF")))
+        assertNull("the old strings are not written again", options.mods)
+        assertNull(options.serverMods)
     }
 
-    fun testAddingModsKeepsTheList() {
-        assertEquals("@CF;@MyMod", DayZLaunchCommand.withMods("@CF", listOf("P:\\Mods\\@MyMod"), "P:\\Mods"))
-        assertEquals("bare @CF already means P:\\Mods\\@CF", "@CF", DayZLaunchCommand.withMods("@CF", listOf("P:\\Mods\\@cf"), "P:\\Mods\\"))
-        assertEquals("outside the mods folder: the full path", "@CF;D:\\Other\\@X", DayZLaunchCommand.withMods("@CF", listOf("D:\\Other\\@X"), "P:\\Mods"))
-        assertEquals("P:\\Mods\\@MyMod", DayZLaunchCommand.withMods("", listOf("P:\\Mods\\@MyMod"), null))
+    /** Unpacked addons go to -mod= as they are, and need -filePatching even when it is off. */
+    fun testUnpackedAddonsForceFilePatching() {
+        val launch = DayZLaunch(
+            diag = false,
+            filePatching = false,
+            window = false,
+            modList = listOf(mod("@CF"), DayZMod("P:\\MyMod\\Scripts", DayZModKind.ADDON), DayZMod("P:\\MyMod\\Data", DayZModKind.ADDON)),
+        )
+        assertEquals(listOf(retailExe, "-mod=@CF;P:\\MyMod\\Scripts;P:\\MyMod\\Data", "-filePatching"), DayZLaunchCommand.build(paths, launch))
+    }
+
+    /** The staged PBO folder goes once, where the first PBO row is; without it, PBOs are left out. */
+    fun testPboRowsBecomeTheStagedMod() {
+        val launch = DayZLaunch(
+            diag = false,
+            filePatching = false,
+            window = false,
+            modList = listOf(mod("@CF"), DayZMod("D:\\x\\a.pbo", DayZModKind.PBO), mod("@Mine"), DayZMod("D:\\x\\b.pbo", DayZModKind.PBO)),
+        )
+        assertEquals("-mod=@CF;S:\\@ExtraPBOs;@Mine", DayZLaunchCommand.build(paths, launch, pboMod = "S:\\@ExtraPBOs")[1])
+        assertEquals("-mod=@CF;@Mine", DayZLaunchCommand.build(paths, launch)[1])
+    }
+
+    /** Each player is its own command line: its name, and a profile of its own under the configuration's. */
+    fun testSeveralPlayers() {
+        val alice = DayZPlayer("Alice")
+        val bob = DayZPlayer("Bob", profile = "D:\\Bob")
+        val launch = DayZLaunch(diag = false, filePatching = false, window = false, profiles = "D:\\Profiles", players = listOf(alice, bob))
+        assertEquals(listOf(retailExe, "-profiles=D:\\Profiles\\Alice", "-name=Alice"), DayZLaunchCommand.build(paths, launch, alice))
+        assertEquals(listOf(retailExe, "-profiles=D:\\Bob", "-name=Bob"), DayZLaunchCommand.build(paths, launch, bob))
+        val one = launch.copy(players = listOf(alice))
+        assertEquals("one player keeps the configuration's profile", "-profiles=D:\\Profiles", DayZLaunchCommand.build(paths, one, alice)[1])
     }
 
     fun testBareModNamesComeFromTheModsFolder() {
@@ -169,12 +206,12 @@ class EnfusionDayZLaunchTest : TestCase() {
         assertEquals("P:\\Mods\\@CF", DayZLaunchCommand.resolveMod("@CF", "P:\\Mods\\"))
         assertEquals("D:\\Other\\@X", DayZLaunchCommand.resolveMod("D:\\Other\\@X", "P:\\Mods"))
         assertEquals("@CF", DayZLaunchCommand.resolveMod("@CF", " "))
-        val launch = DayZLaunch(diag = false, filePatching = false, window = false, mods = listOf("@CF", "@My Mod"), modsFolder = "P:\\Mods")
+        val launch = DayZLaunch(diag = false, filePatching = false, window = false, modList = listOf(mod("@CF"), mod("@My Mod")), modsFolder = "P:\\Mods")
         assertEquals("-mod=P:\\Mods\\@CF;P:\\Mods\\@My Mod", DayZLaunchCommand.build(paths, launch)[1])
     }
 
     fun testOfflineClientWithNameAndMission() {
-        val launch = DayZLaunch(filePatching = false, window = false, playerName = " Survivor ", mission = ".\\Missions\\empty.ChernarusPlus", password = "ignored offline")
+        val launch = DayZLaunch(filePatching = false, window = false, players = listOf(DayZPlayer(" Survivor ")), mission = ".\\Missions\\empty.ChernarusPlus", password = "ignored offline")
         assertEquals(
             listOf(diagExe, "-name=Survivor", "-mission=.\\Missions\\empty.ChernarusPlus"),
             DayZLaunchCommand.build(paths, launch),
@@ -196,8 +233,14 @@ class EnfusionDayZLaunchTest : TestCase() {
     }
 
     fun testDrivesUsed() {
-        val launch = DayZLaunch(modsFolder = "p:\\Mods", mods = listOf("@CF", "Q:\\@Other"), mission = ".\\missions\\x", profiles = "F:\\Profile")
-        assertEquals(setOf('P', 'Q', 'F'), DayZLaunchCommand.drivesUsed(launch))
+        val launch = DayZLaunch(
+            modsFolder = "p:\\Mods",
+            modList = listOf(mod("@CF"), mod("Q:\\@Other"), mod("R:\\@Unticked", enabled = false)),
+            mission = ".\\missions\\x",
+            profiles = "F:\\Profile",
+            players = listOf(DayZPlayer("A", profile = "G:\\A")),
+        )
+        assertEquals(setOf('P', 'Q', 'F', 'G'), DayZLaunchCommand.drivesUsed(launch))
     }
 
     fun testCleanupStaysInItsFolder() {
@@ -243,4 +286,6 @@ class EnfusionDayZLaunchTest : TestCase() {
     }
 
     private fun assertEmpty(list: List<*>) = assertTrue(list.toString(), list.isEmpty())
+
+    private fun mod(path: String, enabled: Boolean = true, serverOnly: Boolean = false) = DayZMod(path, DayZModKind.MOD, enabled, serverOnly)
 }
