@@ -27,6 +27,9 @@ class DayZPathsState : BaseState() {
     var workDriveLetter by string()
     var clientProfile by string()
     var serverProfile by string()
+
+    /** The DayZ buttons in the main toolbar: a preference of this machine's IDE, like the paths. */
+    var mainToolbar by property(true)
 }
 
 /**

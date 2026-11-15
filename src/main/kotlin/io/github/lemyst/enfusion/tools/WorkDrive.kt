@@ -1,6 +1,7 @@
 package io.github.lemyst.enfusion.tools
 
 import com.intellij.execution.configurations.GeneralCommandLine
+import com.intellij.ide.ActivityTracker
 import com.intellij.execution.process.CapturingProcessHandler
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
@@ -148,6 +149,8 @@ class WorkDrive {
 
     private fun updateWidgets() {
         ApplicationManager.getApplication().invokeLater {
+            // The toolbar's work-drive toggle follows the status at its next update.
+            ActivityTracker.getInstance().inc()
             for (project in ProjectManager.getInstance().openProjects) {
                 WindowManager.getInstance().getStatusBar(project)?.updateWidget(WorkDriveWidgetFactory.ID)
             }

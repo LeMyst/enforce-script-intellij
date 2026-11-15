@@ -13,6 +13,7 @@ import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.COLUMNS_LARGE
 import com.intellij.ui.dsl.builder.COLUMNS_SHORT
 import com.intellij.ui.dsl.builder.Panel
+import com.intellij.ui.dsl.builder.bindSelected
 import com.intellij.ui.dsl.builder.bindText
 import com.intellij.ui.dsl.builder.columns
 import com.intellij.ui.dsl.builder.panel
@@ -79,6 +80,13 @@ class DayZPathsConfigurable(private val project: Project) : BoundConfigurable("D
                     val field = folderField("Server profile for this project")
                         .bindText({ settings.serverProfile ?: "" }, { settings.serverProfile = it })
                     field.comment("Overrides the server profile above for this project only. Saved in .idea/enfusion.xml.")
+                }
+            }
+            group("Toolbar") {
+                row {
+                    checkBox("Show the DayZ buttons in the main toolbar")
+                        .bindSelected(state::mainToolbar)
+                        .comment("Build All PBOs, the work drive, Workbench and the DayZ menu, in projects with an addon.")
                 }
             }
             row {

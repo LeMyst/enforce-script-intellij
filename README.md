@@ -396,6 +396,21 @@ The installs are detected in the background when a project opens, so the menu is
 visiting the settings page. **Not supported:** opening a mod folder in Workbench with its `-mod=`
 set (Workbench's command line is undocumented).
 
+**Toolbar.** In a project with an addon, the main toolbar (the navigation bar in the classic UI)
+gets four buttons:
+
+- *Build All PBOs*.
+- The work drive: a toggle, pressed while it is mounted, that mounts or unmounts it. It follows the
+  status bar's last check rather than checking at every update.
+- *Start Workbench*: Workbench only, with no project. Workbench does not yet load a mod's `.gproj`
+  reliably from its command line.
+- *DayZ*: a drop-down with the installed tools and the rest of *Tools → DayZ*.
+
+They are hidden in projects without an addon and on machines without Windows. *Show the DayZ buttons
+in the main toolbar* in *Settings → Languages & Frameworks → Enforce Script → DayZ Installation*
+hides them everywhere. *Customize Toolbar* removes a single one. **Not included:** launching the
+game or a server.
+
 ### Building PBOs
 
 *Build PBO* on an addon folder in the *Project* view (or on any file inside one: the nearest folder
@@ -751,6 +766,10 @@ mod called BattleRoyale):
 - *Tools → DayZ Tools* → every installed tool is listed; each one starts.
 - Right-click a `.paa` → *Open in TexView 2* → TexView opens that texture. A `.p3d` → Object Builder.
 - On a machine without DayZ Tools → no *DayZ Tools* menu, no *Open in …* entry, no error.
+- In a mod project → the main toolbar's *Build All PBOs*, work-drive, *Start Workbench* and *DayZ*
+  buttons. The work-drive button is pressed while the drive is mounted, and clicking it unmounts,
+  then mounts. In a project without a `config.cpp` → none of them. Turn off *Show the DayZ buttons in
+  the main toolbar* → they disappear, without a restart.
 
 **Building PBOs**
 

@@ -409,12 +409,42 @@
             <separator/>
             <action id="Enfusion.BuildAllPbos"
                     class="io.github.lemyst.enfusion.tools.BuildAllPbosAction"
+                    icon="io.github.lemyst.enfusion.tools.DayZToolbarIcons.BUILD_PBOS"
                     text="Build All PBOs"
                     description="Pack every addon of the project with DayZ Tools' Addon Builder"/>
         </group>
         <!-- Tools | DayZ Tools: one entry per installed desktop tool, hidden without DayZ Tools. -->
         <group id="Enfusion.DayZTools" class="io.github.lemyst.enfusion.tools.DayZToolsGroup" text="DayZ Tools" popup="true">
             <add-to-group group-id="ToolsMenu" anchor="last"/>
+        </group>
+        <!-- The optional main-toolbar buttons (#59): the new UI's main toolbar, and the classic UI's
+             navigation bar. The group hides itself outside Windows, in projects without an addon, and
+             when the DayZ Installation setting is off. -->
+        <group id="Enfusion.MainToolbar" class="io.github.lemyst.enfusion.tools.DayZToolbarGroup">
+            <add-to-group group-id="MainToolbarRight" anchor="first"/>
+            <add-to-group group-id="NavBarToolBar" anchor="first"/>
+            <reference ref="Enfusion.BuildAllPbos"/>
+            <action id="Enfusion.ToggleWorkDrive"
+                    class="io.github.lemyst.enfusion.tools.ToggleWorkDriveAction"
+                    icon="io.github.lemyst.enfusion.tools.DayZToolbarIcons.WORK_DRIVE"
+                    text="Work Drive"
+                    description="Mount or unmount the DayZ work drive"/>
+            <action id="Enfusion.StartWorkbench"
+                    class="io.github.lemyst.enfusion.tools.StartWorkbenchAction"
+                    icon="io.github.lemyst.enfusion.tools.DayZToolbarIcons.WORKBENCH"
+                    text="Start Workbench"
+                    description="Start DayZ Tools' Workbench"/>
+            <!-- Everything else, flat: the Tools menu's two submenus would nest a level deeper. -->
+            <group id="Enfusion.MainToolbar.More" text="DayZ" description="DayZ and DayZ Tools actions"
+                   popup="true" icon="AllIcons.General.ExternalTools">
+                <group id="Enfusion.MainToolbar.Tools" class="io.github.lemyst.enfusion.tools.DayZToolsGroup"/>
+                <separator/>
+                <reference ref="Enfusion.MountWorkDrive"/>
+                <reference ref="Enfusion.UnmountWorkDrive"/>
+                <reference ref="Enfusion.ExtractGameData"/>
+                <separator/>
+                <reference ref="Enfusion.BuildAllPbos"/>
+            </group>
         </group>
         <action id="Enfusion.OpenInDayZTool"
                 class="io.github.lemyst.enfusion.tools.OpenInDayZToolAction"
