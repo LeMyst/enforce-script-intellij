@@ -165,7 +165,8 @@ inputs.
   the work drive when the project indexes it; an image that is not found is only outlined. A `#key` text shows in the language chosen in the toolbar, from the stringtables that
   declare the key (the project's and the vanilla one), falling back to `original`, then to the key;
   *Keys* shows the keys themselves. The choice is kept for every layout. Every widget is outlined; *Hidden widgets* shows the ones with `visible 0`, dashed.
-  Clicking a widget puts the caret on its declaration, and the caret's widget is outlined in blue,
+  Clicking a widget puts the caret on its declaration: the smallest widget under the pointer, then,
+  clicking the same spot again, the next larger one, and the caret's widget is outlined in blue,
   its whole box even where its parent cuts it off. The wheel zooms around the pointer, dragging
   pans, *Fit* fits the screen to the pane again and *100%* shows it at one layout pixel per screen
   pixel; outlines stay one pixel wide at any zoom. The preview updates a moment after the text

@@ -316,9 +316,21 @@ class LayoutPreviewEditor(
         repaintPicture()
     }
 
+    /** Where the last selecting click was, in canvas pixels, so that clicking there again goes deeper. */
+    private var lastClick: java.awt.Point? = null
+
+    /**
+     * Selects the smallest widget under the pointer; clicking the same spot again selects the next
+     * larger one, round to the smallest, so that a panel under its children can still be reached.
+     */
     private fun select(e: MouseEvent) {
         val v = currentView() ?: return
-        val hit = LayoutGeometry.hit(placed, (e.x - v.x) / v.scale, (e.y - v.y) / v.scale, showHidden.isSelected) ?: return
+        val under = LayoutGeometry.hits(placed, (e.x - v.x) / v.scale, (e.y - v.y) / v.scale, showHidden.isSelected)
+        if (under.isEmpty()) return
+        val again = lastClick?.let { it.distance(e.point) < JBUI.scale(4) } == true
+        lastClick = e.point
+        val current = if (again) under.indexOfFirst { it.spec === selected } else -1
+        val hit = under[(current + 1) % under.size]
         val editor = textEditor.editor
         editor.caretModel.moveToOffset(hit.spec.offset.coerceIn(0, editor.document.textLength))
         editor.scrollingModel.scrollToCaret(com.intellij.openapi.editor.ScrollType.CENTER)

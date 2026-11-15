@@ -150,8 +150,11 @@ object LayoutRenderer {
 
     /**
      * The font size a text widget asks for, in layout pixels: `"exact text size"` when it says
-     * `"exact text" 1` (1,262 vanilla widgets do), else its box's height times `text_proportion`.
-     * The fonts themselves are not Enfusion's.
+     * `"exact text" 1` (1,262 vanilla widgets do), else its box's height times `text_proportion`
+     * (1 by default: vanilla writes every value from 0 to 0.9, never 1). It is the height of a line,
+     * not the font's em: sized by em, the IDE's font came out an eighth too big, and the in-game
+     * menu's server name overflowed its box where Workbench fits it. The fonts themselves are not
+     * Enfusion's.
      */
     internal fun textSize(spec: WidgetSpec, r: Rect): Double =
         if (spec.flag("exact text", false)) {
@@ -185,14 +188,17 @@ object LayoutRenderer {
      * times, `left`, never `top`. A button's own text is centred both ways.
      */
     private fun text(g: Graphics2D, spec: WidgetSpec, text: String, r: Rect, color: Int?) {
-        g.font = Font(Font.SANS_SERIF, Font.PLAIN, 1).deriveFont(textSize(spec, r).toFloat().coerceAtLeast(1f))
+        val reference = Font(Font.SANS_SERIF, Font.PLAIN, 1).deriveFont(100f)
+        val perEm = g.getFontMetrics(reference).let { (it.ascent + it.descent) / 100.0 }
+        g.font = reference.deriveFont((textSize(spec, r) / perEm).toFloat().coerceAtLeast(1f))
         val metrics = g.fontMetrics
-        val measure = { line: String -> metrics.getStringBounds(line, g).width }
+        val line = (metrics.ascent + metrics.descent).toDouble()
+        val measure = { s: String -> metrics.getStringBounds(s, g).width }
         val button = spec.type == "ButtonWidgetClass"
         val lines = if (spec.flag("wrap", false)) wrap(text, r.w, measure) else text.split('\n')
         val halign = if (button) "center" else spec.value("text halign") ?: spec.value("text_halign")
         val valign = if (button) "center" else spec.value("text valign") ?: spec.value("text_valign")
-        val block = lines.size * metrics.height.toDouble()
+        val block = lines.size * line
         val top = when (valign) {
             "center" -> r.y + (r.h - block) / 2
             "bottom" -> r.y + r.h - block
@@ -201,14 +207,14 @@ object LayoutRenderer {
         val clip = g.clip
         g.clip(r.shape())
         g.color = if (button || color == null) Color.WHITE else Color(color or (0xFF shl 24), true)
-        lines.forEachIndexed { i, line ->
-            val w = measure(line)
+        lines.forEachIndexed { i, row ->
+            val w = measure(row)
             val tx = when (halign) {
                 "center" -> r.x + (r.w - w) / 2
                 "right" -> r.x + r.w - w
                 else -> r.x
             }
-            g.drawString(line, tx.toFloat(), (top + i * metrics.height + metrics.ascent).toFloat())
+            g.drawString(row, tx.toFloat(), (top + i * line + metrics.ascent).toFloat())
         }
         g.clip = clip
     }

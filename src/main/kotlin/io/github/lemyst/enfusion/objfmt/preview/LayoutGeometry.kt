@@ -276,9 +276,19 @@ object LayoutGeometry {
         placed.filter { offset >= it.spec.offset && offset < it.spec.endOffset }.maxByOrNull { it.depth }
 
     /**
-     * The innermost visible widget under a point, for going from the preview to the text. A widget
-     * is only under the point where its ancestors let it show.
+     * Every widget under a point, smallest first, for going from the preview to the text; among
+     * equal sizes, the one drawn last. Smallest rather than topmost: `day_z_hud_cars`'s shadow,
+     * 1.2 times the panel and declared after the fuel and temperature dials, covers them, so the
+     * topmost widget under a needle was always the shadow. A widget is only under the point where
+     * its ancestors let it show.
      */
+    fun hits(placed: List<Placed>, px: Double, py: Double, includeHidden: Boolean): List<Placed> =
+        placed.withIndex()
+            .filter { (_, p) -> (includeHidden || !p.hidden) && p.rect.contains(px, py) && p.clip.contains(px, py) }
+            .sortedWith(compareBy<IndexedValue<Placed>>({ it.value.rect.w * it.value.rect.h }, { -it.index }))
+            .map { it.value }
+
+    /** The smallest widget under a point ([hits]). */
     fun hit(placed: List<Placed>, px: Double, py: Double, includeHidden: Boolean): Placed? =
-        placed.lastOrNull { (includeHidden || !it.hidden) && it.rect.contains(px, py) && it.clip.contains(px, py) }
+        hits(placed, px, py, includeHidden).firstOrNull()
 }

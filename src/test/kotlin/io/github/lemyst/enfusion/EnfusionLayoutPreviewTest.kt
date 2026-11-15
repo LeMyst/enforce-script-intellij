@@ -287,6 +287,16 @@ class EnfusionLayoutPreviewTest : BasePlatformTestCase() {
         assertEquals(listOf("first", "second"), LayoutRenderer.wrap("first\nsecond", 500.0, measure))
     }
 
+    fun testClickPicksTheSmallestWidgetUnderThePointer() {
+        // The car HUD: a needle, then a shadow declared after it and covering it.
+        val needle = widget("ImageWidgetClass", "size" to "18 111", "hexactsize" to "1", "vexactsize" to "1")
+        val shadow = widget("ImageWidgetClass", "size" to "1.2 1.2")
+        val panel = widget("PanelWidgetClass", "size" to "300 200", "hexactsize" to "1", "vexactsize" to "1", "clipchildren" to "0", children = listOf(needle, shadow))
+        val placed = LayoutGeometry.layout(listOf(panel), 1000.0, 500.0)
+        assertSame(needle, LayoutGeometry.hit(placed, 5.0, 5.0, includeHidden = false)?.spec)
+        assertEquals("then larger and larger", listOf(needle, panel, shadow), LayoutGeometry.hits(placed, 5.0, 5.0, includeHidden = false).map { it.spec })
+    }
+
     fun testKeysShownInTheChosenLanguage() {
         myFixture.addFileToProject(
             "stringtable.csv",
