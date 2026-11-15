@@ -20,8 +20,8 @@ import io.github.lemyst.enfusion.tools.detect.DayZMods
 import javax.swing.JComponent
 
 /**
- * A DayZ run configuration: what the server and the clients share (the executables, the mod list,
- * the port and the mission) at the top, then what only the clients use, then what only the server
+ * A DayZ run configuration: what the server and the clients share (the executables, the mod list
+ * and the port) at the top, then what only the clients use, then what only the server
  * uses, each section switched on by its own checkbox.
  */
 class DayZRunConfigurationEditor(private val project: Project) : SettingsEditor<DayZRunConfiguration>() {
@@ -32,46 +32,32 @@ class DayZRunConfigurationEditor(private val project: Project) : SettingsEditor<
     private val modsFolder = TextFieldWithBrowseButton().apply {
         addBrowseFolderListener(project, FileChooserDescriptorFactory.singleDir().withTitle("Mods Folder"))
     }
-    private val modTable = DayZModTable(project, { modsFolder.text }) {
-        followModList()
-        fireEditorStateChanged()
-    }
+    private val modTable = DayZModTable(project, { modsFolder.text }) { fireEditorStateChanged() }
     private val playersTable = DayZPlayersTable { fireEditorStateChanged() }
     private val filePatching = JBCheckBox("-filePatching (load loose files from the work drive)")
-
-    /** What the user ticked, kept while the project's addons force the box on. */
-    private var filePatchingChoice = true
     private val port = JBTextField()
-    private val mission = JBTextField()
     private val extra = JBTextField()
 
-    private val profiles = JBTextField()
+    private val profiles = folderField("Client Profiles Folder")
     private val window = JBCheckBox("-window")
     private val connect = JBTextField()
     private val password = JBPasswordField()
     private val steamEmulator = JBCheckBox("Write a Goldberg Steam emulator identity for each player")
     private val clientDelay = JBTextField()
+    private val offlineMission = folderField("Offline Mission Folder")
 
-    private val serverConfig = JBTextField()
-    private val serverProfile = JBTextField()
+    private val serverConfig = TextFieldWithBrowseButton().apply {
+        addBrowseFolderListener(project, FileChooserDescriptorFactory.singleFile().withExtensionFilter("cfg").withTitle("Server Config"))
+    }
+    private val serverProfile = folderField("Server Profile Folder")
+    private val serverMission = folderField("Server Mission Folder")
     private val wipeStorage = JBCheckBox("Wipe the mission's storage_* folders before starting")
 
     private val stopRunning = JBCheckBox("Stop every running DayZ, DayZ Diag and DayZ Server")
     private val clearLogs = JBCheckBox("Clear the profiles' logs (.log, .rpt, .mdmp, .ADM)")
 
-    init {
-        filePatching.addActionListener { if (filePatching.isEnabled) filePatchingChoice = filePatching.isSelected }
-    }
-
-    /**
-     * The project's addons run with file patching, so that the game can read the loose files on the
-     * work drive over their packed copies: a ticked one turns it on and locks it.
-     */
-    private fun followModList() {
-        val forced = DayZMods.needsFilePatching(modTable.mods)
-        filePatching.isEnabled = !forced
-        filePatching.isSelected = forced || filePatchingChoice
-        filePatching.toolTipText = if (forced) "On for the project's addons in the mod list" else null
+    private fun folderField(title: String) = TextFieldWithBrowseButton().apply {
+        addBrowseFolderListener(project, FileChooserDescriptorFactory.singleDir().withTitle(title))
     }
 
     override fun createEditor(): JComponent = panel {
@@ -94,16 +80,13 @@ class DayZRunConfigurationEditor(private val project: Project) : SettingsEditor<
                 )
         }.resizableRow()
         row { cell(filePatching) }
+            .rowComment(
+                "Reads loose files on the work drive over the packed ones, so a script edit needs no repack. " +
+                    "A server must allow it (allowFilePatching = 1 in its config), or it refuses the clients that use it.",
+            )
         row("Port:") {
             cell(port).columns(COLUMNS_TINY)
                 .comment("The server's -port=, and the one the clients join; empty is ${DayZLaunchCommand.DEFAULT_PORT}.")
-        }
-        row("Mission:") {
-            cell(mission).align(AlignX.FILL)
-                .comment(
-                    "-mission=: a DayZ Diag server's (the dedicated server reads it from its config), " +
-                        "or the clients' to play offline when there is no server to join. Relative to the game's folder.",
-                )
         }
         row("Extra arguments:") { cell(extra).align(AlignX.FILL).comment("Passed to every process.") }
 
@@ -134,6 +117,10 @@ class DayZRunConfigurationEditor(private val project: Project) : SettingsEditor<
                         "Steam ID to %APPDATA%\\Goldberg SteamEmu Saves\\settings just before that client starts, 4 seconds " +
                         "after the previous one. Needs the emulator's steam_api64.dll in the game's folder, which you install.",
                 )
+            row("Offline mission:") {
+                cell(offlineMission).align(AlignX.FILL)
+                    .comment("-mission=, to play offline without a server: with Start a server off and Connect to empty.")
+            }.enabledIf(startServer.selected.not())
             row("Start the clients:") {
                 cell(clientDelay).columns(COLUMNS_TINY)
                 label("seconds after the server")
@@ -145,6 +132,10 @@ class DayZRunConfigurationEditor(private val project: Project) : SettingsEditor<
             row("Profile:") {
                 cell(serverProfile).align(AlignX.FILL)
                     .comment("-profiles=; empty uses the server profile from the DayZ Installation settings.")
+            }
+            row("Mission:") {
+                cell(serverMission).align(AlignX.FILL)
+                    .comment("-mission=, for a DayZ Diag server; the dedicated server reads its mission from its config. Relative to the game's folder.")
             }
             row { cell(wipeStorage) }
                 .rowComment("The persistence. The loot spawns afresh, so every run starts from the same world, more slowly.")
@@ -165,10 +156,10 @@ class DayZRunConfigurationEditor(private val project: Project) : SettingsEditor<
         modsFolder.text = o.modsFolder.orEmpty()
         modTable.mods = o.modRows()
         playersTable.players = o.playerRows()
-        filePatchingChoice = o.filePatching
-        followModList()
+        filePatching.isSelected = o.filePatching
         port.text = o.port.orEmpty()
-        mission.text = o.mission.orEmpty()
+        serverMission.text = o.serverMission.orEmpty()
+        offlineMission.text = o.offlineMission.orEmpty()
         extra.text = o.extraArguments.orEmpty()
         profiles.text = o.profiles.orEmpty()
         window.isSelected = o.window
@@ -185,8 +176,7 @@ class DayZRunConfigurationEditor(private val project: Project) : SettingsEditor<
 
     /**
      * Every field is written back, including those of a section switched off, so that switching it
-     * on again finds them. File patching is saved as the user chose it; the mod list forces it at
-     * launch.
+     * on again finds them.
      */
     override fun applyEditorTo(configuration: DayZRunConfiguration) {
         val o = configuration.options
@@ -197,9 +187,11 @@ class DayZRunConfigurationEditor(private val project: Project) : SettingsEditor<
         o.modsFolder = modsFolder.text.trim().ifEmpty { null }
         o.setModRows(modTable.mods)
         o.setPlayerRows(playersTable.players)
-        o.filePatching = filePatchingChoice
+        o.filePatching = filePatching.isSelected
         o.port = port.text.trim().ifEmpty { null }
-        o.mission = mission.text.trim().ifEmpty { null }
+        o.mission = null
+        o.serverMission = serverMission.text.trim().ifEmpty { null }
+        o.offlineMission = offlineMission.text.trim().ifEmpty { null }
         o.extraArguments = extra.text.trim().ifEmpty { null }
         o.profiles = profiles.text.trim().ifEmpty { null }
         o.window = window.isSelected

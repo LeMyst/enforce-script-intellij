@@ -425,10 +425,19 @@ runs in one *Run* tab, where *Stop* stops it all.
   - Each line of output starts with `[Server]` or the player's name.
 - **The editor:**
   - **At the top, what both use:** *Use DayZ Diag*, the mods folder, the mod list,
-    `-filePatching`, *Port*, *Mission* and *Extra arguments*.
+    `-filePatching`, *Port* and *Extra arguments*.
   - **Clients:** the players, their profiles, `-window`, *Connect to* and *Password* (to join a
-    server the run does not start), Goldberg and the delay.
-  - **Server:** its config, its profile and the storage wipe.
+    server the run does not start), *Offline mission* (to play without a server), Goldberg and the
+    delay.
+  - **Server:** its config, its profile, its mission (DayZ Diag) and the storage wipe.
+  - Fields that cannot apply are greyed out: *Connect to* and *Offline mission* while the run
+    starts a server, and each section while its box is unticked.
+  - The browse buttons pick a `.cfg` for the server config and folders for the profiles and
+    missions.
+- **Checks before starting:**
+  - A server needs its config: without `-config=` DayZ counts down ten seconds and quits, so an
+    empty *Server config* is an error.
+  - A warning when the server and a client would write to the same profile folder.
 - **Command lines:**
   - **Server:** the dedicated `DayZServer_x64.exe`, or `DayZDiag_x64.exe -server` with DayZ Diag.
     It gets `-config=`, `-port=`, `-profiles=` (the server profile from the settings when empty),
@@ -465,8 +474,11 @@ runs in one *Run* tab, where *Stop* stops it all.
       There, a mod's `LanguageCore\stringtable.csv` or `Scripts\4_World\…\WeaponManager.c`
       replaces vanilla's file of the same path, so vanilla texts go untranslated or vanilla classes
       disappear. Packed, everything sits under its prefix.
-    - **File patching:** a ticked addon turns `-filePatching` on. DayZ Diag can then read loose
-      files on the work drive over their packed copy.
+    - **File patching** is optional. With `-filePatching`, DayZ Diag reads loose files on the
+      work drive over their packed copy, so a script edit needs no repack. A server must allow it
+      (`allowFilePatching = 1` in its config), or it refuses the clients that use it ("The server
+      does not accept the client's current filePatching setting"). The configuration warns when it
+      can read a server config that does not allow it.
     - **Rescan:** a rescan adds new addons, ticked, and drops those whose folder is gone. It never
       re-ticks a row you unticked, and leaves the other rows alone.
   - **PBOs:** *Add PBO Files…* adds loose `.pbo` files, such as third-party PBOs a mod ships inside
@@ -874,7 +886,7 @@ mod called BattleRoyale):
   and each section is greyed out while its box is not.
 - Add *DayZ*, *Start clients* only:
   - *Rescan Project Addons* → the project's `config.cpp` folders are listed as
-    `P:\MyMod\…` and *-filePatching* is ticked and locked.
+    `P:\MyMod\…`; *-filePatching* stays as it was.
   - *Add Mods…* → the mods folder's and `!Workshop`'s `@` folders; tick `@CF` → it is added.
   - Run → the console's first line says every addon was packed. The game starts with the mod
     loaded, vanilla and mod texts translated. *Stop* closes it.
@@ -885,7 +897,10 @@ mod called BattleRoyale):
   `…\@ExtraPBOs` where the first PBO row was, and the RPT loads them.
 - Unmount `P:` and run → an error that `P:` is not mounted, nothing started.
 - A configuration saved before the mod list (with `;`-separated *Mods*) → its mods appear as rows.
-- Client with a *Mission* and no *Connect to* → offline play on that mission. Both set → an error.
+- *Start clients* only, an *Offline mission* and no *Connect to* → offline play on that mission.
+  Both set → an error.
+- *Start a server* with an empty *Server config* → an error in the configuration; Run does not start
+  it. Server and client profiles both empty → a warning.
 - *Start a server* and *Start clients*, three players, Goldberg ticked, a DayZ Diag server with a
   mission:
   - One *Run* tab: `[Server]` starts, then about 5 seconds later each player's identity line about 4

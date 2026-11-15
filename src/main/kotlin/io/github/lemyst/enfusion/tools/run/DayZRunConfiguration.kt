@@ -141,6 +141,10 @@ class DayZRunOptions : RunConfigurationOptions() {
     var connect by string()
     var port by string()
     var serverConfig by string()
+    var serverMission by string()
+    var offlineMission by string()
+
+    /** Before the server and the clients had a mission each: read once by [migrate]. */
     var mission by string()
     var extraArguments by string()
     var modsFolder by string()
@@ -160,6 +164,12 @@ class DayZRunOptions : RunConfigurationOptions() {
      * starts the server only, with its profile as the server's; any other starts clients only.
      */
     fun migrate() {
+        mission?.let { old ->
+            mission = null
+            val server = startServer || mode == "SERVER"
+            if (server && serverMission == null) serverMission = old
+            if (!server && offlineMission == null) offlineMission = old
+        }
         val old = mode ?: return
         mode = null
         if (old == "SERVER") {
@@ -213,7 +223,8 @@ class DayZRunOptions : RunConfigurationOptions() {
         connect = connect?.trim()?.ifEmpty { null },
         port = port?.trim()?.toIntOrNull(),
         serverConfig = serverConfig?.trim()?.ifEmpty { null },
-        mission = mission?.trim()?.ifEmpty { null },
+        serverMission = serverMission?.trim()?.ifEmpty { null },
+        offlineMission = offlineMission?.trim()?.ifEmpty { null },
         extraArguments = extraArguments.orEmpty(),
         modsFolder = modsFolder?.trim()?.ifEmpty { null },
         password = password?.ifEmpty { null },
@@ -248,6 +259,9 @@ class DayZRunConfiguration(project: Project, factory: ConfigurationFactory, name
         } catch (e: DayZLaunchCommand.Problem) {
             throw RuntimeConfigurationError("${e.message} Set it in Settings | Languages & Frameworks | Enforce Script | DayZ Installation.")
         }
+        DayZLaunchCommand.serverProblem(paths, launch)?.let { throw RuntimeConfigurationError(it) }
+        DayZLaunchCommand.sharedProfileWarning(paths, launch)?.let { throw RuntimeConfigurationWarning(it) }
+        filePatchingRefused(launch)?.let { throw RuntimeConfigurationWarning(it) }
         val letter = paths.workDriveLetter ?: "P"
         launch.modList.firstOrNull { it.enabled && it.kind == DayZModKind.ADDON && !it.path.startsWith("$letter:", ignoreCase = true) }?.let {
             throw RuntimeConfigurationWarning("${it.path} is not on the work drive ($letter:), which file patching reads from.")
@@ -268,12 +282,27 @@ class DayZRunConfiguration(project: Project, factory: ConfigurationFactory, name
         }
     }
 
+    /**
+     * Why a server started with these clients would refuse them for file patching, or null. Read
+     * from the server config when it can be read; a config elsewhere or unreadable says nothing.
+     */
+    private fun filePatchingRefused(launch: DayZLaunch): String? {
+        if (!launch.startServer || !launch.startClients || !launch.filePatching) return null
+        val config = launch.serverConfig?.trim()?.let { runCatching { Path.of(it) }.getOrNull() } ?: return null
+        val text = runCatching { java.nio.file.Files.readString(config) }.getOrNull() ?: return null
+        if (DayZLaunchCommand.allowsFilePatching(text)) return null
+        return "$config does not set allowFilePatching = 1, so the server will refuse clients with -filePatching. " +
+            "Add it to the config, or untick -filePatching."
+    }
+
     override fun getState(executor: Executor, environment: ExecutionEnvironment): RunProfileState =
         object : CommandLineState(environment) {
             override fun startProcess(): ProcessHandler {
                 val paths = DayZInstallation.getInstance().paths(project)
                 val launch = options.toLaunch()
                 if (!launch.startServer && !launch.startClients) throw ExecutionException("Tick Start a server, Start clients, or both.")
+                // A server without its config counts down ten seconds and quits; say so before starting it.
+                DayZLaunchCommand.serverProblem(paths, launch)?.let { throw ExecutionException(it) }
                 val players = if (launch.startClients) launch.players.ifEmpty { listOf(DayZPlayer()) } else emptyList()
                 // Packed and staged once: the server and every client load the same generated mods.
                 val prepared = onBackground("Preparing the mods") { prepareMods(launch, paths) }

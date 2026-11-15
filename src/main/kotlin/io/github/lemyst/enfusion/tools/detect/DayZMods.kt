@@ -66,8 +66,6 @@ object DayZMods {
     /** Paths compare as Windows does: without case, and with either separator and no trailing one. */
     fun key(path: String): String = path.trim().replace('/', '\\').trimEnd('\\').lowercase()
 
-    /** Whether a ticked row is one of the project's addons, run with `-filePatching`. */
-    fun needsFilePatching(mods: List<DayZMod>): Boolean = mods.any { it.enabled && it.kind == DayZModKind.ADDON }
 }
 
 /**

@@ -39,10 +39,12 @@ data class DayZLaunch(
     /** Server: `-config=`, usually `serverDZ.cfg`. */
     val serverConfig: String? = null,
     /**
-     * `-mission=`: a Diag server's, or the clients' to play offline when there is no server to join.
-     * A relative path is relative to the executable's folder, the game's working directory.
+     * A Diag server's `-mission=` (the dedicated server reads its mission from its config). A
+     * relative path is relative to the executable's folder, the game's working directory.
      */
-    val mission: String? = null,
+    val serverMission: String? = null,
+    /** The clients' `-mission=`, to play offline: only when there is no server to join. */
+    val offlineMission: String? = null,
     /** Appended to every command line as they are, split on spaces outside quotes. */
     val extraArguments: String = "",
     /** Where bare `@Mod` names in [modList] are, such as `P:\Mods`. */
@@ -90,15 +92,15 @@ object DayZLaunchCommand {
         profiles?.let { args += "-profiles=$it" }
         if (mods.isNotEmpty()) args += "-mod=" + mods.joinToString(";")
         if (serverMods.isNotEmpty()) args += "-serverMod=" + serverMods.joinToString(";")
-        if (filePatching(launch)) args += "-filePatching"
-        if (launch.diag) launch.mission?.takeIf { it.isNotBlank() }?.let { args += "-mission=${it.trim()}" }
+        if (launch.filePatching) args += "-filePatching"
+        if (launch.diag) launch.serverMission?.takeIf { it.isNotBlank() }?.let { args += "-mission=${it.trim()}" }
         args += splitArguments(launch.extraArguments)
         return args
     }
 
     /**
      * The command line of [player]'s client (by default the first). When this run starts the server,
-     * the client joins it on this machine; otherwise it joins *Connect to*, or plays [DayZLaunch.mission]
+     * the client joins it on this machine; otherwise it joins *Connect to*, or plays [DayZLaunch.offlineMission]
      * offline. See [buildServer] for [pboMod] and [addonMod].
      */
     fun buildClient(
@@ -111,16 +113,16 @@ object DayZLaunchCommand {
         val args = ArrayList<String>()
         val (mods, _) = modArguments(launch, forServer = false, pboMod, addonMod)
         val connect = if (launch.startServer) "127.0.0.1" else launch.connect?.trim()?.takeIf { it.isNotEmpty() }
-        val mission = if (launch.startServer) null else launch.mission?.trim()?.takeIf { it.isNotEmpty() }
+        val mission = if (launch.startServer) null else launch.offlineMission?.trim()?.takeIf { it.isNotEmpty() }
         if (connect != null && mission != null) {
-            throw Problem("Set either Connect to (join a server) or Mission (play offline), not both.")
+            throw Problem("Set either Connect to (join a server) or Offline mission, not both.")
         }
         val port = if (launch.startServer) launch.port ?: DEFAULT_PORT else launch.port
         args += executable(paths, if (launch.diag) DayZPaths.GAME_DIAG_EXE else DayZPaths.GAME_EXE)
         if (mods.isNotEmpty()) args += "-mod=" + mods.joinToString(";")
         profileOf(paths, launch, player)?.let { args += "-profiles=$it" }
         player?.name?.trim()?.takeIf { it.isNotEmpty() }?.let { args += "-name=$it" }
-        if (filePatching(launch)) args += "-filePatching"
+        if (launch.filePatching) args += "-filePatching"
         if (launch.window) args += "-window"
         mission?.let { args += "-mission=$it" }
         connect?.let { args += "-connect=$it" }
@@ -130,8 +132,46 @@ object DayZLaunchCommand {
         return args
     }
 
-    /** The project's addons run with file patching, so that loose files on the work drive are read. */
-    private fun filePatching(launch: DayZLaunch): Boolean = launch.filePatching || DayZMods.needsFilePatching(launch.modList)
+    /**
+     * Why the server would not run, or null: without `-config=` a DayZ server logs "Server config
+     * not found", counts down ten seconds and quits.
+     */
+    fun serverProblem(paths: DayZPaths, launch: DayZLaunch): String? =
+        if (launch.startServer && launch.serverConfig.isNullOrBlank()) {
+            "A DayZ server needs its config: set Server config (-config=), such as serverDZ.cfg."
+        } else {
+            null
+        }
+
+    /**
+     * A warning when the server and a client would share a profile folder: with no profile of its
+     * own, each falls back to the game's default, and they write their logs over each other.
+     */
+    fun sharedProfileWarning(paths: DayZPaths, launch: DayZLaunch): String? {
+        if (!launch.startServer || !launch.startClients) return null
+        val server = DayZMods.key(launch.serverProfile ?: paths.serverProfile?.toString() ?: "")
+        val clients = launch.players.ifEmpty { listOf(DayZPlayer()) }
+            .map { DayZMods.key(profileOf(paths, launch, it) ?: "") }
+        return when {
+            server.isEmpty() && clients.any { it.isEmpty() } ->
+                "The server and a client both use the game's default profile: set the server's Profile, or Profiles for the clients."
+            server.isNotEmpty() && server in clients -> "The server and a client use the same profile folder."
+            else -> null
+        }
+    }
+
+    /**
+     * Whether a server config lets clients with `-filePatching` join: `allowFilePatching = 1`.
+     * Without it the server refuses them ("The server does not accept the client's current
+     * filePatching setting"). Comments are skipped; the setting is off when absent.
+     */
+    fun allowsFilePatching(serverConfig: String): Boolean =
+        serverConfig.lineSequence()
+            .map { it.substringBefore("//").trim() }
+            .mapNotNull { ALLOW_FILE_PATCHING.find(it)?.groupValues?.get(1) }
+            .lastOrNull() == "1"
+
+    private val ALLOW_FILE_PATCHING = Regex("^allowFilePatching\\s*=\\s*(\\d+)", RegexOption.IGNORE_CASE)
 
     private fun executable(paths: DayZPaths, name: String): String {
         val game = paths.game ?: throw Problem("The DayZ folder is not set.")
@@ -206,7 +246,7 @@ object DayZLaunchCommand {
      */
     fun drivesUsed(launch: DayZLaunch): Set<Char> =
         (
-            listOfNotNull(launch.modsFolder, launch.profiles, launch.serverProfile, launch.mission) +
+            listOfNotNull(launch.modsFolder, launch.profiles, launch.serverProfile, launch.serverMission, launch.offlineMission) +
                 launch.modList.filter { it.enabled }.map { it.path } +
                 launch.players.mapNotNull { it.profile }
             )
