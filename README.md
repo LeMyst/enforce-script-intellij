@@ -437,16 +437,30 @@ only the fields it uses.
       the DayZ launcher links subscribed Workshop mods), one checkbox each.
     - *Add Folder…* takes a mod folder anywhere.
     - A bare name such as `@CF` is taken from the *Mods folder*.
-  - **Unpacked addons:** *Rescan Project Addons* adds every `config.cpp` folder of the project, as
-    *Build All PBOs* finds them, and its `@` folders.
-    - Addons load unpacked: each goes to `-mod=` as a folder of its own, with `-filePatching`, which
-      a ticked addon turns on. Nothing has to be built first.
-    - File patching reads the work drive, so an addon is passed through the link at the drive's root
-      that mod setup scripts create (`P:\MyMod` → the checkout): `P:\MyMod\Scripts`, not
-      `C:\…\MyMod\Scripts`. Without such a link the row keeps its own path and the configuration
+  - **The project's addons:** *Rescan Project Addons* adds every `config.cpp` folder of the
+    project, as *Build All PBOs* finds them, and its `@` folders.
+    - **Packed at launch:** the ticked addons are packed into a generated `@<Project>` mod, which
+      takes the first addon row's place in `-mod=`.
+      - Each addon is one PBO named after its folder (`Scripts\Client` → `Scripts_Client.pbo`).
+      - Files are stored as they are, as Addon Builder's *pack only* does. Sources, backups, logs,
+        `.png`, `.psd`, `.tga` and `source` folders are left out, as mod build scripts do.
+      - The mod's `mod.cpp` is copied beside the PBOs.
+    - **Only what changed:** a manifest of each addon's files (path, size, date) is kept, and an
+      addon is packed again only when a file was added, removed or edited, or its PBO is missing.
+      PBOs of addons no longer ticked are removed. The console's first line says what was packed.
+    - **Prefixes:** an addon's prefix is the one its `$PBOPREFIX$` declares, or else its path on
+      the work drive, through the link at the drive's root that mod setup scripts create
+      (`P:\MyMod` → the checkout): `P:\MyMod\Scripts` is packed as `MyMod\Scripts`. Without such a
+      link the row keeps its own path, the prefix is the folder's name, and the configuration
       warns.
-    - A rescan adds new addons, ticked, and drops those whose folder is gone. It never re-ticks a
-      row you unticked, and leaves the other rows alone.
+    - **Why packed:** the game mounts an unpacked `-mod=` folder at the root of its file system.
+      There, a mod's `LanguageCore\stringtable.csv` or `Scripts\4_World\…\WeaponManager.c`
+      replaces vanilla's file of the same path, so vanilla texts go untranslated or vanilla classes
+      disappear. Packed, everything sits under its prefix.
+    - **File patching:** a ticked addon turns `-filePatching` on. DayZ Diag can then read loose
+      files on the work drive over their packed copy.
+    - **Rescan:** a rescan adds new addons, ticked, and drops those whose folder is gone. It never
+      re-ticks a row you unticked, and leaves the other rows alone.
   - **PBOs:** *Add PBO Files…* adds loose `.pbo` files, such as third-party PBOs a mod ships inside
     its own.
     - The game loads PBOs only from a mod's `Addons` folder, so at launch they are copied, with
@@ -483,8 +497,9 @@ only the fields it uses.
   or the mission on `P:`) refuses to start and says so, rather than starting the game without its
   mods.
 - Stopping kills the process. The password is saved with the configuration in plain text.
-  **Not supported:** building PBOs before launch (unpacked addons make it unnecessary for testing).
-  Starting a server and its clients together is done with a *Compound* configuration of the server
+  **Not supported:** binarising (configs stay `config.cpp`, models and terrains are not
+  binarised) and signing the packed addons; for those, build with Addon Builder. Starting a server
+  and its clients together is done with a *Compound* configuration of the server
   and a Client configuration.
 
 ### Building PBOs
@@ -857,8 +872,9 @@ mod called BattleRoyale):
   - *Rescan Project Addons* → the project's `config.cpp` folders are listed as
     `P:\MyMod\…` and *-filePatching* is ticked and locked.
   - *Add Mods…* → the mods folder's and `!Workshop`'s `@` folders; tick `@CF` → it is added.
-  - Run → DayZ Diag starts with the mod loaded unpacked (check the `-mod=` line in its RPT), and
-    *Stop* closes it.
+  - Run → the console's first line says every addon was packed. The game starts with the mod
+    loaded, vanilla and mod texts translated. *Stop* closes it.
+  - Run again → *Packed 0 addon(s), N unchanged*. Edit one script and run → that addon only.
 - Untick an addon, *Rescan* again → it stays unticked. Delete an addon folder, *Rescan* → its row
   goes.
 - *Add PBO Files…* with two PBOs and their `.bisign` → run → the console's `-mod=` has

@@ -68,13 +68,20 @@ object DayZLaunchCommand {
     class Problem(message: String) : Exception(message)
 
     /**
-     * The command line of one process: for a client, the one of [player] (by default the first);
-     * [pboMod] is the folder the mod list's PBOs were staged into, put where the first PBO row is.
-     * Without it the PBO rows are left out, as when only checking a configuration.
+     * The command line of one process: for a client, the one of [player] (by default the first).
+     * [pboMod] and [addonMod] are the folders the mod list's PBOs were staged into and its addons
+     * packed into, each put where the first row of its kind is. Without them those rows are left
+     * out, as when only checking a configuration.
      */
-    fun build(paths: DayZPaths, launch: DayZLaunch, player: DayZPlayer? = launch.players.firstOrNull(), pboMod: String? = null): List<String> {
+    fun build(
+        paths: DayZPaths,
+        launch: DayZLaunch,
+        player: DayZPlayer? = launch.players.firstOrNull(),
+        pboMod: String? = null,
+        addonMod: String? = null,
+    ): List<String> {
         val args = ArrayList<String>()
-        val (mods, serverMods) = modArguments(launch, pboMod)
+        val (mods, serverMods) = modArguments(launch, pboMod, addonMod)
         val filePatching = launch.filePatching || DayZMods.needsFilePatching(launch.modList)
         when (launch.mode) {
             DayZLaunchMode.CLIENT -> {
@@ -134,26 +141,26 @@ object DayZLaunchCommand {
 
     /**
      * `-mod=` and `-serverMod=` entries from the ticked rows, in order. Only a server splits them:
-     * a client or Buldozer passes every row to `-mod=`. The staged [pboMod] goes once, where the
-     * first ticked PBO row is, and to `-serverMod=` only when every ticked PBO row is server only.
+     * a client or Buldozer passes every row to `-mod=`. A generated mod ([pboMod] for the PBO rows,
+     * [addonMod] for the addon rows) goes once, where the first ticked row of its kind is, and to
+     * `-serverMod=` only when every ticked row of that kind is server only.
      */
-    fun modArguments(launch: DayZLaunch, pboMod: String?): Pair<List<String>, List<String>> {
+    fun modArguments(launch: DayZLaunch, pboMod: String?, addonMod: String? = null): Pair<List<String>, List<String>> {
         val server = launch.mode == DayZLaunchMode.SERVER
         val rows = launch.modList.filter { it.enabled && it.path.isNotBlank() }
-        val pbos = rows.filter { it.kind == DayZModKind.PBO }
-        val pbosServerOnly = server && pbos.isNotEmpty() && pbos.all { it.serverOnly }
+        val generated = mapOf(DayZModKind.PBO to pboMod, DayZModKind.ADDON to addonMod)
         val mods = ArrayList<String>()
         val serverMods = ArrayList<String>()
-        var pbosPlaced = false
+        val placed = HashSet<DayZModKind>()
         for (row in rows) {
-            val toServer = server && row.serverOnly
-            if (row.kind == DayZModKind.PBO) {
-                if (pboMod == null || pbosPlaced) continue
-                pbosPlaced = true
-                (if (pbosServerOnly) serverMods else mods) += pboMod
+            if (row.kind in generated) {
+                val folder = generated[row.kind] ?: continue
+                if (!placed.add(row.kind)) continue
+                val allServerOnly = server && rows.filter { it.kind == row.kind }.all { it.serverOnly }
+                (if (allServerOnly) serverMods else mods) += folder
                 continue
             }
-            (if (toServer) serverMods else mods) += resolveMod(row.path.trim(), launch.modsFolder)
+            (if (server && row.serverOnly) serverMods else mods) += resolveMod(row.path.trim(), launch.modsFolder)
         }
         return mods to serverMods
     }

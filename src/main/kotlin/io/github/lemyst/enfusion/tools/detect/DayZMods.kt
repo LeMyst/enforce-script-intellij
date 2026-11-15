@@ -8,10 +8,11 @@ enum class DayZModKind(val title: String) {
     MOD("Mod"),
 
     /**
-     * A folder with a `config.cpp`, loaded unpacked: passed to `-mod=` as is, with `-filePatching`,
-     * through the work drive, so that the game reads the files the project is editing.
+     * A folder of the project with a `config.cpp`, packed at launch into a generated mod (see
+     * [DayZAddonPacking]) when its files changed. Listed through the work drive, whose path gives
+     * its prefix, and run with `-filePatching`, so that the game can also read the loose files.
      */
-    ADDON("Addon (unpacked)"),
+    ADDON("Addon (built at launch)"),
 
     /** A loose `.pbo`, staged into a generated mod folder at launch (see [DayZPboStaging]). */
     PBO("PBO"),
@@ -65,7 +66,7 @@ object DayZMods {
     /** Paths compare as Windows does: without case, and with either separator and no trailing one. */
     fun key(path: String): String = path.trim().replace('/', '\\').trimEnd('\\').lowercase()
 
-    /** Whether a ticked row loads unpacked, which needs `-filePatching`. */
+    /** Whether a ticked row is one of the project's addons, run with `-filePatching`. */
     fun needsFilePatching(mods: List<DayZMod>): Boolean = mods.any { it.enabled && it.kind == DayZModKind.ADDON }
 }
 

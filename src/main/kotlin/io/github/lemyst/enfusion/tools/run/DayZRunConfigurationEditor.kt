@@ -41,7 +41,7 @@ class DayZRunConfigurationEditor(
     private val profiles = JBTextField()
     private val filePatching = JBCheckBox("-filePatching (load loose files from the work drive)")
 
-    /** What the user ticked, kept while unpacked addons force the box on. */
+    /** What the user ticked, kept while the project's addons force the box on. */
     private var filePatchingChoice = true
     private val window = JBCheckBox("-window")
     private val connect = JBTextField()
@@ -60,12 +60,15 @@ class DayZRunConfigurationEditor(
         filePatching.addActionListener { if (filePatching.isEnabled) filePatchingChoice = filePatching.isSelected }
     }
 
-    /** Unpacked addons load only with file patching, so a ticked one turns it on and locks it. */
+    /**
+     * The project's addons run with file patching, so that the game can read the loose files on the
+     * work drive over their packed copies: a ticked one turns it on and locks it.
+     */
     private fun followModList() {
         val forced = DayZMods.needsFilePatching(modTable.mods)
         filePatching.isEnabled = !forced
         filePatching.isSelected = forced || filePatchingChoice
-        filePatching.toolTipText = if (forced) "Required by the unpacked addons in the mod list" else null
+        filePatching.toolTipText = if (forced) "On for the project's addons in the mod list" else null
     }
 
     override fun createEditor(): JComponent = panel {
@@ -77,9 +80,9 @@ class DayZRunConfigurationEditor(
         row {
             cell(modTable.component).align(Align.FILL)
                 .comment(
-                    "In load order. Unticked mods are kept but not passed. Rescan adds the project's config.cpp folders, " +
-                        "loaded unpacked through the work drive with -filePatching, without building PBOs; " +
-                        "loose PBOs are copied into a generated @ExtraPBOs mod at launch." +
+                    "In load order. Unticked mods are kept but not passed. Rescan adds the project's config.cpp folders: " +
+                        "at launch they are packed into a generated mod, only those that changed, and run with -filePatching. " +
+                        "Loose PBOs are copied into a generated @ExtraPBOs mod." +
                         if (mode == DayZLaunchMode.SERVER) " Server only mods go to -serverMod=." else "",
                 )
         }.resizableRow()

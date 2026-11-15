@@ -167,15 +167,22 @@ class EnfusionDayZLaunchTest : TestCase() {
         assertNull(options.serverMods)
     }
 
-    /** Unpacked addons go to -mod= as they are, and need -filePatching even when it is off. */
-    fun testUnpackedAddonsForceFilePatching() {
+    /**
+     * The project's addons are passed as the mod they were packed into, once, where the first addon
+     * row is, never as their own folders; and they turn -filePatching on even when it is off.
+     */
+    fun testProjectAddonsBecomeThePackedMod() {
         val launch = DayZLaunch(
             diag = false,
             filePatching = false,
             window = false,
-            modList = listOf(mod("@CF"), DayZMod("P:\\MyMod\\Scripts", DayZModKind.ADDON), DayZMod("P:\\MyMod\\Data", DayZModKind.ADDON)),
+            modList = listOf(mod("@CF"), DayZMod("P:\\MyMod\\Scripts", DayZModKind.ADDON), mod("@Other"), DayZMod("P:\\MyMod\\Data", DayZModKind.ADDON)),
         )
-        assertEquals(listOf(retailExe, "-mod=@CF;P:\\MyMod\\Scripts;P:\\MyMod\\Data", "-filePatching"), DayZLaunchCommand.build(paths, launch))
+        assertEquals(
+            listOf(retailExe, "-mod=@CF;S:\\@MyMod;@Other", "-filePatching"),
+            DayZLaunchCommand.build(paths, launch, addonMod = "S:\\@MyMod"),
+        )
+        assertEquals("not packed yet: left out", "-mod=@CF;@Other", DayZLaunchCommand.build(paths, launch)[1])
     }
 
     /** The staged PBO folder goes once, where the first PBO row is; without it, PBOs are left out. */
