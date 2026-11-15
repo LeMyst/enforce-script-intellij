@@ -31,10 +31,15 @@ class EnfusionGameDataTest : TestCase() {
         assertFalse(ExtractGameData.shouldAsk(driveMounted = true, missing = emptyList(), optedOut = false))
     }
 
+    /** Paths built from the current root, so that the test parses the same on Linux CI. */
     fun testExtractCommand() {
+        val root = Path.of("").toAbsolutePath().root
+        val bin = root.resolve("Tools").resolve("Bin")
+        val game = root.resolve("Games").resolve("DayZ")
+        val drive = root.resolve("work")
         assertEquals(
-            listOf("D:\\Tools\\Bin\\WorkDrive\\WorkDrive.exe", "/extractGameData", "D:\\Games\\DayZ", "P:\\"),
-            GameData.extractCommand(Path.of("D:\\Tools\\Bin"), Path.of("D:\\Games\\DayZ"), Path.of("P:\\")),
+            listOf(bin.resolve("WorkDrive").resolve("WorkDrive.exe").toString(), "/extractGameData", game.toString(), drive.toString()),
+            GameData.extractCommand(bin, game, drive),
         )
     }
 }
