@@ -243,6 +243,13 @@ tasks.withType<JavaCompile>().configureEach { dependsOn(generateSources) }
 // distributed copy. Shipping it in the jar's META-INF satisfies that without a separate file.
 tasks.processResources {
     from("LICENSE") { into("META-INF") }
+
+    // The plugin's version for the pre-filled issue reports (FeedbackLinks). Looking the plugin up
+    // at runtime is internal API from 2026.2 (`PluginManagerCore.getPlugin`,
+    // `PluginManager.getPluginByClass`), which the verifier rejects, so the build writes it instead.
+    val pluginVersion = providers.gradleProperty("pluginVersion")
+    inputs.property("pluginVersion", pluginVersion)
+    filesMatching("**/feedback/version.properties") { expand("version" to pluginVersion.get()) }
 }
 
 tasks.test {

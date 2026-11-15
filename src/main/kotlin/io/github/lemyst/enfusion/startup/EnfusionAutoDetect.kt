@@ -12,6 +12,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.startup.ProjectActivity
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.util.text.StringUtil
+import io.github.lemyst.enfusion.feedback.FeedbackNotice
 import io.github.lemyst.enfusion.roots.EnfusionRoots
 import io.github.lemyst.enfusion.settings.EnfusionProjectSettings
 import io.github.lemyst.enfusion.tools.DayZInstallation
@@ -46,6 +47,10 @@ class EnfusionAutoDetect : ProjectActivity {
         // Only for projects that are actually DayZ addons. Without this, opening any unrelated
         // project would silently attach the vanilla script tree to it.
         if (!looksLikeAddon(project)) return
+
+        // Here rather than in a startup activity of its own, so it shares the addon check: the
+        // notice is for people working on a DayZ mod, not for every project the IDE opens.
+        FeedbackNotice.showIfDue(project)
 
         // A background task with progress: the refresh below scans folder roots for PBOs and
         // unpacks new or updated ones, which takes about a minute for a thousand new PBOs.
