@@ -73,7 +73,9 @@ class LayoutPreviewEditor(
         override fun toString(): String = "$width × $height"
     }
 
-    private val resolutions = ComboBox(arrayOf(Resolution(1920, 1080), Resolution(2560, 1440), Resolution(1280, 720), Resolution(3840, 2160)))
+    // Smallest to largest, with 1920 × 1080 selected: the resolution the vanilla layouts are drawn for.
+    private val resolutions = ComboBox(arrayOf(Resolution(1280, 720), Resolution(1920, 1080), Resolution(2560, 1440), Resolution(3840, 2160)))
+        .apply { selectedIndex = 1 }
     private val showHidden = JBCheckBox("Hidden widgets")
     private val status = JBLabel()
     private val canvas = Canvas()

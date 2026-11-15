@@ -150,14 +150,15 @@ inputs.
   a screen of the chosen size (1920 × 1080 by default) the way the vanilla layouts use the
   properties: `size` / `position` in pixels or as fractions of the parent (`hexactsize`,
   `vexactsize`, `hexactpos`, `vexactpos`), `halign` / `valign` with offsets from the matching edge,
-  grid spacers in `Rows` × `Columns` cells and wrap spacers flowing their children. Panels and buttons
-  are filled with their `color`, images show their `image0` (an imageset entry or a texture, through
-  the same cache as the texture hover), and text widgets their `text`. Every widget is outlined;
-  *Hidden widgets* shows the ones with `visible 0`, dashed. Clicking a widget puts the caret on its
-  declaration, and the caret's widget is outlined in blue. The preview updates a moment after the
-  text changes. **Approximate, not pixel-exact:** fonts, `Padding` / `Margin`, *Size To Content*,
-  `fixaspect`, scaling and image tinting are not modelled, a `#STR_…` text shows as its key, and
-  script classes do not run. Editing in the preview (moving, resizing, a properties panel) is not
+  grid spacers in `Rows` × `Columns` cells and wrap spacers flowing their children, a `visible 0`
+  child taking no slot, and a wrap spacer's *Size To Content* fitting it to its children. Panels and
+  buttons are filled with their `color`, images show their `image0` (an imageset entry or a texture,
+  through the same cache as the texture hover), and text widgets their `text`. Every widget is
+  outlined; *Hidden widgets* shows the ones with `visible 0`, dashed. Clicking a widget puts the
+  caret on its declaration, and the caret's widget is outlined in blue. The preview updates a moment
+  after the text changes. **Approximate, not pixel-exact:** fonts, `Padding` / `Margin`, *Size To
+  Content* outside wrap spacers, `fixaspect`, scaling and image tinting are not modelled, a `#STR_…`
+  text shows as its key, and script classes do not run. Editing in the preview (moving, resizing, a properties panel) is not
   supported.
 - **Class hierarchy** (`Ctrl+H`) modelling both relationships the language has: `extends`, and
   `modded class` layering. Every layer of a class hangs off the base, which is the view that matters
@@ -716,7 +717,10 @@ mod called BattleRoyale):
   its `ButtonWidgetClass`. Move the caret into another widget → its outline turns blue.
 - Open a mod's layout with imageset icons → the icons are drawn. Change a `size` → the preview
   follows a moment later. *Hidden widgets* → the `visible 0` ones appear dashed.
-- Switch the resolution → proportional widgets scale, pixel ones keep their size.
+- Switch the resolution → proportional widgets scale, pixel ones keep their size. The list runs from
+  1280 × 720 to 3840 × 2160, with 1920 × 1080 selected.
+- In `day_z_ingamemenu`, the column above *Respawn* holds *Exit*, *Feedback* and *Options* at full
+  height, with no gap for the hidden *Restart*, and stays above *Respawn* rather than over it.
 
 **Rename and inspections**
 

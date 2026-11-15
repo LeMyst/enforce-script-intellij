@@ -77,6 +77,40 @@ class EnfusionLayoutPreviewTest : BasePlatformTestCase() {
         )
     }
 
+    private fun row(height: Int, visible: Boolean = true) = widget(
+        "ButtonWidgetClass", "size" to "1 $height", "hexactsize" to "0", "vexactsize" to "1", "visible" to if (visible) "1" else "0",
+    )
+
+    /** As `day_z_ingamemenu`'s `restartbtn`: a hidden child takes no room, the next one closes up. */
+    fun testHiddenChildOfAWrapSpacerTakesNoSlot() {
+        val wrap = widget("WrapSpacerWidgetClass", "size" to "100 200", "hexactsize" to "1", "vexactsize" to "1", children = listOf(row(38), row(38, visible = false), row(38)))
+        val rects = LayoutGeometry.layout(listOf(wrap), 1000.0, 500.0).drop(1).map { it.rect }
+        assertEquals(listOf(Rect(0.0, 0.0, 100.0, 38.0), Rect(0.0, 38.0, 100.0, 38.0), Rect(0.0, 38.0, 100.0, 38.0)), rects)
+    }
+
+    fun testHiddenChildOfAGridSpacerTakesNoCell() {
+        val cells = listOf(true, false, true).map { widget("ImageWidgetClass", "visible" to if (it) "1" else "0") }
+        val grid = widget("GridSpacerWidgetClass", "Columns" to "1", children = cells)
+        val rects = LayoutGeometry.layout(listOf(grid), 100.0, 100.0).drop(1).map { it.rect }
+        assertEquals(listOf(Rect(0.0, 0.0, 100.0, 50.0), Rect(0.0, 50.0, 100.0, 50.0), Rect(0.0, 50.0, 100.0, 50.0)), rects)
+    }
+
+    /** As `day_z_ingamemenu`'s `top` spacer: declared 48 high, bottom-aligned, holding 5 + 38 + 38 + 5. */
+    fun testSizeToContentGrowsABottomAlignedSpacerUpwards() {
+        val wrap = widget(
+            "WrapSpacerWidgetClass", "size" to "1 48", "hexactsize" to "0", "vexactsize" to "1", "valign" to "bottom_ref",
+            "Size To Content V" to "1", children = listOf(row(5), row(38), row(38, visible = false), row(38), row(5)),
+        )
+        val placed = LayoutGeometry.layout(listOf(wrap), 400.0, 500.0)
+        assertEquals(Rect(0.0, 500.0 - 86.0, 400.0, 86.0), placed[0].rect)
+        assertEquals("the last row ends at the screen's bottom edge", 500.0, placed.last().rect.let { it.y + it.h })
+    }
+
+    fun testWithoutSizeToContentASpacerKeepsItsSize() {
+        val wrap = widget("WrapSpacerWidgetClass", "size" to "1 48", "vexactsize" to "1", "valign" to "bottom_ref", children = listOf(row(38), row(38)))
+        assertEquals(Rect(0.0, 452.0, 400.0, 48.0), LayoutGeometry.layout(listOf(wrap), 400.0, 500.0)[0].rect)
+    }
+
     fun testColor() {
         assertEquals(0x80FF0000.toInt(), widget("PanelWidgetClass", "color" to "1 0 0 0.502").color)
         assertNull(widget("PanelWidgetClass").color)
