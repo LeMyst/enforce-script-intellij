@@ -19,4 +19,15 @@ object GameData {
 
     fun extractCommand(toolsBin: Path, game: Path, destination: Path): List<String> =
         listOf(toolsBin.resolve(WorkDriveCommands.WORK_DRIVE_EXE).toString(), "/extractGameData", game.toString(), destination.toString())
+
+    /**
+     * [command] in a console window of its own, waited for. WorkDrive ends with "Program terminated,
+     * hit any key to exit." and reads that key with `Console.ReadKey`, which throws when the input
+     * is a pipe, as it is under the IDE. The [title] must contain a space: `start` takes its first
+     * quoted argument as the title, so one left unquoted would make the program's path the title.
+     */
+    fun inOwnConsole(title: String, command: List<String>): List<String> {
+        require(' ' in title) { "the title must be quoted, so must contain a space: $title" }
+        return listOf("cmd", "/c", "start", title, "/wait") + command
+    }
 }

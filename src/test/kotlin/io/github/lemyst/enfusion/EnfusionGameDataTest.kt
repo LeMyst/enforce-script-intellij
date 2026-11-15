@@ -42,4 +42,15 @@ class EnfusionGameDataTest : TestCase() {
             GameData.extractCommand(bin, game, drive),
         )
     }
+
+    /** `start`'s first quoted argument is the window title, so the title comes first and has a space. */
+    fun testOwnConsole() {
+        assertEquals(listOf("cmd", "/c", "start", "Extract Game Data", "/wait", "a.exe", "/x"),
+            GameData.inOwnConsole("Extract Game Data", listOf("a.exe", "/x")))
+        try {
+            GameData.inOwnConsole("Extract", listOf("a.exe"))
+            fail("a title without a space would not be quoted")
+        } catch (_: IllegalArgumentException) {
+        }
+    }
 }

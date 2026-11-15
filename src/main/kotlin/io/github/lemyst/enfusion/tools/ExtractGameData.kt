@@ -1,8 +1,7 @@
 package io.github.lemyst.enfusion.tools
 
-import com.intellij.execution.RunContentExecutor
+import com.intellij.execution.ExecutionException
 import com.intellij.execution.configurations.GeneralCommandLine
-import com.intellij.execution.process.OSProcessHandler
 import com.intellij.ide.util.PropertiesComponent
 import com.intellij.notification.NotificationAction
 import com.intellij.notification.NotificationGroupManager
@@ -15,6 +14,7 @@ import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.project.ProjectManager
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.util.SystemInfo
 import com.intellij.openapi.util.text.StringUtil
@@ -75,7 +75,7 @@ object ExtractGameData {
         notification.notify(project)
     }
 
-    /** Confirms, then runs WorkDrive's extraction with its output in a *Run* tab. */
+    /** Confirms, then runs WorkDrive's extraction in its own console window and reports what it left. */
     fun start(project: Project) {
         ProgressManager.getInstance().run(object : Task.Backgroundable(project, "Preparing to extract game data", false) {
             override fun run(indicator: ProgressIndicator) {
@@ -103,21 +103,40 @@ object ExtractGameData {
                         Messages.getWarningIcon(),
                     ) == Messages.OK
                     if (!ok) return@invokeLater
-                    val command = GeneralCommandLine(GameData.extractCommand(bin, game, destination))
-                        .withWorkDirectory(bin.resolve("WorkDrive").toFile())
-                    RunContentExecutor(project, OSProcessHandler(command))
-                        .withTitle("Extract Game Data")
-                        .withAfterCompletion {
-                            ApplicationManager.getApplication().executeOnPooledThread {
-                                for (open in com.intellij.openapi.project.ProjectManager.getInstance().openProjects) {
-                                    if (!open.isDisposed) EnfusionRoots.refreshAndReportMissing(open)
-                                }
-                            }
-                        }
-                        .run()
+                    extract(project, GameData.inOwnConsole("Extract Game Data", GameData.extractCommand(bin, game, destination)), bin, destination)
                 }, { project.isDisposed })
             }
         })
+    }
+
+    /** Waits for the console window to close, then refreshes every project's roots and says what is on the drive. */
+    private fun extract(project: Project, command: List<String>, bin: Path, destination: Path) {
+        ProgressManager.getInstance().run(object : Task.Backgroundable(project, "Extracting game data in the WorkDrive window", false) {
+            override fun run(indicator: ProgressIndicator) {
+                val process = try {
+                    GeneralCommandLine(command).withWorkDirectory(bin.resolve("WorkDrive").toFile()).createProcess()
+                } catch (e: ExecutionException) {
+                    notify(project, "Could not start WorkDrive: ${e.message}", NotificationType.ERROR)
+                    return
+                }
+                process.waitFor()
+                for (open in ProjectManager.getInstance().openProjects) {
+                    if (!open.isDisposed) EnfusionRoots.refreshAndReportMissing(open)
+                }
+                val missing = GameData.missing(destination)
+                if (missing.isEmpty()) {
+                    notify(project, "The game data is on $destination.", NotificationType.INFORMATION)
+                } else {
+                    notify(project, "$destination still has no ${missing.joinToString(", ")}. WorkDrive's window said why.", NotificationType.WARNING)
+                }
+            }
+        })
+    }
+
+    private fun notify(project: Project, text: String, type: NotificationType) {
+        NotificationGroupManager.getInstance().getNotificationGroup("Enforce Script")
+            .createNotification("Extract Game Data", StringUtil.escapeXmlEntities(text), type)
+            .notify(project)
     }
 }
 
