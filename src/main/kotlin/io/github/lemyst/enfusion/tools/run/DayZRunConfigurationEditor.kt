@@ -13,48 +13,51 @@ import com.intellij.ui.dsl.builder.COLUMNS_MEDIUM
 import com.intellij.ui.dsl.builder.COLUMNS_TINY
 import com.intellij.ui.dsl.builder.columns
 import com.intellij.ui.dsl.builder.panel
+import com.intellij.ui.layout.not
 import com.intellij.ui.layout.selected
-import io.github.lemyst.enfusion.tools.detect.DayZLaunchMode
+import io.github.lemyst.enfusion.tools.detect.DayZLaunchCommand
 import io.github.lemyst.enfusion.tools.detect.DayZMods
 import javax.swing.JComponent
 
 /**
- * The fields of a DayZ run configuration of one [mode]. Each mode has its own entry under *DayZ*
- * in the *+* menu, so a field the mode does not use is left out rather than shown disabled.
+ * A DayZ run configuration: what the server and the clients share (the executables, the mod list,
+ * the port and the mission) at the top, then what only the clients use, then what only the server
+ * uses, each section switched on by its own checkbox.
  */
-class DayZRunConfigurationEditor(
-    private val project: Project,
-    private val mode: DayZLaunchMode,
-) : SettingsEditor<DayZRunConfiguration>() {
+class DayZRunConfigurationEditor(private val project: Project) : SettingsEditor<DayZRunConfiguration>() {
 
-    private val diag = JBCheckBox(
-        if (mode == DayZLaunchMode.SERVER) "Use DayZ Diag (DayZDiag_x64.exe -server)" else "Use DayZ Diag (DayZDiag_x64.exe)",
-    )
+    private val startServer = JBCheckBox("Start a server")
+    private val startClients = JBCheckBox("Start clients")
+    private val diag = JBCheckBox("Use DayZ Diag (DayZDiag_x64.exe, with -server for the server)")
     private val modsFolder = TextFieldWithBrowseButton().apply {
         addBrowseFolderListener(project, FileChooserDescriptorFactory.singleDir().withTitle("Mods Folder"))
     }
-    private val modTable = DayZModTable(project, mode, { modsFolder.text }) {
+    private val modTable = DayZModTable(project, { modsFolder.text }) {
         followModList()
         fireEditorStateChanged()
     }
     private val playersTable = DayZPlayersTable { fireEditorStateChanged() }
-    private val profiles = JBTextField()
     private val filePatching = JBCheckBox("-filePatching (load loose files from the work drive)")
 
     /** What the user ticked, kept while the project's addons force the box on. */
     private var filePatchingChoice = true
-    private val window = JBCheckBox("-window")
-    private val connect = JBTextField()
     private val port = JBTextField()
-    private val password = JBPasswordField()
-    private val serverConfig = JBTextField()
     private val mission = JBTextField()
     private val extra = JBTextField()
-    private val stopRunning = JBCheckBox("Stop every running DayZ, DayZ Diag and DayZ Server")
-    private val clearLogs = JBCheckBox("Clear the profile's logs (.log, .rpt, .mdmp, .ADM)")
-    private val wipeStorage = JBCheckBox("Wipe the mission's storage_* folders")
+
+    private val profiles = JBTextField()
+    private val window = JBCheckBox("-window")
+    private val connect = JBTextField()
+    private val password = JBPasswordField()
     private val steamEmulator = JBCheckBox("Write a Goldberg Steam emulator identity for each player")
-    private val waitSeconds = JBTextField()
+    private val clientDelay = JBTextField()
+
+    private val serverConfig = JBTextField()
+    private val serverProfile = JBTextField()
+    private val wipeStorage = JBCheckBox("Wipe the mission's storage_* folders before starting")
+
+    private val stopRunning = JBCheckBox("Stop every running DayZ, DayZ Diag and DayZ Server")
+    private val clearLogs = JBCheckBox("Clear the profiles' logs (.log, .rpt, .mdmp, .ADM)")
 
     init {
         filePatching.addActionListener { if (filePatching.isEnabled) filePatchingChoice = filePatching.isSelected }
@@ -72,7 +75,11 @@ class DayZRunConfigurationEditor(
     }
 
     override fun createEditor(): JComponent = panel {
-        if (mode != DayZLaunchMode.BULDOZER) row { cell(diag) }
+        row {
+            cell(startServer)
+            cell(startClients)
+        }.rowComment("The server starts first; the clients join it on this machine.")
+        row { cell(diag) }
         row("Mods folder:") {
             cell(modsFolder).align(AlignX.FILL)
                 .comment("Where Add Mods… looks besides the game's !Workshop, and where bare @Mod names are, such as P:\\Mods.")
@@ -80,126 +87,130 @@ class DayZRunConfigurationEditor(
         row {
             cell(modTable.component).align(Align.FILL)
                 .comment(
-                    "In load order. Unticked mods are kept but not passed. Rescan adds the project's config.cpp folders: " +
-                        "at launch they are packed into a generated mod, only those that changed, and run with -filePatching. " +
-                        "Loose PBOs are copied into a generated @ExtraPBOs mod." +
-                        if (mode == DayZLaunchMode.SERVER) " Server only mods go to -serverMod=." else "",
+                    "One list for the server and the clients, in load order. Unticked mods are kept but not passed; " +
+                        "Server only mods go to the server's -serverMod= and to no client. Rescan adds the project's " +
+                        "config.cpp folders: at launch they are packed into a generated mod, only those that changed. " +
+                        "Loose PBOs are copied into a generated @ExtraPBOs mod.",
                 )
         }.resizableRow()
-        row("Profiles:") { cell(profiles).align(AlignX.FILL).comment(profilesComment()) }
-        if (mode == DayZLaunchMode.CLIENT) {
+        row { cell(filePatching) }
+        row("Port:") {
+            cell(port).columns(COLUMNS_TINY)
+                .comment("The server's -port=, and the one the clients join; empty is ${DayZLaunchCommand.DEFAULT_PORT}.")
+        }
+        row("Mission:") {
+            cell(mission).align(AlignX.FILL)
+                .comment(
+                    "-mission=: a DayZ Diag server's (the dedicated server reads it from its config), " +
+                        "or the clients' to play offline when there is no server to join. Relative to the game's folder.",
+                )
+        }
+        row("Extra arguments:") { cell(extra).align(AlignX.FILL).comment("Passed to every process.") }
+
+        group("Clients") {
             row {
                 cell(playersTable.component).align(AlignX.FILL)
                     .comment("One client per player, started one after the other. Empty: one client with no -name=.")
             }
-        }
-        row { cell(filePatching) }
-        when (mode) {
-            DayZLaunchMode.CLIENT -> {
-                row { cell(window) }
-                row("Connect to:") { cell(connect).columns(COLUMNS_MEDIUM).comment("-connect=, such as 127.0.0.1, to join a server at start") }
-                row("Port:") { cell(port).columns(COLUMNS_TINY).comment("-port=") }
-                row("Password:") {
-                    cell(password).columns(COLUMNS_MEDIUM)
-                        .comment("-password=, when joining a server. Saved with the configuration in plain text.")
-                }
-                row("Mission:") {
-                    cell(mission).align(AlignX.FILL)
-                        .comment("-mission=, to play offline (leave Connect to empty). Relative to the game's folder.")
-                }
+            row("Profiles:") {
+                cell(profiles).align(AlignX.FILL)
+                    .comment(
+                        "-profiles= of a player without one; empty is the game's default (%LOCALAPPDATA%\\DayZ). " +
+                            "With several players, each gets a folder of its name under it.",
+                    )
             }
-
-            DayZLaunchMode.SERVER -> {
-                row("Port:") { cell(port).columns(COLUMNS_TINY).comment("-port=") }
-                row("Server config:") { cell(serverConfig).align(AlignX.FILL).comment("-config=, such as serverDZ.cfg") }
-                row("Mission:") {
-                    cell(mission).align(AlignX.FILL)
-                        .comment("-mission=, DayZ Diag only: the dedicated server takes its mission from the server config.")
-                }.enabledIf(diag.selected)
+            row { cell(window) }
+            row("Connect to:") {
+                cell(connect).columns(COLUMNS_MEDIUM)
+                    .comment("-connect=, to join a server this run does not start. With Start a server, the clients join 127.0.0.1.")
+            }.enabledIf(startServer.selected.not())
+            row("Password:") {
+                cell(password).columns(COLUMNS_MEDIUM)
+                    .comment("-password=, when joining a server. Saved with the configuration in plain text.")
             }
+            row { cell(steamEmulator) }
+                .rowComment(
+                    "Several clients on one Steam account kick each other off a server. This writes each player's name and " +
+                        "Steam ID to %APPDATA%\\Goldberg SteamEmu Saves\\settings just before that client starts, 4 seconds " +
+                        "after the previous one. Needs the emulator's steam_api64.dll in the game's folder, which you install.",
+                )
+            row("Start the clients:") {
+                cell(clientDelay).columns(COLUMNS_TINY)
+                label("seconds after the server")
+            }.enabledIf(startServer.selected)
+        }.enabledIf(startClients.selected)
 
-            DayZLaunchMode.BULDOZER -> {}
-        }
-        row("Extra arguments:") { cell(extra).align(AlignX.FILL) }
+        group("Server") {
+            row("Server config:") { cell(serverConfig).align(AlignX.FILL).comment("-config=, such as serverDZ.cfg") }
+            row("Profile:") {
+                cell(serverProfile).align(AlignX.FILL)
+                    .comment("-profiles=; empty uses the server profile from the DayZ Installation settings.")
+            }
+            row { cell(wipeStorage) }
+                .rowComment("The persistence. The loot spawns afresh, so every run starts from the same world, more slowly.")
+        }.enabledIf(startServer.selected)
+
         group("Before Launch") {
             row { cell(stopRunning) }
-                .rowComment("Including a server another configuration started.")
-            row { cell(clearLogs) }
-                .rowComment("In the -profiles= folder of the server or of each client, or the game's default profile for a client.")
-            if (mode == DayZLaunchMode.SERVER) {
-                row { cell(wipeStorage) }
-                    .rowComment("The persistence. The loot spawns afresh, so every run starts from the same world, more slowly.")
-            }
-            if (mode == DayZLaunchMode.CLIENT) {
-                row { cell(steamEmulator) }
-                    .rowComment(
-                        "Several clients on one Steam account kick each other off a server. This writes each player's name and Steam ID " +
-                            "to %APPDATA%\\Goldberg SteamEmu Saves\\settings just before that client starts, 4 seconds after the previous one. " +
-                            "Needs the emulator's steam_api64.dll in the game's folder, which you install.",
-                    )
-                row("Wait before starting:") {
-                    cell(waitSeconds).columns(COLUMNS_TINY)
-                        .comment("Seconds, so that a server started with these clients in a Compound is up first.")
-                }
-            }
+            row { cell(clearLogs) }.rowComment("In the server's profile and each client's.")
         }
-    }
-
-    private fun profilesComment(): String = when (mode) {
-        DayZLaunchMode.CLIENT ->
-            "-profiles=; empty uses the game's default (%LOCALAPPDATA%\\DayZ). With several players, each gets a folder of its name under it."
-        DayZLaunchMode.SERVER -> "-profiles=; empty uses the server profile from the DayZ Installation settings"
-        DayZLaunchMode.BULDOZER -> "-profiles=; empty uses P:\\Buldozer, as Object Builder does"
     }
 
     override fun resetEditorFrom(configuration: DayZRunConfiguration) {
         val o = configuration.options
+        o.migrate()
+        startServer.isSelected = o.startServer
+        startClients.isSelected = o.startClients
         diag.isSelected = o.diag
         modsFolder.text = o.modsFolder.orEmpty()
         modTable.mods = o.modRows()
         playersTable.players = o.playerRows()
-        profiles.text = o.profiles.orEmpty()
         filePatchingChoice = o.filePatching
         followModList()
-        window.isSelected = o.window
-        connect.text = o.connect.orEmpty()
         port.text = o.port.orEmpty()
-        password.text = o.password.orEmpty()
-        serverConfig.text = o.serverConfig.orEmpty()
         mission.text = o.mission.orEmpty()
         extra.text = o.extraArguments.orEmpty()
+        profiles.text = o.profiles.orEmpty()
+        window.isSelected = o.window
+        connect.text = o.connect.orEmpty()
+        password.text = o.password.orEmpty()
+        steamEmulator.isSelected = o.steamEmulator
+        clientDelay.text = o.clientDelaySeconds ?: "5"
+        serverConfig.text = o.serverConfig.orEmpty()
+        serverProfile.text = o.serverProfile.orEmpty()
+        wipeStorage.isSelected = o.wipeStorage
         stopRunning.isSelected = o.stopRunning
         clearLogs.isSelected = o.clearLogs
-        wipeStorage.isSelected = o.wipeStorage
-        steamEmulator.isSelected = o.steamEmulator
-        waitSeconds.text = o.waitSeconds.orEmpty()
     }
 
     /**
-     * Every field is written back, including the ones this mode does not show: they keep what they
-     * were reset from, so nothing saved is lost, and the command line ignores what the mode does not
-     * use. File patching is saved as the user chose it; the mod list forces it at launch.
+     * Every field is written back, including those of a section switched off, so that switching it
+     * on again finds them. File patching is saved as the user chose it; the mod list forces it at
+     * launch.
      */
     override fun applyEditorTo(configuration: DayZRunConfiguration) {
         val o = configuration.options
-        o.mode = mode.name
+        o.mode = null
+        o.startServer = startServer.isSelected
+        o.startClients = startClients.isSelected
         o.diag = diag.isSelected
         o.modsFolder = modsFolder.text.trim().ifEmpty { null }
         o.setModRows(modTable.mods)
-        if (mode == DayZLaunchMode.CLIENT) o.setPlayerRows(playersTable.players)
-        o.profiles = profiles.text.trim().ifEmpty { null }
+        o.setPlayerRows(playersTable.players)
         o.filePatching = filePatchingChoice
-        o.window = window.isSelected
-        o.connect = connect.text.trim().ifEmpty { null }
         o.port = port.text.trim().ifEmpty { null }
-        o.password = String(password.password).ifEmpty { null }
-        o.serverConfig = serverConfig.text.trim().ifEmpty { null }
         o.mission = mission.text.trim().ifEmpty { null }
         o.extraArguments = extra.text.trim().ifEmpty { null }
+        o.profiles = profiles.text.trim().ifEmpty { null }
+        o.window = window.isSelected
+        o.connect = connect.text.trim().ifEmpty { null }
+        o.password = String(password.password).ifEmpty { null }
+        o.steamEmulator = steamEmulator.isSelected
+        o.clientDelaySeconds = clientDelay.text.trim().ifEmpty { null }
+        o.serverConfig = serverConfig.text.trim().ifEmpty { null }
+        o.serverProfile = serverProfile.text.trim().ifEmpty { null }
+        o.wipeStorage = wipeStorage.isSelected
         o.stopRunning = stopRunning.isSelected
         o.clearLogs = clearLogs.isSelected
-        o.wipeStorage = wipeStorage.isSelected
-        o.steamEmulator = steamEmulator.isSelected
-        o.waitSeconds = waitSeconds.text.trim().ifEmpty { null }
     }
 }

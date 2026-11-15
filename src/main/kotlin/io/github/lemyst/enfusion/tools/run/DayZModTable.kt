@@ -22,7 +22,6 @@ import io.github.lemyst.enfusion.tools.AddonBuildSupport
 import io.github.lemyst.enfusion.tools.DayZInstallation
 import io.github.lemyst.enfusion.tools.WorkDrive
 import io.github.lemyst.enfusion.tools.detect.DayZLaunchCommand
-import io.github.lemyst.enfusion.tools.detect.DayZLaunchMode
 import io.github.lemyst.enfusion.tools.detect.DayZMod
 import io.github.lemyst.enfusion.tools.detect.DayZModKind
 import io.github.lemyst.enfusion.tools.detect.DayZMods
@@ -41,7 +40,6 @@ import javax.swing.table.TableCellRenderer
  */
 class DayZModTable(
     private val project: Project,
-    private val mode: DayZLaunchMode,
     /** The configuration's *Mods folder*, as typed. */
     private val modsFolder: () -> String?,
     private val onChange: () -> Unit,
@@ -87,7 +85,10 @@ class DayZModTable(
     }
 
     private val model = ListTableModel<Row>(
-        *listOfNotNull(enabledColumn, pathColumn, kindColumn, serverOnlyColumn.takeIf { mode == DayZLaunchMode.SERVER }).toTypedArray(),
+        enabledColumn,
+        pathColumn,
+        kindColumn,
+        serverOnlyColumn,
     )
 
     private val table = TableView(model).apply {

@@ -414,24 +414,32 @@ the Run widget's job, through the DayZ run configurations below.
 
 ### Running DayZ
 
-A **DayZ** run configuration starts the game, a server or Buldozer, from the folders in the DayZ
-Installation settings, in the *Run* tool window where it can be stopped. *Run → Edit Configurations
-→ + → DayZ* has one entry for each, *Client*, *Server* and *Buldozer*, and each one's editor shows
-only the fields it uses.
+A **DayZ** run configuration (*Run → Edit Configurations → + → DayZ*) starts a server, clients,
+or both, with **one mod list**: a multiplayer mod is tested with the server and its clients loading
+the same mods. It uses the folders in the DayZ Installation settings, and everything it starts
+runs in one *Run* tab, where *Stop* stops it all.
 
-- **Client:** `DayZDiag_x64.exe` (or `DayZ_x64.exe` with *Use DayZ Diag* off), with `-mod=`,
-  `-profiles=`, `-name=`, `-filePatching`, `-window`, and either `-connect=` / `-port=` /
-  `-password=` to join a server at start, or `-mission=` to play offline.
-- **Server:** the dedicated `DayZServer_x64.exe`, or `DayZDiag_x64.exe -server` with DayZ Diag, with
-  `-config=`, `-port=`, `-profiles=` (the server profile from the settings when empty), `-mod=`,
-  `-serverMod=`, `-filePatching`, and `-mission=` for a Diag server.
-- **Buldozer:** exactly what DayZ Tools' Object Builder starts as its external viewer —
-  `DayZ_x64.exe -buldozer -window -noland -nopause -profiles=P:\Buldozer -name:Buldozer` — plus
-  the mods. *Tools → DayZ → Launch Buldozer* runs a "Buldozer" configuration, creating it the first
-  time.
+- **What to start:** *Start a server* and *Start clients*, either or both.
+  - With both, the server starts first. The clients follow *Start the clients … seconds after the
+    server* later (5 by default) and join it on `127.0.0.1` at *Port*.
+  - Each line of output starts with `[Server]` or the player's name.
+- **The editor:**
+  - **At the top, what both use:** *Use DayZ Diag*, the mods folder, the mod list,
+    `-filePatching`, *Port*, *Mission* and *Extra arguments*.
+  - **Clients:** the players, their profiles, `-window`, *Connect to* and *Password* (to join a
+    server the run does not start), Goldberg and the delay.
+  - **Server:** its config, its profile and the storage wipe.
+- **Command lines:**
+  - **Server:** the dedicated `DayZServer_x64.exe`, or `DayZDiag_x64.exe -server` with DayZ Diag.
+    It gets `-config=`, `-port=`, `-profiles=` (the server profile from the settings when empty),
+    `-mod=`, `-serverMod=`, `-filePatching`, and `-mission=` for a Diag server.
+  - **Clients:** `DayZDiag_x64.exe` (or `DayZ_x64.exe` with *Use DayZ Diag* off). Each gets
+    `-mod=`, `-profiles=`, `-name=`, `-filePatching` and `-window`, then either `-connect=` /
+    `-port=` / `-password=` to join a server, or, with no server to join, `-mission=` to play
+    offline.
 - **The mod list** is a table in load order. Each row has a checkbox: an unticked mod is kept but
-  not passed, so it can be turned off and on again. In a server configuration, *Server only* rows go
-  to `-serverMod=`. The toolbar adds three kinds of row:
+  not passed, so it can be turned off and on again. *Server only* rows go to the server's
+  `-serverMod=` and to no client. The toolbar adds three kinds of row:
   - **Mods:**
     - *Add Mods…* lists the `@` folders of the *Mods folder* and of the game's `!Workshop` (where
       the DayZ launcher links subscribed Workshop mods), one checkbox each.
@@ -476,10 +484,9 @@ only the fields it uses.
   and `.ADM` files; for a server, delete the mission's `storage_*` folders so that the loot spawns
   afresh. Only the folder's own files are deleted, never its subfolders, and a drive root or the
   home folder is refused. What was done is printed at the top of the console.
-- **Several local clients:** a Client configuration's *Players* table has one row per client: its
-  name (`-name=`), its Goldberg Steam ID, and its profile.
-  - **Starting:** one run starts every row, one after the other, in one *Run* tab. Each line of
-    output starts with the player's name, and *Stop* stops them all.
+- **Several local clients:** the *Players* table has one row per client: its name (`-name=`), its
+  Goldberg Steam ID, and its profile.
+  - **Starting:** one run starts every row, one after the other.
   - **Profiles:** each client needs its own profile. An empty one is a folder of the player's name
     under *Profiles*, or under the game's default profile.
   - **Steam identity:** with the real Steam client every local client is the same Steam user, and
@@ -491,16 +498,13 @@ only the fields it uses.
     - An empty Steam ID is derived from the name.
     - The emulator's `steam_api64.dll` in the game's folder is yours to install; the plugin only
       writes the identity.
-  - **With a server:** *Wait before starting* gives a server started in the same *Compound* a head
-    start.
 - A configuration that reads from a drive that is not mounted (the mods folder, a mod, the profile
   or the mission on `P:`) refuses to start and says so, rather than starting the game without its
   mods.
 - Stopping kills the process. The password is saved with the configuration in plain text.
   **Not supported:** binarising (configs stay `config.cpp`, models and terrains are not
-  binarised) and signing the packed addons; for those, build with Addon Builder. Starting a server
-  and its clients together is done with a *Compound* configuration of the server
-  and a Client configuration.
+  binarised) and signing the packed addons; for those, build with Addon Builder. Starting Buldozer
+  (Object Builder's viewer) is left for later.
 
 ### Building PBOs
 
@@ -866,9 +870,9 @@ mod called BattleRoyale):
 
 **Running DayZ**
 
-- *+ → DayZ* lists *Client*, *Server* and *Buldozer*; each editor shows only its own fields (no
-  *Connect to* on a server, no *Server config* on a client, neither on Buldozer).
-- Add *DayZ → Client*:
+- *+ → DayZ* adds one configuration. *Connect to* is greyed out while *Start a server* is ticked,
+  and each section is greyed out while its box is not.
+- Add *DayZ*, *Start clients* only:
   - *Rescan Project Addons* → the project's `config.cpp` folders are listed as
     `P:\MyMod\…` and *-filePatching* is ticked and locked.
   - *Add Mods…* → the mods folder's and `!Workshop`'s `@` folders; tick `@CF` → it is added.
@@ -882,21 +886,19 @@ mod called BattleRoyale):
 - Unmount `P:` and run → an error that `P:` is not mounted, nothing started.
 - A configuration saved before the mod list (with `;`-separated *Mods*) → its mods appear as rows.
 - Client with a *Mission* and no *Connect to* → offline play on that mission. Both set → an error.
-- Tick the three *Before Launch* boxes on a server configuration with a mission → the console's
-  first lines say what was stopped, cleared and wiped; the mission's `storage_*` folders are gone.
-- A Client configuration with three players, Goldberg ticked and *Wait before starting* 5, in a
-  *Compound* with a server:
-  - The console says it waits, then shows each player's identity line about 4 seconds apart, each
-    line prefixed with the player's name.
-  - All three stay connected, each with its own profile folder.
-  - *Stop* closes the three.
+- *Start a server* and *Start clients*, three players, Goldberg ticked, a DayZ Diag server with a
+  mission:
+  - One *Run* tab: `[Server]` starts, then about 5 seconds later each player's identity line about 4
+    seconds apart, each line prefixed with its name.
+  - All three join the server and stay connected, each with its own profile folder.
+  - The server's command line has the shared `-mod=` plus `-serverMod=` for the *Server only* rows;
+    the clients' have no server-only mod.
+  - *Stop* closes all four.
+- Tick the three *Before Launch* boxes with a server and a mission → the console's first lines say
+  what was stopped, cleared and wiped; the mission's `storage_*` folders are gone.
 - Two players with the same name → an error in the configuration. Several players without Goldberg
-  → a warning.
-- *DayZ → Server* with a *Server only* row → it is passed as `-serverMod=`.
-- *DayZ → Server* with DayZ Diag and a mission → `DayZDiag_x64.exe -server` starts with it. Untick
-  DayZ Diag → *Mission* is disabled, since the dedicated server reads it from its config.
-- *Tools → DayZ → Launch Buldozer* → the game opens in Buldozer, and a "Buldozer" configuration
-  now exists. With the DayZ folder unset → the configuration shows an error instead of running.
+  → a warning. Neither box ticked → an error.
+- *Tools → DayZ* and the toolbar's *DayZ* drop-down have no *Launch Buldozer*.
 
 **Building PBOs**
 

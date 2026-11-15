@@ -3,7 +3,6 @@ package io.github.lemyst.enfusion
 import io.github.lemyst.enfusion.tools.detect.DayZLaunch
 import io.github.lemyst.enfusion.tools.detect.DayZLaunchCleanup
 import io.github.lemyst.enfusion.tools.detect.DayZLaunchCommand
-import io.github.lemyst.enfusion.tools.detect.DayZLaunchMode
 import io.github.lemyst.enfusion.tools.detect.DayZMod
 import io.github.lemyst.enfusion.tools.detect.DayZModKind
 import io.github.lemyst.enfusion.tools.detect.DayZPaths
@@ -51,18 +50,18 @@ class EnfusionDayZLaunchTest : TestCase() {
                 "-connect=127.0.0.1",
                 "-port=2302",
             ),
-            DayZLaunchCommand.build(paths, launch),
+            DayZLaunchCommand.buildClient(paths, launch),
         )
     }
 
     fun testRetailClientWithoutOptions() {
         val launch = DayZLaunch(diag = false, filePatching = false, window = false)
-        assertEquals(listOf(retailExe), DayZLaunchCommand.build(paths, launch))
+        assertEquals(listOf(retailExe), DayZLaunchCommand.buildClient(paths, launch))
     }
 
     fun testDedicatedServerUsesTheServerProfileFromSettings() {
         val launch = DayZLaunch(
-            mode = DayZLaunchMode.SERVER,
+            startServer = true,
             diag = false,
             modList = listOf(mod("@CF"), mod("@Admin", serverOnly = true)),
             serverConfig = "serverDZ.cfg",
@@ -79,43 +78,69 @@ class EnfusionDayZLaunchTest : TestCase() {
                 "-serverMod=@Admin",
                 "-filePatching",
             ),
-            DayZLaunchCommand.build(paths, launch),
+            DayZLaunchCommand.buildServer(paths, launch),
         )
     }
 
     fun testDiagServer() {
-        val launch = DayZLaunch(mode = DayZLaunchMode.SERVER, mission = "P:\\missions\\dayzOffline.chernarusplus", profiles = "D:\\P")
-        val command = DayZLaunchCommand.build(paths, launch)
+        val launch = DayZLaunch(startServer = true, mission = "P:\\missions\\dayzOffline.chernarusplus", serverProfile = "D:\\P", profiles = "D:\\Clients")
+        val command = DayZLaunchCommand.buildServer(paths, launch)
         assertEquals(listOf(diagExe, "-server"), command.take(2))
         assertTrue(command.contains("-mission=P:\\missions\\dayzOffline.chernarusplus"))
-        assertTrue(command.contains("-profiles=D:\\P"))
+        assertTrue("the server's own profile, not the clients'", command.contains("-profiles=D:\\P"))
     }
 
-    /** As DayZ Tools' Object Builder starts its external viewer. */
-    fun testBuldozer() {
-        val launch = DayZLaunch(mode = DayZLaunchMode.BULDOZER, filePatching = false)
-        assertEquals(
-            listOf(retailExe, "-buldozer", "-window", "-noland", "-nopause", "-profiles=P:\\Buldozer", "-name:Buldozer"),
-            DayZLaunchCommand.build(paths, launch),
+    /**
+     * One configuration, one mod list: the server loads every ticked mod and its server-only ones as
+     * -serverMod=; the clients load the same mods without the server-only ones, and join the server
+     * on this machine, without the mission the server plays.
+     */
+    fun testServerAndClientsShareTheModList() {
+        val launch = DayZLaunch(
+            startServer = true,
+            filePatching = false,
+            window = false,
+            modList = listOf(mod("@CF"), mod("@Admin", serverOnly = true), DayZMod("P:\\MyMod\\Scripts", DayZModKind.ADDON)),
+            mission = "P:\\missions\\m",
         )
+        val serverCommand = DayZLaunchCommand.buildServer(paths, launch, addonMod = "S:\\@MyMod")
+        assertTrue(serverCommand.contains("-mod=@CF;S:\\@MyMod"))
+        assertTrue(serverCommand.contains("-serverMod=@Admin"))
+        assertEquals(
+            listOf(diagExe, "-mod=@CF;S:\\@MyMod", "-filePatching", "-connect=127.0.0.1", "-port=2302"),
+            DayZLaunchCommand.buildClient(paths, launch, addonMod = "S:\\@MyMod"),
+        )
+        val ownPort = launch.copy(port = 2402, connect = "10.0.0.5")
+        assertEquals(
+            "a server started here wins over Connect to",
+            listOf("-connect=127.0.0.1", "-port=2402"),
+            DayZLaunchCommand.buildClient(paths, ownPort).takeLast(2),
+        )
+    }
+
+    /** A generated mod whose rows are all server only goes to the server's -serverMod= and to no client. */
+    fun testServerOnlyGeneratedMod() {
+        val launch = DayZLaunch(startServer = true, filePatching = false, window = false, modList = listOf(DayZMod("D:\\x\\a.pbo", DayZModKind.PBO, serverOnly = true)))
+        assertTrue(DayZLaunchCommand.buildServer(paths, launch, pboMod = "S:\\@ExtraPBOs").contains("-serverMod=S:\\@ExtraPBOs"))
+        assertFalse(DayZLaunchCommand.buildClient(paths, launch, pboMod = "S:\\@ExtraPBOs").any { it.startsWith("-mod=") })
     }
 
     fun testExtraArgumentsKeepQuotedSpaces() {
         assertEquals(listOf("-a", "b c", "-d="), DayZLaunchCommand.splitArguments("-a \"b c\"  -d=\"\""))
         assertEquals(emptyList<String>(), DayZLaunchCommand.splitArguments("   "))
         val launch = DayZLaunch(diag = false, filePatching = false, window = false, extraArguments = "-nosplash -name=\"Test Player\"")
-        assertEquals(listOf(retailExe, "-nosplash", "-name=Test Player"), DayZLaunchCommand.build(paths, launch))
+        assertEquals(listOf(retailExe, "-nosplash", "-name=Test Player"), DayZLaunchCommand.buildClient(paths, launch))
     }
 
     fun testMissingFolderIsAProblem() {
         try {
-            DayZLaunchCommand.build(DayZPaths(), DayZLaunch())
+            DayZLaunchCommand.buildClient(DayZPaths(), DayZLaunch())
             fail("built without a DayZ folder")
         } catch (e: DayZLaunchCommand.Problem) {
             assertEquals("The DayZ folder is not set.", e.message)
         }
         try {
-            DayZLaunchCommand.build(paths.copy(server = null), DayZLaunch(mode = DayZLaunchMode.SERVER, diag = false))
+            DayZLaunchCommand.buildServer(paths.copy(server = null), DayZLaunch(startServer = true, diag = false))
             fail("built without a server folder")
         } catch (e: DayZLaunchCommand.Problem) {
             assertEquals("The DayZ Server folder is not set.", e.message)
@@ -124,18 +149,36 @@ class EnfusionDayZLaunchTest : TestCase() {
 
     fun testStoredOptionsBecomeALaunch() {
         val options = io.github.lemyst.enfusion.tools.run.DayZRunOptions()
-        options.mode = "SERVER"
+        options.startServer = true
         options.port = " 2402 "
         options.connect = "  "
         options.extraArguments = "-dologs"
         options.setModRows(listOf(DayZMod("P:\\MyMod\\Scripts", DayZModKind.ADDON, serverOnly = true)))
         val launch = options.toLaunch()
-        assertEquals(DayZLaunchMode.SERVER, launch.mode)
+        assertTrue(launch.startServer)
+        assertTrue(launch.startClients)
         assertEquals(listOf(DayZMod("P:\\MyMod\\Scripts", DayZModKind.ADDON, serverOnly = true)), launch.modList)
         assertEquals(2402, launch.port)
         assertNull(launch.connect)
-        options.mode = "NOT_A_MODE"
-        assertEquals(DayZLaunchMode.CLIENT, options.toLaunch().mode)
+        assertEquals("clients start 5 s after the server by default", 5, launch.clientDelaySeconds)
+    }
+
+    /** A configuration saved when the server and the clients had a kind each opens as one of that side. */
+    fun testSeparateKindsAreMigrated() {
+        val server = io.github.lemyst.enfusion.tools.run.DayZRunOptions()
+        server.mode = "SERVER"
+        server.profiles = "D:\\ServerProfile"
+        val launch = server.toLaunch()
+        assertTrue(launch.startServer)
+        assertFalse(launch.startClients)
+        assertEquals("its profile is the server's", "D:\\ServerProfile", launch.serverProfile)
+        assertNull(launch.profiles)
+        assertNull("migrated once", server.mode)
+
+        val buldozer = io.github.lemyst.enfusion.tools.run.DayZRunOptions()
+        buldozer.mode = "BULDOZER"
+        assertFalse(buldozer.toLaunch().startServer)
+        assertTrue(buldozer.toLaunch().startClients)
     }
 
     fun testModHelpers() {
@@ -180,9 +223,9 @@ class EnfusionDayZLaunchTest : TestCase() {
         )
         assertEquals(
             listOf(retailExe, "-mod=@CF;S:\\@MyMod;@Other", "-filePatching"),
-            DayZLaunchCommand.build(paths, launch, addonMod = "S:\\@MyMod"),
+            DayZLaunchCommand.buildClient(paths, launch, addonMod = "S:\\@MyMod"),
         )
-        assertEquals("not packed yet: left out", "-mod=@CF;@Other", DayZLaunchCommand.build(paths, launch)[1])
+        assertEquals("not packed yet: left out", "-mod=@CF;@Other", DayZLaunchCommand.buildClient(paths, launch)[1])
     }
 
     /** The staged PBO folder goes once, where the first PBO row is; without it, PBOs are left out. */
@@ -193,8 +236,8 @@ class EnfusionDayZLaunchTest : TestCase() {
             window = false,
             modList = listOf(mod("@CF"), DayZMod("D:\\x\\a.pbo", DayZModKind.PBO), mod("@Mine"), DayZMod("D:\\x\\b.pbo", DayZModKind.PBO)),
         )
-        assertEquals("-mod=@CF;S:\\@ExtraPBOs;@Mine", DayZLaunchCommand.build(paths, launch, pboMod = "S:\\@ExtraPBOs")[1])
-        assertEquals("-mod=@CF;@Mine", DayZLaunchCommand.build(paths, launch)[1])
+        assertEquals("-mod=@CF;S:\\@ExtraPBOs;@Mine", DayZLaunchCommand.buildClient(paths, launch, pboMod = "S:\\@ExtraPBOs")[1])
+        assertEquals("-mod=@CF;@Mine", DayZLaunchCommand.buildClient(paths, launch)[1])
     }
 
     /** Each player is its own command line: its name, and a profile of its own under the configuration's. */
@@ -202,10 +245,10 @@ class EnfusionDayZLaunchTest : TestCase() {
         val alice = DayZPlayer("Alice")
         val bob = DayZPlayer("Bob", profile = "D:\\Bob")
         val launch = DayZLaunch(diag = false, filePatching = false, window = false, profiles = "D:\\Profiles", players = listOf(alice, bob))
-        assertEquals(listOf(retailExe, "-profiles=D:\\Profiles\\Alice", "-name=Alice"), DayZLaunchCommand.build(paths, launch, alice))
-        assertEquals(listOf(retailExe, "-profiles=D:\\Bob", "-name=Bob"), DayZLaunchCommand.build(paths, launch, bob))
+        assertEquals(listOf(retailExe, "-profiles=D:\\Profiles\\Alice", "-name=Alice"), DayZLaunchCommand.buildClient(paths, launch, alice))
+        assertEquals(listOf(retailExe, "-profiles=D:\\Bob", "-name=Bob"), DayZLaunchCommand.buildClient(paths, launch, bob))
         val one = launch.copy(players = listOf(alice))
-        assertEquals("one player keeps the configuration's profile", "-profiles=D:\\Profiles", DayZLaunchCommand.build(paths, one, alice)[1])
+        assertEquals("one player keeps the configuration's profile", "-profiles=D:\\Profiles", DayZLaunchCommand.buildClient(paths, one, alice)[1])
     }
 
     fun testBareModNamesComeFromTheModsFolder() {
@@ -214,25 +257,25 @@ class EnfusionDayZLaunchTest : TestCase() {
         assertEquals("D:\\Other\\@X", DayZLaunchCommand.resolveMod("D:\\Other\\@X", "P:\\Mods"))
         assertEquals("@CF", DayZLaunchCommand.resolveMod("@CF", " "))
         val launch = DayZLaunch(diag = false, filePatching = false, window = false, modList = listOf(mod("@CF"), mod("@My Mod")), modsFolder = "P:\\Mods")
-        assertEquals("-mod=P:\\Mods\\@CF;P:\\Mods\\@My Mod", DayZLaunchCommand.build(paths, launch)[1])
+        assertEquals("-mod=P:\\Mods\\@CF;P:\\Mods\\@My Mod", DayZLaunchCommand.buildClient(paths, launch)[1])
     }
 
     fun testOfflineClientWithNameAndMission() {
         val launch = DayZLaunch(filePatching = false, window = false, players = listOf(DayZPlayer(" Survivor ")), mission = ".\\Missions\\empty.ChernarusPlus", password = "ignored offline")
         assertEquals(
             listOf(diagExe, "-name=Survivor", "-mission=.\\Missions\\empty.ChernarusPlus"),
-            DayZLaunchCommand.build(paths, launch),
+            DayZLaunchCommand.buildClient(paths, launch),
         )
     }
 
     fun testPasswordOnlyWhenJoiningAServer() {
         val launch = DayZLaunch(filePatching = false, window = false, connect = "127.0.0.1", port = 2302, password = "secret")
-        assertEquals(listOf(diagExe, "-connect=127.0.0.1", "-port=2302", "-password=secret"), DayZLaunchCommand.build(paths, launch))
+        assertEquals(listOf(diagExe, "-connect=127.0.0.1", "-port=2302", "-password=secret"), DayZLaunchCommand.buildClient(paths, launch))
     }
 
     fun testConnectAndMissionTogetherIsAProblem() {
         try {
-            DayZLaunchCommand.build(paths, DayZLaunch(connect = "127.0.0.1", mission = "m"))
+            DayZLaunchCommand.buildClient(paths, DayZLaunch(connect = "127.0.0.1", mission = "m"))
             fail("built a client that both joins a server and plays offline")
         } catch (e: DayZLaunchCommand.Problem) {
             assertTrue(e.message!!, e.message!!.contains("not both"))

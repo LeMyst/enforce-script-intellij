@@ -12,7 +12,6 @@ import com.intellij.execution.configurations.RunConfigurationOptions
 import com.intellij.execution.configurations.RunProfileState
 import com.intellij.execution.configurations.RuntimeConfigurationError
 import com.intellij.execution.configurations.RuntimeConfigurationWarning
-import com.intellij.execution.process.KillableColoredProcessHandler
 import com.intellij.execution.process.ProcessEvent
 import com.intellij.execution.process.ProcessHandler
 import com.intellij.execution.process.ProcessListener
@@ -35,7 +34,6 @@ import io.github.lemyst.enfusion.tools.detect.DayZAddonPacking
 import io.github.lemyst.enfusion.tools.detect.DayZLaunch
 import io.github.lemyst.enfusion.tools.detect.DayZLaunchCleanup
 import io.github.lemyst.enfusion.tools.detect.DayZLaunchCommand
-import io.github.lemyst.enfusion.tools.detect.DayZLaunchMode
 import io.github.lemyst.enfusion.tools.detect.DayZMod
 import io.github.lemyst.enfusion.tools.detect.DayZModKind
 import io.github.lemyst.enfusion.tools.detect.DayZMods
@@ -48,40 +46,29 @@ import java.io.IOException
 import java.nio.file.Path
 
 /**
- * *Run | Edit Configurations | DayZ*, with one entry per [DayZLaunchMode] under it in the *+* menu,
- * as Docker does: each editor then shows only the fields its mode uses, instead of one editor with
- * the other modes' fields disabled.
+ * *Run | Edit Configurations | DayZ*: one configuration starts a server, clients, or both, with one
+ * mod list, since a multiplayer mod is tested with the server and its clients loading the same mods.
  */
 class DayZRunConfigurationType : ConfigurationTypeBase(
     ID,
     "DayZ",
-    "Start DayZ, a DayZ server or Buldozer with the project's mods",
+    "Start a DayZ server and clients with the project's mods",
     NotNullLazyValue.createValue { AllIcons.Nodes.Console },
 ) {
     init {
-        DayZLaunchMode.entries.forEach { addFactory(DayZRunConfigurationFactory(this, it)) }
+        addFactory(DayZRunConfigurationFactory(this))
     }
-
-    fun factory(mode: DayZLaunchMode): ConfigurationFactory =
-        configurationFactories.first { (it as DayZRunConfigurationFactory).mode == mode }
 
     companion object {
         const val ID = "EnfusionDayZ"
     }
 }
 
-class DayZRunConfigurationFactory(type: DayZRunConfigurationType, val mode: DayZLaunchMode) : ConfigurationFactory(type) {
+class DayZRunConfigurationFactory(type: DayZRunConfigurationType) : ConfigurationFactory(type) {
 
-    /**
-     * The client keeps the ID of the single factory there was before the split, so that a
-     * configuration saved then still loads; its saved mode, not the factory, decides its editor.
-     */
-    override fun getId(): String = if (mode == DayZLaunchMode.CLIENT) DayZRunConfigurationType.ID else "${DayZRunConfigurationType.ID}.${mode.name}"
+    override fun getId(): String = DayZRunConfigurationType.ID
 
-    override fun getName(): String = mode.title
-
-    override fun createTemplateConfiguration(project: Project): RunConfiguration =
-        DayZRunConfiguration(project, this, "DayZ ${mode.title}").also { it.options.mode = mode.name }
+    override fun createTemplateConfiguration(project: Project): RunConfiguration = DayZRunConfiguration(project, this, "DayZ")
 
     override fun getOptionsClass(): Class<out BaseState> = DayZRunOptions::class.java
 }
@@ -129,7 +116,14 @@ class DayZPlayerState : BaseState() {
 }
 
 class DayZRunOptions : RunConfigurationOptions() {
-    var mode by string(DayZLaunchMode.CLIENT.name)
+    var startServer by property(false)
+    var startClients by property(true)
+
+    /**
+     * Before one configuration started both: `SERVER` or `BULDOZER` for a configuration of that
+     * kind (a client's was the default, so it was not saved). Read once by [migrate].
+     */
+    var mode by string()
     var diag by property(true)
     var modList by list<DayZModState>()
 
@@ -141,6 +135,7 @@ class DayZRunOptions : RunConfigurationOptions() {
     /** Before the players list: the one client's name, read once to fill it. */
     var playerName by string()
     var profiles by string()
+    var serverProfile by string()
     var filePatching by property(true)
     var window by property(true)
     var connect by string()
@@ -158,7 +153,22 @@ class DayZRunOptions : RunConfigurationOptions() {
 
     /** Before the players list: the one client's Steam ID. */
     var steamId by string()
-    var waitSeconds by string()
+    var clientDelaySeconds by string()
+
+    /**
+     * Turns a configuration saved when each kind had its own into one of this shape: a server's
+     * starts the server only, with its profile as the server's; any other starts clients only.
+     */
+    fun migrate() {
+        val old = mode ?: return
+        mode = null
+        if (old == "SERVER") {
+            startServer = true
+            startClients = false
+            if (serverProfile == null) serverProfile = profiles
+            profiles = null
+        }
+    }
 
     /** The mod list, or, for a configuration saved before there was one, its mod strings converted. */
     fun modRows(): List<DayZMod> =
@@ -188,12 +198,16 @@ class DayZRunOptions : RunConfigurationOptions() {
         steamId = null
     }
 
-    fun toLaunch(): DayZLaunch = DayZLaunch(
-        mode = runCatching { DayZLaunchMode.valueOf(mode ?: "") }.getOrDefault(DayZLaunchMode.CLIENT),
+    fun toLaunch(): DayZLaunch = migrate().let { toLaunchAsSaved() }
+
+    private fun toLaunchAsSaved() = DayZLaunch(
+        startServer = startServer,
+        startClients = startClients,
         diag = diag,
         modList = modRows(),
         players = playerRows(),
         profiles = profiles?.trim()?.ifEmpty { null },
+        serverProfile = serverProfile?.trim()?.ifEmpty { null },
         filePatching = filePatching,
         window = window,
         connect = connect?.trim()?.ifEmpty { null },
@@ -207,7 +221,7 @@ class DayZRunOptions : RunConfigurationOptions() {
         clearLogs = clearLogs,
         wipeStorage = wipeStorage,
         steamEmulator = steamEmulator,
-        waitSeconds = waitSeconds?.trim()?.toIntOrNull()?.coerceIn(0, 600) ?: 0,
+        clientDelaySeconds = clientDelaySeconds?.trim()?.toIntOrNull()?.coerceIn(0, 600) ?: 5,
     )
 }
 
@@ -222,18 +236,23 @@ class DayZRunConfiguration(project: Project, factory: ConfigurationFactory, name
 
     public override fun getOptions(): DayZRunOptions = super.getOptions() as DayZRunOptions
 
-    override fun getConfigurationEditor(): SettingsEditor<out RunConfiguration> =
-        DayZRunConfigurationEditor(project, options.toLaunch().mode)
+    override fun getConfigurationEditor(): SettingsEditor<out RunConfiguration> = DayZRunConfigurationEditor(project)
 
     override fun checkConfiguration() {
-        val paths = DayZInstallation.getInstance().configured.orElse(DayZInstallation.getInstance().lastDetected ?: return)
         val launch = options.toLaunch()
+        if (!launch.startServer && !launch.startClients) throw RuntimeConfigurationError("Tick Start a server, Start clients, or both.")
+        val paths = DayZInstallation.getInstance().configured.orElse(DayZInstallation.getInstance().lastDetected ?: return)
         try {
-            DayZLaunchCommand.build(paths, launch)
+            if (launch.startServer) DayZLaunchCommand.buildServer(paths, launch)
+            if (launch.startClients) DayZLaunchCommand.buildClient(paths, launch)
         } catch (e: DayZLaunchCommand.Problem) {
             throw RuntimeConfigurationError("${e.message} Set it in Settings | Languages & Frameworks | Enforce Script | DayZ Installation.")
         }
-        if (launch.mode != DayZLaunchMode.CLIENT) return
+        val letter = paths.workDriveLetter ?: "P"
+        launch.modList.firstOrNull { it.enabled && it.kind == DayZModKind.ADDON && !it.path.startsWith("$letter:", ignoreCase = true) }?.let {
+            throw RuntimeConfigurationWarning("${it.path} is not on the work drive ($letter:), which file patching reads from.")
+        }
+        if (!launch.startClients) return
         val players = launch.players
         players.mapNotNull { it.steamId }.firstOrNull { !GoldbergIdentity.isSteamId(it) }?.let {
             throw RuntimeConfigurationError("The Steam ID $it must be 17 digits starting with 7656119, or empty to derive one from the player name.")
@@ -247,10 +266,6 @@ class DayZRunConfiguration(project: Project, factory: ConfigurationFactory, name
                 "Several clients on one Steam account kick each other off a server: tick Write a Goldberg Steam emulator identity.",
             )
         }
-        val letter = paths.workDriveLetter ?: "P"
-        launch.modList.firstOrNull { it.enabled && it.kind == DayZModKind.ADDON && !it.path.startsWith("$letter:", ignoreCase = true) }?.let {
-            throw RuntimeConfigurationWarning("${it.path} is not on the work drive ($letter:), which file patching reads from.")
-        }
     }
 
     override fun getState(executor: Executor, environment: ExecutionEnvironment): RunProfileState =
@@ -258,10 +273,15 @@ class DayZRunConfiguration(project: Project, factory: ConfigurationFactory, name
             override fun startProcess(): ProcessHandler {
                 val paths = DayZInstallation.getInstance().paths(project)
                 val launch = options.toLaunch()
-                val players = if (launch.mode == DayZLaunchMode.CLIENT) launch.players.ifEmpty { listOf(DayZPlayer()) } else listOf(null)
+                if (!launch.startServer && !launch.startClients) throw ExecutionException("Tick Start a server, Start clients, or both.")
+                val players = if (launch.startClients) launch.players.ifEmpty { listOf(DayZPlayer()) } else emptyList()
+                // Packed and staged once: the server and every client load the same generated mods.
                 val prepared = onBackground("Preparing the mods") { prepareMods(launch, paths) }
-                val commands = try {
-                    players.map { DayZLaunchCommand.build(paths, launch, it, prepared.pboMod, prepared.addonMod) }
+                val server: List<String>?
+                val clients: List<List<String>>
+                try {
+                    server = if (launch.startServer) DayZLaunchCommand.buildServer(paths, launch, prepared.pboMod, prepared.addonMod) else null
+                    clients = players.map { DayZLaunchCommand.buildClient(paths, launch, it, prepared.pboMod, prepared.addonMod) }
                 } catch (e: DayZLaunchCommand.Problem) {
                     throw ExecutionException(e.message)
                 }
@@ -276,18 +296,17 @@ class DayZRunConfiguration(project: Project, factory: ConfigurationFactory, name
                         )
                     }
                 }
-                val report = prepared.lines + beforeLaunch(launch, commands, paths)
-                val handler = if (launch.mode == DayZLaunchMode.CLIENT) {
-                    val clients = players.zip(commands).mapIndexed { index, (player, command) ->
-                        val name = player?.name ?: "Client ${index + 1}"
-                        DayZClientsProcessHandler.Client(name, commandLine(command)) {
-                            if (launch.steamEmulator) writeIdentity(player) else null
-                        }
+                val report = prepared.lines + beforeLaunch(launch, server, clients, paths)
+                val processes = ArrayList<DayZProcessesHandler.Process>()
+                server?.let { processes += DayZProcessesHandler.Process("Server", commandLine(it)) }
+                players.zip(clients).forEachIndexed { index, (player, command) ->
+                    // The first client waits for a server started with it to be up.
+                    val delay = if (index == 0 && server != null) launch.clientDelaySeconds * 1000L else 0L
+                    processes += DayZProcessesHandler.Process(player.name ?: "Client ${index + 1}", commandLine(command), delay) {
+                        if (launch.steamEmulator) writeIdentity(player) else null
                     }
-                    DayZClientsProcessHandler(clients, launch.waitSeconds * 1000L)
-                } else {
-                    KillableColoredProcessHandler(commandLine(commands.single()))
                 }
+                val handler = DayZProcessesHandler(processes)
                 ProcessTerminatedListener.attach(handler)
                 // Printed once the console is attached: text sent before startNotify is dropped.
                 if (report.isNotEmpty()) {
@@ -358,23 +377,22 @@ class DayZRunConfiguration(project: Project, factory: ConfigurationFactory, name
              * mission's storage, as asked; returns a line for each, for the console. Deleting files
              * and waiting for processes to exit is slow, so on the EDT it runs under a modal progress.
              */
-            private fun beforeLaunch(launch: DayZLaunch, commands: List<List<String>>, paths: DayZPaths): List<String> {
-                val wipe = launch.wipeStorage && launch.mode == DayZLaunchMode.SERVER
+            private fun beforeLaunch(launch: DayZLaunch, server: List<String>?, clients: List<List<String>>, paths: DayZPaths): List<String> {
+                val wipe = launch.wipeStorage && server != null
                 if (!launch.stopRunning && !launch.clearLogs && !wipe) return emptyList()
                 val work = ThrowableComputable<List<String>, ExecutionException> {
                     val lines = ArrayList<String>()
                     try {
                         if (launch.stopRunning) lines += "Stopped ${DayZLaunchCleanup.stopRunning()} running DayZ process(es)."
                         if (launch.clearLogs) {
-                            val default = if (launch.mode == DayZLaunchMode.CLIENT) paths.clientProfile else null
-                            for (command in commands) {
-                                DayZLaunchCleanup.profileFolder(command, default)?.let { profile ->
-                                    lines += "Cleared ${DayZLaunchCleanup.clearLogs(profile).size} log file(s) in $profile."
-                                }
+                            val profiles = listOfNotNull(server?.let { DayZLaunchCleanup.profileFolder(it, null) }) +
+                                clients.mapNotNull { DayZLaunchCleanup.profileFolder(it, paths.clientProfile) }
+                            for (profile in profiles.distinct()) {
+                                lines += "Cleared ${DayZLaunchCleanup.clearLogs(profile).size} log file(s) in $profile."
                             }
                         }
-                        if (wipe) {
-                            val mission = DayZLaunchCleanup.missionFolder(commands.single())
+                        if (wipe && server != null) {
+                            val mission = DayZLaunchCleanup.missionFolder(server)
                             lines += if (mission == null) {
                                 "No -mission= to wipe the storage of."
                             } else {

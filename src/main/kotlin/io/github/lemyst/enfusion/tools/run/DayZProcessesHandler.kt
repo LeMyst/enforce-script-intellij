@@ -13,18 +13,19 @@ import java.io.OutputStream
 import java.util.concurrent.CopyOnWriteArrayList
 
 /**
- * One or more DayZ clients in one *Run* tab. They are started one after the other off the EDT:
- * each may first wait (for a server started with it) and write its Goldberg identity, which the next
- * must not overwrite before it is read. With several clients each line of output says whose it is.
- * *Stop* stops them all, and the run ends when the last one exits.
+ * A DayZ server and its clients, or either alone, in one *Run* tab. They are started one after the
+ * other off the EDT: each may first wait (the clients, for the server to be up) and prepare (write
+ * its Goldberg identity, which the next must not overwrite before it is read). With several
+ * processes each line of output says whose it is. *Stop* stops them all, and the run ends when the
+ * last one exits.
  */
-class DayZClientsProcessHandler(
-    private val clients: List<Client>,
-    private val waitMs: Long,
-) : ProcessHandler() {
+class DayZProcessesHandler(private val processes: List<Process>) : ProcessHandler() {
 
-    /** A client to start: [prepare] runs just before, off the EDT, and returns a line for the console. */
-    class Client(val name: String, val command: GeneralCommandLine, val prepare: () -> String?)
+    /**
+     * A process to start, [delayMs] after the previous one. [prepare] runs just before it, off the
+     * EDT, and returns a line for the console.
+     */
+    class Process(val name: String, val command: GeneralCommandLine, val delayMs: Long = 0, val prepare: () -> String? = { null })
 
     private val started = CopyOnWriteArrayList<ProcessHandler>()
 
@@ -44,18 +45,19 @@ class DayZClientsProcessHandler(
 
     private fun launch() {
         try {
-            if (waitMs > 0) {
-                say("Waiting ${waitMs / 1000.0} s before starting.")
-                val until = System.currentTimeMillis() + waitMs
-                while (!stopping && System.currentTimeMillis() < until) Thread.sleep(100)
-            }
-            for (client in clients) {
+            for (process in processes) {
                 if (stopping) break
-                val prefix = if (clients.size > 1) "[${client.name}] " else ""
-                try {
-                    client.prepare()?.let { say(prefix + it) }
+                val prefix = if (processes.size > 1) "[${process.name}] " else ""
+                if (process.delayMs > 0) {
+                    say("${prefix}Starting in ${process.delayMs / 1000.0} s.")
+                    val until = System.currentTimeMillis() + process.delayMs
+                    while (!stopping && System.currentTimeMillis() < until) Thread.sleep(100)
                     if (stopping) break
-                    val child = KillableColoredProcessHandler(client.command)
+                }
+                try {
+                    process.prepare()?.let { say(prefix + it) }
+                    if (stopping) break
+                    val child = KillableColoredProcessHandler(process.command)
                     child.addProcessListener(object : ProcessListener {
                         override fun onTextAvailable(event: ProcessEvent, outputType: Key<*>) {
                             notifyTextAvailable(prefix + event.text, outputType)
@@ -69,7 +71,7 @@ class DayZClientsProcessHandler(
                     started += child
                     child.startNotify()
                 } catch (e: Exception) {
-                    LOG.info("Could not start ${client.name}", e)
+                    LOG.info("Could not start ${process.name}", e)
                     notifyTextAvailable("${prefix}Could not start: ${e.message}\n", ProcessOutputTypes.STDERR)
                 }
             }
@@ -85,7 +87,7 @@ class DayZClientsProcessHandler(
 
     @Synchronized
     private fun finishIfDone() {
-        // While clients are still being started, the first one exiting does not end the run.
+        // While processes are still being started, the first one exiting does not end the run.
         if (launching || isProcessTerminated) return
         if (started.all { it.isProcessTerminated }) notifyProcessTerminated(lastExit)
     }
@@ -107,6 +109,6 @@ class DayZClientsProcessHandler(
     override fun getProcessInput(): OutputStream? = null
 
     private companion object {
-        val LOG = logger<DayZClientsProcessHandler>()
+        val LOG = logger<DayZProcessesHandler>()
     }
 }
