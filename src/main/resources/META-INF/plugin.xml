@@ -376,6 +376,10 @@
         <notificationGroup
                 id="Enforce Script"
                 displayType="BALLOON"/>
+        <!-- Its own group so the early-stage notice can be muted on its own (FeedbackNotice). -->
+        <notificationGroup
+                id="Enforce Script feedback"
+                displayType="BALLOON"/>
 
         <!-- Sends exceptions and freezes attributed to this plugin to its Marketplace page
              (Exceptions / Freezes tabs) instead of leaving users nowhere to report them. The class
@@ -428,6 +432,19 @@
                     text="Build PBO with Options…"
                     description="Change this addon's Addon Builder options, then build it"/>
             <separator/>
+        </group>
+        <!-- Help: the issue tracker, reachable after the startup notice has been dismissed. -->
+        <group id="Enfusion.Feedback">
+            <add-to-group group-id="HelpMenu" anchor="after" relative-to-action="SendFeedback"/>
+            <separator/>
+            <action id="Enfusion.ReportIssue"
+                    class="io.github.lemyst.enfusion.feedback.ReportIssueAction"
+                    text="Report Enforce Script Issue"
+                    description="Open a new GitHub issue for the Enforce Script plugin, with your plugin, IDE and OS versions filled in"/>
+            <action id="Enfusion.RequestFeature"
+                    class="io.github.lemyst.enfusion.feedback.RequestFeatureAction"
+                    text="Request Enforce Script Feature"
+                    description="Open a new GitHub feature request for the Enforce Script plugin"/>
         </group>
     </actions>
 </idea-plugin>

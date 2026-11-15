@@ -406,7 +406,16 @@ the options first, and *Tools → DayZ → Build All PBOs* builds every addon of
 - **Not supported:** a native packer that works without DayZ Tools (Addon Builder is required), and
   building before a run configuration starts.
 
-## Error reports
+## Feedback and error reports
+
+The plugin is young, so bug reports and feature requests are welcome on
+[GitHub](https://github.com/LeMyst/enforce-script-intellij/issues). *Help → Report Enforce Script
+Issue* opens a new issue with your plugin, IDE and OS versions filled in; *Help → Request Enforce
+Script Feature* opens a feature request.
+
+In a DayZ addon project, a notice says so once per IDE session at most. *Remind me later*, or just
+closing it, brings it back after a week; *Don't show again* turns it off for every project. It can
+also be muted under *Settings → Appearance & Behavior → Notifications → Enforce Script feedback*.
 
 When the plugin throws, the IDE's *Internal Errors* dialog offers **Report to third-party plugin**.
 The report (stack trace, OS, IDE and plugin versions) goes to the plugin's JetBrains Marketplace page,
@@ -498,6 +507,9 @@ Navigation, opening a real DayZ mod:
 - A balloon reports vanilla indexed from the work drive on first open, and **Enforce Script
   Sources** and **Vanilla Configs** appear under *External Libraries*. A root in the list that
   cannot be resolved is named in a warning rather than silently ignored.
+- An *Enforce Script is in an early stage* notice appears once. *Don't show again* → it never comes
+  back after a restart. *Help → Report Enforce Script Issue* → GitHub's new-issue form, with the
+  versions filled in.
 - Ctrl+Click a type declared in the mod → its declaration.
 - Ctrl+Click a vanilla type (`Math` in `Math.Clamp(...)`, `PlayerBase`) → the vanilla source. This is
   the one that proves library roots work, and it must succeed on the **first** click: a root only
