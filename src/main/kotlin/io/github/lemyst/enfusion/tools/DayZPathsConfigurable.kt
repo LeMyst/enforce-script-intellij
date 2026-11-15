@@ -89,6 +89,19 @@ class DayZPathsConfigurable(private val project: Project) : BoundConfigurable("D
                     field.comment("Overrides the server profile above for this project only. Saved in .idea/enfusion.xml.")
                 }
             }
+            group("Workbench") {
+                val settings = EnfusionProjectSettings.getInstance(project)
+                row("Mod folder:") {
+                    val field = folderField("Workbench Mod Folder")
+                        .bindText({ settings.workbenchMod ?: "" }, { settings.workbenchMod = it })
+                        .comment(
+                            "Workbench starts with -filePatching and -mod= this folder, so that it reads the mod's unpacked files. " +
+                                "Empty: the project's folder on the work drive, such as P:\\MyMod or a link there to the project. " +
+                                "For this project only, saved in .idea/enfusion.xml.",
+                        )
+                    workbenchHint(field.component.textField as? JBTextField)
+                }
+            }
             group("Toolbar") {
                 row {
                     checkBox("Show the DayZ buttons in the main toolbar")
@@ -154,6 +167,18 @@ class DayZPathsConfigurable(private val project: Project) : BoundConfigurable("D
             }
         }
         return cell(field).columns(COLUMNS_LARGE).align(AlignX.FILL)
+    }
+
+    /** Shows the folder an empty *Mod folder* stands for, found off the EDT: it lists the work drive. */
+    private fun workbenchHint(field: JBTextField?) {
+        field ?: return
+        ApplicationManager.getApplication().executeOnPooledThread {
+            val guess = WorkbenchMod.guess(project)
+            ApplicationManager.getApplication().invokeLater({
+                field.emptyText.text = guess?.let { "Detected: $it" } ?: "Not detected: Workbench starts without -mod="
+                field.repaint()
+            }, ModalityState.any())
+        }
     }
 
     private fun detectInBackground() {
