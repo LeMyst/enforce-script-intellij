@@ -145,6 +145,44 @@ inputs.
     throughout, so in a CRLF stringtable that has line breaks *inside* cells (the vanilla one has
     250), saving turns those into CRLF too. Library stringtables, such as the vanilla one, open
     read-only.
+- **Layout preview** — a `.layout` opens as text with a read-only preview beside it (*Layout* in the
+  editor's top-right switches between text, both, and preview only). The widget tree is laid out on
+  a screen of the chosen size (1920 × 1080 by default) the way the vanilla layouts use the
+  properties: `size` / `position` in pixels or as fractions of the parent (`hexactsize`,
+  `vexactsize`, `hexactpos`, `vexactpos`), `halign` / `valign` with offsets from the matching edge,
+  grid spacers in `Rows` × `Columns` cells (more rows when the children need them, sized to their
+  content on an axis with *Size To Content*, `Padding` inside and `Margin` round each cell), text
+  sized to its text with `"size to text h"` / `"size to text v"` (estimated: the layout has no
+  fonts), and wrap spacers flowing their children (lines placed by
+  `content_halign` / `content_valign`, `bottom` stacking them upwards), a `visible 0`
+  child taking no slot, a wrap spacer's *Size To Content* fitting it to its children, and children
+  cut off at their parent's edges unless it says `clipchildren 0`. Siblings are drawn by `priority`,
+  lowest first. With `fixaspect`, a proportional
+  `size` gives only a ratio: `outside` covers the parent with a box of that ratio, `inside` fits
+  one in it (`size 1.6 0.9` is a full 16:9 screen), and `fixwidth` (`fixheight`) derives the width
+  (height) from the other side. Panels are filled with their
+  `color` (not `blank` ones; a button's colour tints its style, so buttons are not), images show their `image0` (an imageset entry or a texture) or `imageTexture`,
+  through the same cache as the texture hover, stretched to their box, tinted by their `color`,
+  cut by their `Mask` at their `Progress` and mirrored by `flip u` / `flip v`, and turned by their
+  `rotation` about their `pivot` (the outline stays upright, as in Workbench). Text widgets show
+  their `text` at `"exact text size"` pixels, or `text_proportion` of their height, wrapped to the
+  box with `wrap 1` and placed by `"text halign"` / `"text valign"` (top left by default) and
+  `text_offset`. Check boxes get their box, combo boxes their arrows, and scroll widgets and the
+  server browser their scroll bars, drawn plainly. A texture path no root holds, such as vanilla's `Gui/textures/…`, is looked up on
+  the work drive when the project indexes it; an image that is not found is only outlined. A `#key` text shows in the language chosen in the toolbar, from the stringtables that
+  declare the key (the project's and the vanilla one), falling back to `original`, then to the key;
+  *Keys* shows the keys themselves. The choice is kept for every layout. Every widget is outlined; *Hidden widgets* shows the ones with `visible 0`, dashed.
+  Clicking a widget puts the caret on its declaration: the smallest widget under the pointer, then,
+  clicking the same spot again, the next larger one, and the caret's widget is outlined in blue,
+  its whole box even where its parent cuts it off. The wheel zooms around the pointer, dragging
+  pans, *Fit* fits the screen to the pane again and *100%* shows it at one layout pixel per screen
+  pixel; outlines stay one pixel wide at any zoom. The preview updates a moment after the text
+  changes. **Approximate, not pixel-exact:** the typeface is the IDE's, not the layout's `font`;
+  panel `style`s (the imageset frames of `dayzwidgets.styles`) are drawn as their plain `color`;
+  `Padding` / `Margin` on wrap spacers, *Size To Content* outside spacers, scaling, the
+  rotation of children and blend modes (`mode additive`) are not modelled, and script classes do
+  not run. Editing in the preview (moving, resizing, a properties panel) is not
+  supported.
 - **Class hierarchy** (`Ctrl+H`) modelling both relationships the language has: `extends`, and
   `modded class` layering. Every layer of a class hangs off the base, which is the view that matters
   here — a `modded class X` names nothing at all, so the link to what it patches exists only because
@@ -694,6 +732,29 @@ mod called BattleRoyale):
   notification, and the `File …, line N` line is a link to the config.
 - Build with a signing key → the `.bisign` appears; with no `.bikey` in `@Mod\Keys` → a warning.
 - *Tools → DayZ → Build All PBOs* in a project with several addons → one tab, built one after the other.
+
+**Layout preview**
+
+- Open `P:\gui\layouts\day_z_ingamemenu.layout` → text and preview side by side: the button column
+  on the right, the server info at the top left. Click a button in the preview → the caret jumps to
+  its `ButtonWidgetClass`. Move the caret into another widget → its outline turns blue.
+- Open a mod's layout with imageset icons → the icons are drawn. Change a `size` → the preview
+  follows a moment later. *Hidden widgets* → the `visible 0` ones appear dashed.
+- Switch the resolution → proportional widgets scale, pixel ones keep their size. The list runs from
+  1280 × 720 to 3840 × 2160, with 1920 × 1080 selected.
+- In `day_z_ingamemenu`, the column above *Respawn* holds *Exit*, *Feedback* and *Options* at full
+  height, with no gap for the hidden *Restart*, and stays above *Respawn* rather than over it. The
+  vignette darkens the edges of the screen, as in Workbench, and its blue outline (caret on
+  `vignette`) is the screen, nudged by under a pixel.
+- Pick *french* in the language list → *Continue* reads *Continuer*; *Keys* → `#main_menu_continue`.
+  A mod layout using its own `STR_…` keys shows the mod's stringtable text.
+- Open `P:\gui\layouts\day_z_hud_cars.layout` → the dials are grey arcs, not filled boxes; the RPM
+  dial's last fifth is red, as are the low ends of the fuel and temperature dials.
+- In `day_z_ingamemenu`, the modded-version warning wraps over three lines at the size Workbench
+  shows. In `day_z_hud_cars`, the RPM needle points left.
+- At 3840 × 2160 every outline is still visible. Scroll the wheel over a button → it zooms in around
+  the pointer; drag → the view pans; a click without dragging still selects. *Fit* → back to the
+  whole screen; *100%* → one layout pixel per screen pixel.
 
 **Rename and inspections**
 
