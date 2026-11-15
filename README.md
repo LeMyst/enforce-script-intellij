@@ -332,7 +332,8 @@ project and reopen it to enable them.
 this machine: the DayZ, DayZ Server and DayZ Tools folders, the work-drive source folder and letter,
 and the client and server profile folders. The tooling features build on them.
 
-- **Detected, not typed.** A field left empty uses the detected location, shown in grey. The DayZ,
+- **Detected, not typed.** A field left empty uses the detected location, shown in grey, and its
+  folder button opens there, ready to pick a folder nearby. The DayZ,
   DayZ Server and DayZ Tools folders come from Steam's own records (`libraryfolders.vdf` and each
   app's `appmanifest_*.acf`), so a game installed in another Steam library is found too. The
   work-drive folder and letter come from DayZ Tools' `settings.ini`, as its launcher sets them, and
@@ -758,6 +759,8 @@ mod called BattleRoyale):
   `options/enfusion-dayz.xml` of the IDE's config folder, not in `.idea`.
 - On a machine without DayZ Tools → *Not detected* in its field and no error.
 - The *Drive letter* field shows its whole grey hint (*Detected: P*).
+- Click the folder button of an empty *DayZ* field → the chooser opens at the detected DayZ folder;
+  of a filled one → at the folder typed.
 - Remove every vanilla entry from the root list, keeping *Index vanilla DayZ from the work drive*
   ticked → `PlayerBase` still resolves, and *External Libraries* still lists `P:\scripts` and
   `P:\DZ`. Untick it → the vanilla roots go away after a re-index; tick it again → back.

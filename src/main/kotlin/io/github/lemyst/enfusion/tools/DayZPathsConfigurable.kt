@@ -2,16 +2,20 @@ package io.github.lemyst.enfusion.tools
 
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
+import com.intellij.openapi.fileChooser.FileChooser
 import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
 import com.intellij.openapi.options.BoundConfigurable
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.project.ProjectManager
 import com.intellij.openapi.ui.DialogPanel
+import com.intellij.openapi.ui.TextFieldWithBrowseButton
 import com.intellij.openapi.util.io.FileUtil
+import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.ui.components.JBTextField
 import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.COLUMNS_LARGE
 import com.intellij.ui.dsl.builder.COLUMNS_SHORT
+import com.intellij.ui.dsl.builder.Cell
 import com.intellij.ui.dsl.builder.Panel
 import com.intellij.ui.dsl.builder.bindSelected
 import com.intellij.ui.dsl.builder.bindText
@@ -41,6 +45,9 @@ class DayZPathsConfigurable(private val project: Project) : BoundConfigurable("D
     /** Each field with what its placeholder shows once detection is done. */
     private val placeholders = ArrayList<Pair<JTextField, (DayZPaths) -> String?>>()
     private val status = JLabel(" ")
+
+    /** The last detection's result, where an empty field's chooser starts. */
+    private var detected: DayZPaths? = installation.lastDetected
 
     override fun createPanel(): DialogPanel {
         placeholders.clear()
@@ -77,7 +84,7 @@ class DayZPathsConfigurable(private val project: Project) : BoundConfigurable("D
                 folderRow("Server profile:", state::serverProfile, DayZPathChecks::folder, { null }, "The folder passed to the server as -profiles=.")
                 val settings = EnfusionProjectSettings.getInstance(project)
                 row("For this project:") {
-                    val field = folderField("Server profile for this project")
+                    val field = folderField("Server profile for this project") { paths -> installation.configured.serverProfile ?: paths.serverProfile }
                         .bindText({ settings.serverProfile ?: "" }, { settings.serverProfile = it })
                     field.comment("Overrides the server profile above for this project only. Saved in .idea/enfusion.xml.")
                 }
@@ -114,7 +121,7 @@ class DayZPathsConfigurable(private val project: Project) : BoundConfigurable("D
         comment: String,
     ) {
         row(label) {
-            val cell = folderField(label.removeSuffix(":"))
+            val cell = folderField(label.removeSuffix(":")) { paths -> detected(paths) }
                 .bindText({ property.get() ?: "" }, { property.set(it.trim().ifEmpty { null }) })
                 .validationOnInput { f ->
                     val text = f.text.trim()
@@ -131,10 +138,23 @@ class DayZPathsConfigurable(private val project: Project) : BoundConfigurable("D
         }
     }
 
-    private fun com.intellij.ui.dsl.builder.Row.folderField(title: String) =
-        textFieldWithBrowseButton(FileChooserDescriptorFactory.singleDir().withTitle(title), project)
-            .columns(COLUMNS_LARGE)
-            .align(AlignX.FILL)
+    /**
+     * A folder field whose chooser opens at the folder typed, or, while the field is empty, at the
+     * one [fallback] gives from detection: the grey "Detected:" value is the folder the user most
+     * likely wants to start from. The platform's own browse listener would open at the last folder
+     * chosen anywhere, and its hook for the starting folder is not stable API.
+     */
+    private fun com.intellij.ui.dsl.builder.Row.folderField(title: String, fallback: (DayZPaths) -> Path?): Cell<TextFieldWithBrowseButton> {
+        val field = TextFieldWithBrowseButton()
+        field.addActionListener {
+            val typed = field.text.trim().takeIf { it.isNotEmpty() }?.let { runCatching { Path.of(it) }.getOrNull() }
+            val start = (typed ?: fallback(detected ?: DayZPaths()))?.let { LocalFileSystem.getInstance().findFileByNioFile(it) }
+            FileChooser.chooseFile(FileChooserDescriptorFactory.singleDir().withTitle(title), project, field, start) { chosen ->
+                field.text = FileUtil.toSystemDependentName(chosen.path)
+            }
+        }
+        return cell(field).columns(COLUMNS_LARGE).align(AlignX.FILL)
+    }
 
     private fun detectInBackground() {
         status.text = "Detecting…"
@@ -145,6 +165,7 @@ class DayZPathsConfigurable(private val project: Project) : BoundConfigurable("D
     }
 
     private fun showDetected(paths: DayZPaths) {
+        detected = paths
         for ((field, value) in placeholders) {
             (field as? JBTextField)?.emptyText?.text = value(paths)?.let { "Detected: $it" } ?: "Not detected"
             field.repaint()
