@@ -302,6 +302,24 @@ class EnfusionLayoutPreviewTest : BasePlatformTestCase() {
         assertEquals(0xFFFF0000.toInt(), centre(widget("PanelWidgetClass", "color" to "1 0 0 1", "style" to "rover_sim_colorable")))
     }
 
+    fun testOnlyRefValuesAlign() {
+        val parent = Rect(0.0, 0.0, 1000.0, 500.0)
+        val plain = widget("TextWidgetClass", "size" to "100 20", "hexactsize" to "1", "vexactsize" to "1", "position" to "0 0.6", "valign" to "bottom")
+        assertEquals("valign bottom is not bottom_ref", 300.0, LayoutGeometry.rectOf(plain, parent).y)
+    }
+
+    fun testKeysAreCaseInsensitiveInTopLevelStringtables() {
+        myFixture.addFileToProject(
+            "stringtable.csv",
+            """
+            "Language","original","english","french",
+            "str_dialog_label","LABEL","LABEL","ÉTIQUETTE",
+            """.trimIndent(),
+        )
+        val table = LayoutTranslations.of(project, setOf("STR_Dialog_Label"))
+        assertEquals("ÉTIQUETTE", table.show("#STR_Dialog_Label", "french"))
+    }
+
     fun testTextSize() {
         val box = Rect(0.0, 0.0, 444.0, 100.0)
         assertEquals(20.0, LayoutRenderer.textSize(widget("MultilineTextWidgetClass", "exact text" to "1", "exact text size" to "20", "text_proportion" to "0.5"), box))
@@ -364,9 +382,9 @@ class EnfusionLayoutPreviewTest : BasePlatformTestCase() {
             children = listOf(header, line, body),
         )
         val placed = LayoutGeometry.layout(listOf(tooltip), 1920.0, 1080.0).associate { it.spec to it.rect }
-        assertEquals(16.0, placed.getValue(content).h)
+        assertEquals(16 * 1.4, placed.getValue(content).h, 1e-9)
         assertEquals(15.0, placed.getValue(content).y - placed.getValue(body).y)
-        assertEquals("a third row for the third child", 36 + 2 + (15 + 16 + 15.0), placed.getValue(tooltip).h)
+        assertEquals("a third row for the third child", 36 + 2 + (15 + 16 * 1.4 + 15), placed.getValue(tooltip).h, 1e-9)
     }
 
     fun testHigherPriorityIsDrawnOnTop() {

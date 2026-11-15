@@ -162,14 +162,16 @@ object LayoutGeometry {
     private fun aligned(spec: WidgetSpec, parent: Rect, w: Double, h: Double): Rect {
         val dx = length(spec, "position", 0, "hexactpos", parent.w, default = 0.0)
         val dy = length(spec, "position", 1, "vexactpos", parent.h, default = 0.0)
-        val x = when (spec.value("halign")?.removeSuffix("_ref")) {
-            "center" -> parent.x + (parent.w - w) / 2 + dx
-            "right" -> parent.x + parent.w - w - dx
+        // Only the `_ref` values align: `day_z_server_browser_new`'s `ServerCountText` says
+        // `valign bottom`, the one such value in vanilla, and Workbench keeps it at the top.
+        val x = when (spec.value("halign")) {
+            "center_ref" -> parent.x + (parent.w - w) / 2 + dx
+            "right_ref" -> parent.x + parent.w - w - dx
             else -> parent.x + dx
         }
-        val y = when (spec.value("valign")?.removeSuffix("_ref")) {
-            "center" -> parent.y + (parent.h - h) / 2 + dy
-            "bottom" -> parent.y + parent.h - h - dy
+        val y = when (spec.value("valign")) {
+            "center_ref" -> parent.y + (parent.h - h) / 2 + dy
+            "bottom_ref" -> parent.y + parent.h - h - dy
             else -> parent.y + dy
         }
         return Rect(x, y, w, h)
@@ -375,8 +377,9 @@ object LayoutGeometry {
             if (horizontal) spec.flag("size to text h", false) && !spec.flag("wrap", false) else spec.flag("size to text v", false)
 
     /**
-     * Roughly what a text widget's text measures, for `"size to text"`: lines of the widget's text
-     * size, letters half as wide on average. Layout has no fonts, and the text may yet be translated,
+     * Roughly what a text widget's text measures, for `"size to text"`: lines 1.4 times the widget's
+     * text size (`day_z_respawn_dialogue`'s 16-pixel details text gets a box about 22 high in
+     * Workbench), letters half as wide on average. Layout has no fonts, and the text may yet be translated,
      * so this only needs to be about right: `day_z_respawn_dialogue`'s tooltip body is declared one
      * pixel tall and grows to its one line.
      */
@@ -390,7 +393,7 @@ object LayoutGeometry {
         } else {
             text.count { it == '\n' } + 1
         }
-        val h = if (sizedToText(spec, horizontal = false)) lines * size else rect.h
+        val h = if (sizedToText(spec, horizontal = false)) lines * size * 1.4 else rect.h
         return w to h
     }
 

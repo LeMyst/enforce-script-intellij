@@ -127,6 +127,10 @@ object LayoutRenderer {
             }
 
             spec.type in FILLED_TYPES && color != null && spec.value("style")?.lowercase() !in EMPTY_STYLES -> fill(g, color, r)
+
+            // A window is filled only by a colourable style (`dialog_input_password`'s dialog says
+            // `style Colorable`); `day_z_map`'s root window is `rover_sim_black`, tinted pink.
+            spec.type == "WindowWidgetClass" && color != null && spec.value("style")?.contains("colorable", ignoreCase = true) == true -> fill(g, color, r)
         }
         val textBox = controls(g, spec, r, pixel)
         if (spec.type in TEXT_TYPES) shown(spec)?.takeIf { it.isNotBlank() }?.let { text(g, spec, it, textBox, color) }

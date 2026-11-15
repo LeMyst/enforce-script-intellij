@@ -9,6 +9,7 @@ import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.util.indexing.FileBasedIndex
 import io.github.lemyst.enfusion.index.StringTableIndex
 import io.github.lemyst.enfusion.roots.EnfusionLibraryRootsProvider
+import io.github.lemyst.enfusion.stringtable.format.CsvRow
 import io.github.lemyst.enfusion.stringtable.format.StringTableCsv
 import java.util.concurrent.ConcurrentHashMap
 
@@ -20,7 +21,9 @@ import java.util.concurrent.ConcurrentHashMap
  *
  * The vanilla stringtable is not in the index. It is 5 MB, and the platform indexes no file over
  * its IntelliSense limit (2.5 MB by default), so the keys the index does not know are also looked
- * up in the `stringtable.csv` at the top of each root, where `P:\languagecore` keeps it.
+ * up in the `stringtable.csv` at the top of each root, where `P:\languagecore` keeps it. There
+ * the case of a key does not matter, as in the game: `dialog_input_password` writes
+ * `#STR_TextInputDialogRoot_WindowLabel0`, and the stringtable `str_textinputdialogroot_windowlabel0`.
  */
 object LayoutTranslations {
 
@@ -42,7 +45,10 @@ object LayoutTranslations {
         }
     }
 
-    private class Parsed(val stamp: Long, val csv: StringTableCsv)
+    private class Parsed(val stamp: Long, val csv: StringTableCsv) {
+        /** The rows by lower-case key, built on the first lookup that needs it. */
+        val byKey: Map<String, CsvRow> by lazy { csv.dataRows.associateBy { it.key.lowercase() } }
+    }
 
     private val parsed = ConcurrentHashMap<String, Parsed>()
 
@@ -66,12 +72,12 @@ object LayoutTranslations {
         val missing = keys.filterNot { it in texts }
         if (missing.isNotEmpty()) {
             for (file in topLevelTables(project, scope)) {
-                val csv = csvOf(file) ?: continue
-                val columns = csv.columns.drop(1)
+                val parsed = parsedOf(file) ?: continue
+                val columns = parsed.csv.columns.drop(1)
                 var used = false
                 for (key in missing) {
                     if (key in texts) continue
-                    val row = csv.rowOf(key) ?: continue
+                    val row = parsed.byKey[key.lowercase()] ?: continue
                     used = true
                     texts[key] = columns.withIndex().associate { (i, name) -> name.lowercase() to row.value(i + 1) }
                 }
@@ -89,12 +95,12 @@ object LayoutTranslations {
     }
 
     /** The stringtable as the editor has it, unsaved changes included, parsed again only when it changes. */
-    private fun csvOf(file: VirtualFile): StringTableCsv? {
+    private fun csvOf(file: VirtualFile): StringTableCsv? = parsedOf(file)?.csv
+
+    private fun parsedOf(file: VirtualFile): Parsed? {
         val document = FileDocumentManager.getInstance().getDocument(file) ?: return null
         val stamp = document.modificationStamp
-        parsed[file.url]?.takeIf { it.stamp == stamp }?.let { return it.csv }
-        val csv = StringTableCsv.parse(document.text)
-        parsed[file.url] = Parsed(stamp, csv)
-        return csv
+        parsed[file.url]?.takeIf { it.stamp == stamp }?.let { return it }
+        return Parsed(stamp, StringTableCsv.parse(document.text)).also { parsed[file.url] = it }
     }
 }
