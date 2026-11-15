@@ -448,6 +448,7 @@
                 <reference ref="Enfusion.MountWorkDrive"/>
                 <reference ref="Enfusion.UnmountWorkDrive"/>
                 <reference ref="Enfusion.ExtractGameData"/>
+                <reference ref="Enfusion.LaunchBuldozer"/>
                 <separator/>
                 <reference ref="Enfusion.BuildAllPbos"/>
             </group>
