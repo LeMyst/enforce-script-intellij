@@ -54,6 +54,8 @@ class DayZRunConfigurationEditor(
     private val stopRunning = JBCheckBox("Stop every running DayZ, DayZ Diag and DayZ Server")
     private val clearLogs = JBCheckBox("Clear the profile's logs (.log, .rpt, .mdmp, .ADM)")
     private val wipeStorage = JBCheckBox("Wipe the mission's storage_* folders")
+    private val steamEmulator = JBCheckBox("Write a Goldberg Steam emulator identity")
+    private val steamId = JBTextField()
 
     /**
      * Adds the `@` folders at the project's roots and the `@Mod` folders its PBO builds write into
@@ -134,6 +136,19 @@ class DayZRunConfigurationEditor(
                 row { cell(wipeStorage) }
                     .rowComment("The persistence. The loot spawns afresh, so every run starts from the same world, more slowly.")
             }
+            if (mode == DayZLaunchMode.CLIENT) {
+                row { cell(steamEmulator) }
+                    .rowComment(
+                        "For several local clients: each needs its own Steam identity, or the server kicks one when the next joins. " +
+                            "Writes the player name and the Steam ID below to %APPDATA%\\Goldberg SteamEmu Saves\\settings. " +
+                            "Needs the emulator's steam_api64.dll in the game's folder, which you install. " +
+                            "Make one configuration per client, with its own player name and profile, and start them with a Compound.",
+                    )
+                row("Steam ID:") {
+                    cell(steamId).columns(COLUMNS_MEDIUM)
+                        .comment("17 digits, 7656119…; empty derives one from the player name")
+                }.enabledIf(steamEmulator.selected)
+            }
         }
     }
 
@@ -162,6 +177,8 @@ class DayZRunConfigurationEditor(
         stopRunning.isSelected = o.stopRunning
         clearLogs.isSelected = o.clearLogs
         wipeStorage.isSelected = o.wipeStorage
+        steamEmulator.isSelected = o.steamEmulator
+        steamId.text = o.steamId.orEmpty()
     }
 
     /**
@@ -189,5 +206,7 @@ class DayZRunConfigurationEditor(
         o.stopRunning = stopRunning.isSelected
         o.clearLogs = clearLogs.isSelected
         o.wipeStorage = wipeStorage.isSelected
+        o.steamEmulator = steamEmulator.isSelected
+        o.steamId = steamId.text.trim().ifEmpty { null }
     }
 }

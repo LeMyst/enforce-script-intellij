@@ -441,6 +441,14 @@ only the fields it uses.
   and `.ADM` files; for a server, delete the mission's `storage_*` folders so that the loot spawns
   afresh. Only the folder's own files are deleted, never its subfolders, and a drive root or the
   home folder is refused. What was done is printed at the top of the console.
+- **Several local clients:** with the real Steam client every local client is the same Steam user,
+  and the server kicks one when the next joins. A *Client* configuration's *Write a Goldberg Steam
+  emulator identity* writes its player name and Steam ID to `%APPDATA%\Goldberg SteamEmu
+  Saves\settings` (`account_name.txt`, `user_steam_id.txt`) before it starts, as mod launch scripts
+  do. An empty Steam ID is derived from the player name. Make one configuration per client, each
+  with its own player name and profile, and start them with a *Compound*: each client waits until
+  the previous one has had 4 seconds to read its identity. The emulator's `steam_api64.dll` in the
+  game's folder is yours to install; the plugin only writes the identity.
 - A configuration that reads from a drive that is not mounted (the mods folder, a mod, the profile
   or the mission on `P:`) refuses to start and says so, rather than starting the game without its
   mods.
@@ -823,6 +831,9 @@ mod called BattleRoyale):
 - Client with a *Mission* and no *Connect to* → offline play on that mission. Both set → an error.
 - Tick the three *Before Launch* boxes on a server configuration with a mission → the console's
   first lines say what was stopped, cleared and wiped; the mission's `storage_*` folders are gone.
+- Two *Client* configurations with different player names, *Write a Goldberg Steam emulator
+  identity* ticked, in a *Compound* with a server → the console of each shows its own identity line,
+  the second about 4 seconds after the first, and both clients stay connected.
 - *DayZ → Server* with DayZ Diag and a mission → `DayZDiag_x64.exe -server` starts with it. Untick
   DayZ Diag → *Mission* is disabled, since the dedicated server reads it from its config.
 - *Tools → DayZ → Launch Buldozer* → the game opens in Buldozer, and a "Buldozer" configuration

@@ -48,6 +48,10 @@ data class DayZLaunch(
     val clearLogs: Boolean = false,
     /** Server, before starting: delete the mission's `storage_*` folders (the persistence). */
     val wipeStorage: Boolean = false,
+    /** Client, before starting: write a Goldberg Steam emulator identity (see [GoldbergIdentity]). */
+    val steamEmulator: Boolean = false,
+    /** The identity's Steam ID; empty derives one from the player name. */
+    val steamId: String? = null,
 )
 
 /**

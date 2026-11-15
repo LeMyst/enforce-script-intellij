@@ -33,7 +33,10 @@ import io.github.lemyst.enfusion.tools.detect.DayZLaunchCleanup
 import io.github.lemyst.enfusion.tools.detect.DayZLaunchCommand
 import io.github.lemyst.enfusion.tools.detect.DayZLaunchMode
 import io.github.lemyst.enfusion.tools.detect.DayZPaths
+import io.github.lemyst.enfusion.tools.detect.GoldbergIdentity
 import java.io.File
+import java.io.IOException
+import java.nio.file.Path
 
 /**
  * *Run | Edit Configurations | DayZ*, with one entry per [DayZLaunchMode] under it in the *+* menu,
@@ -94,6 +97,8 @@ class DayZRunOptions : RunConfigurationOptions() {
     var stopRunning by property(false)
     var clearLogs by property(false)
     var wipeStorage by property(false)
+    var steamEmulator by property(false)
+    var steamId by string()
 
     fun toLaunch(): DayZLaunch = DayZLaunch(
         mode = runCatching { DayZLaunchMode.valueOf(mode ?: "") }.getOrDefault(DayZLaunchMode.CLIENT),
@@ -114,7 +119,15 @@ class DayZRunOptions : RunConfigurationOptions() {
         stopRunning = stopRunning,
         clearLogs = clearLogs,
         wipeStorage = wipeStorage,
+        steamEmulator = steamEmulator,
+        steamId = steamId?.trim()?.ifEmpty { null },
     )
+}
+
+/** When the last Goldberg identity was written, by any DayZ configuration of this IDE. */
+private object GoldbergSpacing {
+    @Volatile
+    var lastWrite: Long? = null
 }
 
 class DayZRunConfiguration(project: Project, factory: ConfigurationFactory, name: String) :
@@ -127,10 +140,15 @@ class DayZRunConfiguration(project: Project, factory: ConfigurationFactory, name
 
     override fun checkConfiguration() {
         val paths = DayZInstallation.getInstance().configured.orElse(DayZInstallation.getInstance().lastDetected ?: return)
+        val launch = options.toLaunch()
         try {
-            DayZLaunchCommand.build(paths, options.toLaunch())
+            DayZLaunchCommand.build(paths, launch)
         } catch (e: DayZLaunchCommand.Problem) {
             throw RuntimeConfigurationError("${e.message} Set it in Settings | Languages & Frameworks | Enforce Script | DayZ Installation.")
+        }
+        val steamId = launch.steamId
+        if (launch.mode == DayZLaunchMode.CLIENT && launch.steamEmulator && steamId != null && !GoldbergIdentity.isSteamId(steamId)) {
+            throw RuntimeConfigurationError("The Steam ID must be 17 digits starting with 7656119, or empty to derive one from the player name.")
         }
     }
 
@@ -177,7 +195,8 @@ class DayZRunConfiguration(project: Project, factory: ConfigurationFactory, name
              */
             private fun beforeLaunch(launch: DayZLaunch, command: List<String>, paths: DayZPaths): List<String> {
                 val wipe = launch.wipeStorage && launch.mode == DayZLaunchMode.SERVER
-                if (!launch.stopRunning && !launch.clearLogs && !wipe) return emptyList()
+                val identity = launch.steamEmulator && launch.mode == DayZLaunchMode.CLIENT
+                if (!launch.stopRunning && !launch.clearLogs && !wipe && !identity) return emptyList()
                 val work = ThrowableComputable<List<String>, ExecutionException> {
                     val lines = ArrayList<String>()
                     try {
@@ -196,6 +215,7 @@ class DayZRunConfiguration(project: Project, factory: ConfigurationFactory, name
                                 "Wiped ${DayZLaunchCleanup.wipeStorage(mission).size} storage folder(s) in $mission."
                             }
                         }
+                        if (identity) lines += writeIdentity(launch)
                     } catch (e: DayZLaunchCommand.Problem) {
                         throw ExecutionException(e.message)
                     }
@@ -206,6 +226,30 @@ class DayZRunConfiguration(project: Project, factory: ConfigurationFactory, name
                 } else {
                     work.compute()
                 }
+            }
+
+            /**
+             * Writes this client's Goldberg identity, after the previous client has had
+             * [GoldbergIdentity.SPACING_MS] to read its own: every client reads the same two files,
+             * and a Compound configuration starts its clients back to back.
+             */
+            private fun writeIdentity(launch: DayZLaunch): String {
+                val appData = System.getenv("APPDATA")?.takeIf { it.isNotBlank() }
+                    ?: throw ExecutionException("%APPDATA% is not set, so the Goldberg identity has nowhere to go.")
+                val name = GoldbergIdentity.accountName(launch.playerName)
+                val steamId = GoldbergIdentity.steamId(launch.steamId, name)
+                val folder = GoldbergIdentity.settingsFolder(Path.of(appData))
+                synchronized(GoldbergSpacing) {
+                    val wait = GoldbergIdentity.waitBeforeWriting(GoldbergSpacing.lastWrite, System.currentTimeMillis())
+                    if (wait > 0) Thread.sleep(wait)
+                    try {
+                        GoldbergIdentity.write(folder, name, steamId)
+                    } catch (e: IOException) {
+                        throw ExecutionException("Could not write the Goldberg identity to $folder: ${e.message}")
+                    }
+                    GoldbergSpacing.lastWrite = System.currentTimeMillis()
+                }
+                return "Goldberg Steam identity: $name, $steamId (in $folder)."
             }
         }
 }
