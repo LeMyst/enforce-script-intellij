@@ -2,11 +2,13 @@ package io.github.lemyst.enfusion
 
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import io.github.lemyst.enfusion.objfmt.preview.LayoutGeometry
+import io.github.lemyst.enfusion.objfmt.preview.LayoutImages
 import io.github.lemyst.enfusion.objfmt.preview.LayoutRenderer
 import io.github.lemyst.enfusion.objfmt.preview.LayoutSpecs
 import io.github.lemyst.enfusion.objfmt.preview.LayoutTranslations
 import io.github.lemyst.enfusion.objfmt.preview.Rect
 import io.github.lemyst.enfusion.objfmt.preview.WidgetSpec
+import java.awt.image.BufferedImage
 
 /** The layout preview: the maths on hand-written specs, and specs read from a hand-written layout. */
 class EnfusionLayoutPreviewTest : BasePlatformTestCase() {
@@ -107,16 +109,26 @@ class EnfusionLayoutPreviewTest : BasePlatformTestCase() {
         assertEquals("the last row ends at the screen's bottom edge", 500.0, placed.last().rect.let { it.y + it.h })
     }
 
-    /** The vanilla vignette: 512 × 512, `fixaspect outside`, in a box 160 % × 90 % of the screen. */
+    /** `fixaspect` with a proportional size: the numbers give a ratio, fitted to or covering the parent. */
     fun testFixAspect() {
-        val box = Rect(0.0, 108.0, 6144.0, 1944.0)
-        assertEquals(Rect(0.0, 108.0 + 972.0 - 3072.0, 6144.0, 6144.0), LayoutGeometry.imageRect(box, 512, 512, "outside"))
-        assertEquals(Rect(3072.0 - 972.0, 108.0, 1944.0, 1944.0), LayoutGeometry.imageRect(box, 512, 512, "inside"))
-        val square = Rect(0.0, 0.0, 100.0, 100.0)
-        assertEquals(Rect(0.0, 25.0, 100.0, 50.0), LayoutGeometry.imageRect(square, 200, 100, "fixwidth"))
-        assertEquals(Rect(-50.0, 0.0, 200.0, 100.0), LayoutGeometry.imageRect(square, 200, 100, "fixheight"))
-        assertEquals(square, LayoutGeometry.imageRect(square, 200, 100, null))
-        assertEquals(square, LayoutGeometry.imageRect(square, 200, 100, "none"))
+        val hd = Rect(0.0, 0.0, 1920.0, 1080.0)
+        fun box(mode: String, w: String, h: String, vararg more: Pair<String, String>) =
+            LayoutGeometry.rectOf(widget("ImageWidgetClass", "size" to "$w $h", "fixaspect" to mode, *more), hd)
+        // The vanilla vignette: 16:9 covering a 16:9 screen is the screen, nudged by its pixel position.
+        assertEquals(
+            Rect(0.688, -0.688, 1920.0, 1080.0),
+            box("outside", "1.6", "0.9", "position" to "0.688 -0.688", "hexactpos" to "1", "vexactpos" to "1", "valign" to "center_ref"),
+        )
+        assertEquals("the size only gives the ratio", Rect(0.0, 0.0, 1920.0, 1080.0), box("outside", "0.16", "0.09"))
+        // The two cases checked in Workbench.
+        assertEquals(Rect(0.0, -420.0, 1920.0, 1920.0), box("outside", "1", "1", "valign" to "center_ref"))
+        assertEquals(Rect(0.0, 0.0, 2160.0, 1080.0), box("outside", "1", "0.5"))
+        assertEquals(Rect(420.0, 0.0, 1080.0, 1080.0), box("inside", "1", "1", "halign" to "center_ref"))
+        assertEquals(Rect(0.0, 0.0, 960.0, 480.0), box("fixwidth", "0.5", "0.25"))
+        assertEquals(Rect(0.0, 0.0, 1080.0, 540.0), box("fixheight", "1", "0.5"))
+        assertEquals(Rect(0.0, 0.0, 960.0, 540.0), box("none", "0.5", "0.5"))
+        val pixels = widget("ImageWidgetClass", "size" to "444 100", "hexactsize" to "1", "vexactsize" to "1", "fixaspect" to "outside")
+        assertEquals("a pixel size already has its ratio", Rect(0.0, 0.0, 444.0, 100.0), LayoutGeometry.rectOf(pixels, hd))
     }
 
     fun testChildrenAreClippedUnlessTheParentSaysNot() {
@@ -224,6 +236,41 @@ class EnfusionLayoutPreviewTest : BasePlatformTestCase() {
         assertNull(LayoutSpecs.image(file, icon, 64))
         val picture = LayoutRenderer.render(placed, 1920, 1080, showHidden = true, selected = title) { spec, side -> LayoutSpecs.image(file, spec, side) }
         assertEquals(1920, picture.width)
+    }
+
+    /** A white, opaque 4 x 1 picture, and a mask rising 0, 1/3, 2/3, 1 from left to right. */
+    private val white = BufferedImage(4, 1, BufferedImage.TYPE_INT_ARGB).apply { for (x in 0 until 4) setRGB(x, 0, -1) }
+    private val ramp = BufferedImage(4, 1, BufferedImage.TYPE_INT_ARGB).apply {
+        for (x in 0 until 4) { val v = x * 255 / 3; setRGB(x, 0, (0xFF shl 24) or (v shl 16) or (v shl 8) or v) }
+    }
+
+    private fun alphas(image: BufferedImage) = (0 until image.width).map { image.getRGB(it, 0) ushr 24 }
+
+    fun testImageIsTintedByItsColor() {
+        val out = LayoutImages.finish(white, widget("ImageWidgetClass", "color" to "1 0 0 0.5"), null)
+        assertEquals(0x80FF0000.toInt(), out.getRGB(0, 0))
+        assertEquals("the cached original is left alone", -1, white.getRGB(0, 0))
+    }
+
+    fun testMaskShowsWhatIsBelowTheProgress() {
+        val out = LayoutImages.finish(white, widget("ImageWidgetClass", "progress" to "0.5"), ramp)
+        assertEquals(listOf(255, 255, 0, 0), alphas(out))
+        val none = LayoutImages.finish(white, widget("ImageWidgetClass", "progress" to "0"), ramp)
+        assertEquals(listOf(0, 0, 0, 0), alphas(none))
+    }
+
+    fun testFlipMirrorsTheMaskedPicture() {
+        val out = LayoutImages.finish(white, widget("ImageWidgetClass", "progress" to "0.5", "flip u" to "1"), ramp)
+        assertEquals("the red line: the same mask, flipped, covers the end", listOf(0, 0, 255, 255), alphas(out))
+    }
+
+    fun testWidgetWithAMissingPictureIsNotFilled() {
+        val dial = widget("ImageWidgetClass", "color" to "1 0 0 1", "imageTexture" to "{0123456789ABCDEF}Gui/textures/none.edds", "size" to "1 1")
+        val plain = widget("ImageWidgetClass", "color" to "1 0 0 1", "image0" to "", "size" to "1 1")
+        assertFalse(LayoutSpecs.hasImage(plain))
+        val picture = { spec: WidgetSpec -> LayoutRenderer.render(LayoutGeometry.layout(listOf(spec), 10.0, 10.0), 10, 10, false, null) { _, _ -> null } }
+        assertFalse("not found: outline only, no red block", picture(dial).getRGB(5, 5) == 0xFFFF0000.toInt())
+        assertEquals("no picture at all: a tinted quad", 0xFFFF0000.toInt(), picture(plain).getRGB(5, 5))
     }
 
     fun testKeysShownInTheChosenLanguage() {

@@ -36,14 +36,22 @@ object LayoutSpecs {
     }
 
     /** Whether [spec] names a picture [image] can look for. */
-    fun hasImage(spec: WidgetSpec): Boolean = spec.value("image0") != null || spec.value("imagetexture") != null
+    fun hasImage(spec: WidgetSpec): Boolean =
+        !spec.value("image0").isNullOrBlank() || !spec.value("imagetexture").isNullOrBlank()
 
     /**
      * The picture an `ImageWidgetClass` shows, through the same resolution and cache as the texture
      * hover: its `image0`, as an imageset entry (`"set:dayz_gui image:Icon"`) or a texture path, else
-     * its `imageTexture`. Null when it does not resolve or does not decode.
+     * its `imageTexture`. Null when it does not resolve or does not decode. The picture comes back
+     * tinted, masked and flipped as the widget says ([LayoutImages]), never the cached original.
      */
     fun image(file: PsiFile, spec: WidgetSpec, side: Int): BufferedImage? {
+        val picture = picture(file, spec, side) ?: return null
+        val mask = spec.value("mask")?.let { texture(file, it, side) }
+        return LayoutImages.finish(picture, spec, mask)
+    }
+
+    private fun picture(file: PsiFile, spec: WidgetSpec, side: Int): BufferedImage? {
         if (spec.offset < 0) return null
         val decl = PsiTreeUtil.getParentOfType(file.findElementAt(spec.offset), EnObjDeclMixin::class.java, false) ?: return null
         decl.property("image0")?.values()?.firstOrNull()?.let { value ->

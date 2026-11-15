@@ -153,10 +153,14 @@ inputs.
   grid spacers in `Rows` × `Columns` cells and wrap spacers flowing their children (lines placed by
   `content_halign` / `content_valign`, `bottom` stacking them upwards), a `visible 0`
   child taking no slot, a wrap spacer's *Size To Content* fitting it to its children, and children
-  cut off at their parent's edges unless it says `clipchildren 0`. Panels and buttons are filled with
+  cut off at their parent's edges unless it says `clipchildren 0`. With `fixaspect`, a proportional
+  `size` gives only a ratio: `outside` covers the parent with a box of that ratio, `inside` fits
+  one in it (`size 1.6 0.9` is a full 16:9 screen). Panels and buttons are filled with
   their `color`, images show their `image0` (an imageset entry or a texture) or `imageTexture`,
-  through the same cache as the texture hover, fitted as `fixaspect` says, and text widgets their
-  `text`. A `#key` text shows in the language chosen in the toolbar, from the stringtables that
+  through the same cache as the texture hover, stretched to their box, tinted by their `color`,
+  cut by their `Mask` at their `Progress` and mirrored by `flip u` / `flip v`, and text widgets
+  their `text`. A texture path no root holds, such as vanilla's `Gui/textures/…`, is looked up on
+  the work drive when the project indexes it; an image that is not found is only outlined. A `#key` text shows in the language chosen in the toolbar, from the stringtables that
   declare the key (the project's and the vanilla one), falling back to `original`, then to the key;
   *Keys* shows the keys themselves. The choice is kept for every layout. Every widget is outlined; *Hidden widgets* shows the ones with `visible 0`, dashed.
   Clicking a widget puts the caret on its declaration, and the caret's widget is outlined in blue,
@@ -164,7 +168,8 @@ inputs.
   pans, *Fit* fits the screen to the pane again and *100%* shows it at one layout pixel per screen
   pixel; outlines stay one pixel wide at any zoom. The preview updates a moment after the text
   changes. **Approximate, not pixel-exact:** fonts, `Padding` / `Margin`, *Size To Content* outside
-  wrap spacers, scaling and image tinting are not modelled, and script classes do not run. Editing in the preview (moving, resizing, a properties panel) is not
+  wrap spacers, scaling and blend modes (`mode additive`) are not modelled, and script classes do
+  not run. Editing in the preview (moving, resizing, a properties panel) is not
   supported.
 - **Class hierarchy** (`Ctrl+H`) modelling both relationships the language has: `extends`, and
   `modded class` layering. Every layer of a class hangs off the base, which is the view that matters
@@ -727,10 +732,12 @@ mod called BattleRoyale):
   1280 × 720 to 3840 × 2160, with 1920 × 1080 selected.
 - In `day_z_ingamemenu`, the column above *Respawn* holds *Exit*, *Feedback* and *Options* at full
   height, with no gap for the hidden *Restart*, and stays above *Respawn* rather than over it. The
-  vignette darkens the whole screen, as in Workbench, and its blue outline (caret on `vignette`)
-  runs past the screen's right edge.
+  vignette darkens the edges of the screen, as in Workbench, and its blue outline (caret on
+  `vignette`) is the screen, nudged by under a pixel.
 - Pick *french* in the language list → *Continue* reads *Continuer*; *Keys* → `#main_menu_continue`.
   A mod layout using its own `STR_…` keys shows the mod's stringtable text.
+- Open `P:\gui\layouts\day_z_hud_cars.layout` → the dials are grey arcs, not filled boxes; the RPM
+  dial's last fifth is red, as are the low ends of the fuel and temperature dials.
 - At 3840 × 2160 every outline is still visible. Scroll the wheel over a button → it zooms in around
   the pointer; drag → the view pans; a click without dragging still selects. *Fit* → back to the
   whole screen; *100%* → one layout pixel per screen pixel.

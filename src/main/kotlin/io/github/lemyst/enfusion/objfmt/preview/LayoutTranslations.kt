@@ -3,18 +3,24 @@ package io.github.lemyst.enfusion.objfmt.preview
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.project.DumbService
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.roots.ProjectRootManager
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.util.indexing.FileBasedIndex
 import io.github.lemyst.enfusion.index.StringTableIndex
+import io.github.lemyst.enfusion.roots.EnfusionLibraryRootsProvider
 import io.github.lemyst.enfusion.stringtable.format.StringTableCsv
 import java.util.concurrent.ConcurrentHashMap
 
 /**
  * The translations behind a layout's `"#key"` texts, so that the preview can show them in a chosen
  * language, as the game does. The keys are found through [StringTableIndex], in the project and its
- * roots (the vanilla stringtable included), and each stringtable is parsed once per change: the
- * vanilla one has 7,300 rows, and the preview rebuilds as the layout is typed.
+ * roots, and each stringtable is parsed once per change: the vanilla one has 7,300 rows, and the
+ * preview rebuilds as the layout is typed.
+ *
+ * The vanilla stringtable is not in the index. It is 5 MB, and the platform indexes no file over
+ * its IntelliSense limit (2.5 MB by default), so the keys the index does not know are also looked
+ * up in the `stringtable.csv` at the top of each root, where `P:\languagecore` keeps it.
  */
 object LayoutTranslations {
 
@@ -57,7 +63,29 @@ object LayoutTranslations {
                 texts.putIfAbsent(key, columns.withIndex().associate { (i, name) -> name.lowercase() to row.value(i + 1) })
             }
         }
+        val missing = keys.filterNot { it in texts }
+        if (missing.isNotEmpty()) {
+            for (file in topLevelTables(project, scope)) {
+                val csv = csvOf(file) ?: continue
+                val columns = csv.columns.drop(1)
+                var used = false
+                for (key in missing) {
+                    if (key in texts) continue
+                    val row = csv.rowOf(key) ?: continue
+                    used = true
+                    texts[key] = columns.withIndex().associate { (i, name) -> name.lowercase() to row.value(i + 1) }
+                }
+                if (used) languages += columns.map { it.lowercase() }
+            }
+        }
         return Table(texts, languages.toList())
+    }
+
+    /** The `stringtable.csv` directly under each content and library root. */
+    private fun topLevelTables(project: Project, scope: GlobalSearchScope): List<VirtualFile> {
+        val roots = ProjectRootManager.getInstance(project).contentRoots.toList() +
+            EnfusionLibraryRootsProvider().getAdditionalProjectLibraries(project).flatMap { it.sourceRoots }
+        return roots.mapNotNull { root -> root.findChild(StringTableIndex.FILE_NAME)?.takeIf { !it.isDirectory && scope.contains(it) } }.distinct()
     }
 
     /** The stringtable as the editor has it, unsaved changes included, parsed again only when it changes. */

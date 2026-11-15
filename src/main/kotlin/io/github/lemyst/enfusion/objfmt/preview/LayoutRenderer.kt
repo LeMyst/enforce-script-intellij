@@ -97,13 +97,16 @@ object LayoutRenderer {
             spec.type == "ImageWidgetClass" -> {
                 val picture = image(spec, (maxOf(r.w, r.h) * scale).toInt().coerceAtLeast(1))
                 if (picture != null) {
-                    val at = LayoutGeometry.imageRect(r, picture.width, picture.height, spec.value("fixaspect"))
+                    // Stretched to the box: `fixaspect` has already shaped the box itself.
                     val saved = g.transform
-                    g.translate(at.x, at.y)
-                    g.scale(at.w / picture.width, at.h / picture.height)
+                    g.translate(r.x, r.y)
+                    g.scale(r.w / picture.width, r.h / picture.height)
                     g.drawImage(picture, 0, 0, null)
                     g.transform = saved
-                } else if (color != null) {
+                } else if (color != null && !LayoutSpecs.hasImage(spec)) {
+                    // A widget with no picture is a tinted white quad in the game. One whose picture
+                    // was not found shows only its outline: filling it with the tint, as before,
+                    // turned every dial of the car HUD into a solid grey or red block.
                     fill(g, color, r)
                 }
             }

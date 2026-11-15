@@ -2,10 +2,12 @@ package io.github.lemyst.enfusion.refs
 
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.ProjectRootManager
+import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.search.FilenameIndex
 import com.intellij.psi.search.GlobalSearchScope
 import io.github.lemyst.enfusion.roots.EnfusionLibraryRootsProvider
+import io.github.lemyst.enfusion.roots.EnfusionRoots
 
 /**
  * Turning a packaged path such as `BattleRoyale/GUI/layouts/hud/br_hud.layout` into the file
@@ -35,7 +37,7 @@ object EnAssetPaths {
         val candidates = LinkedHashSet<VirtualFile>()
         candidates += FilenameIndex.getVirtualFilesByName(fileName, scope)
         candidates += underRoots(project, wanted, scope)
-        if (candidates.isEmpty()) return emptyList()
+        if (candidates.isEmpty()) return listOfNotNull(onWorkDrive(project, wanted))
 
         var best = 0
         val scored = ArrayList<Pair<VirtualFile, Int>>(candidates.size)
@@ -75,6 +77,20 @@ object EnAssetPaths {
             }
         }
         return found
+    }
+
+    /**
+     * The path as written, from the work drive's root, when no root has it. Vanilla layouts point
+     * into folders that are not roots, such as `Gui/textures/cardial_big.edds` in
+     * `day_z_hud_cars.layout`: indexing the whole work drive would be far too much, and the path is
+     * already relative to it. Only the whole path is tried, never a suffix, since a suffix looked
+     * up from a drive's root finds whatever happens to share a name. Nothing when the project does
+     * not index the work drive.
+     */
+    private fun onWorkDrive(project: Project, wanted: List<String>): VirtualFile? {
+        if (wanted.size < 2 || EnfusionRoots.workDriveRoots(project).isEmpty()) return null
+        val path = EnfusionRoots.workDriveLetter() + ":/" + wanted.joinToString("/")
+        return LocalFileSystem.getInstance().findFileByPath(path)?.takeUnless { it.isDirectory }
     }
 
     /**

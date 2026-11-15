@@ -76,7 +76,8 @@ class Placed(val spec: WidgetSpec, val rect: Rect, val depth: Int, val hidden: B
  * - `clipchildren` defaults to 1, as Workbench shows it: a widget's children are cut off at its
  *   edges. Vanilla writes `clipchildren 0` thousands of times to turn it off.
  *
- * - An image is drawn as its `fixaspect` says ([imageRect]); the widget's box stays as declared.
+ * - `fixaspect` shapes the widget's box, not its picture ([fixedAspect]): vanilla sets it on a
+ *   `FrameWidgetClass` too, which has no picture. An image is stretched into the box.
  *
  * Everything else the engine does (`Padding` and `Margin` on spacers, `Size To Content` on other
  * widgets, scaling) is left out: the preview shows the arrangement, not a pixel-exact frame.
@@ -91,8 +92,47 @@ object LayoutGeometry {
     }
 
     /** Where [spec] lands inside [parent], by its own position, size and alignment. */
-    fun rectOf(spec: WidgetSpec, parent: Rect): Rect =
-        aligned(spec, parent, length(spec, "size", 0, "hexactsize", parent.w, default = 1.0), length(spec, "size", 1, "vexactsize", parent.h, default = 1.0))
+    fun rectOf(spec: WidgetSpec, parent: Rect): Rect {
+        val (w, h) = fixedAspect(spec, parent)
+            ?: (length(spec, "size", 0, "hexactsize", parent.w, default = 1.0) to length(spec, "size", 1, "vexactsize", parent.h, default = 1.0))
+        return aligned(spec, parent, w, h)
+    }
+
+    /**
+     * The size a proportional `size` takes under `fixaspect`, or null when it does not apply. The two
+     * numbers then give only a ratio: `size 1.6 0.9` and `size 0.16 0.09` are both 16:9, and both are
+     * vanilla's full-screen backgrounds (`day_z_ingamemenu`'s vignette, `loading.layout`'s
+     * `ImageBackground`).
+     * - `outside`: the smallest box of that ratio covering the parent. Checked in Workbench at
+     *   1920 x 1080: `size 1 1` is 1920 x 1920, overflowing above and below; `size 1 0.5` is
+     *   2160 x 1080.
+     * - `inside`: the largest box of that ratio inside the parent (`BackPanelWidget`, 1.6 x 0.9, a
+     *   frame laid over the whole inspect screen).
+     * - `fixwidth` / `fixheight`: that side as usual, the other from the ratio. Not checked in
+     *   Workbench; vanilla nearly always writes these on pixel sizes, where they change nothing.
+     *
+     * A size in pixels already has its ratio, so it is left alone, as is a mixed one.
+     */
+    private fun fixedAspect(spec: WidgetSpec, parent: Rect): Pair<Double, Double>? {
+        val mode = spec.value("fixaspect")?.lowercase() ?: return null
+        if (spec.flag("hexactsize", false) || spec.flag("vexactsize", false)) return null
+        val fw = spec.number("size", 0, 1.0)
+        val fh = spec.number("size", 1, 1.0)
+        if (fw <= 0 || fh <= 0 || parent.w <= 0 || parent.h <= 0) return null
+        val ratio = fw / fh
+        val wider = parent.w / parent.h > ratio
+        // 1.6 / 0.9 is not exactly 16:9 in doubles; the parent's own size, not 1920.0000000000002.
+        if (mode == "outside" || mode == "inside") {
+            if (Math.abs(parent.w / parent.h - ratio) < 1e-9 * ratio) return parent.w to parent.h
+        }
+        return when (mode) {
+            "outside" -> if (wider) parent.w to parent.w / ratio else parent.h * ratio to parent.h
+            "inside" -> if (wider) parent.h * ratio to parent.h else parent.w to parent.w / ratio
+            "fixwidth" -> (fw * parent.w).let { it to it / ratio }
+            "fixheight" -> (fh * parent.h).let { it * ratio to it }
+            else -> null
+        }
+    }
 
     /** [spec] given the size [w] × [h], placed by its own position and alignment inside [parent]. */
     private fun aligned(spec: WidgetSpec, parent: Rect, w: Double, h: Double): Rect {
@@ -126,28 +166,6 @@ object LayoutGeometry {
             "WrapSpacerWidgetClass" -> wrap(spec, rect, depth, hidden, inner, out)
             else -> spec.children.forEach { place(it, rect, null, depth + 1, hidden, inner, out) }
         }
-    }
-
-    /**
-     * Where an image of [imageW] × [imageH] is drawn in [rect], as `fixaspect` says:
-     * - `none` (or absent): stretched to the rect;
-     * - `inside`: as large as fits, aspect kept, centred;
-     * - `outside`: as small as covers the rect, aspect kept, centred, so it spills past the rect
-     *   and the parent's clipping cuts it (the vanilla vignettes: a 512 × 512 texture in a box
-     *   160 % × 90 % of the screen, which then fills the screen);
-     * - `fixwidth` / `fixheight`: the rect's width (height) kept, the other side from the image's
-     *   aspect, centred.
-     */
-    fun imageRect(rect: Rect, imageW: Int, imageH: Int, fixAspect: String?): Rect {
-        if (imageW <= 0 || imageH <= 0 || rect.w <= 0 || rect.h <= 0) return rect
-        val (w, h) = when (fixAspect?.lowercase()) {
-            "inside" -> minOf(rect.w / imageW, rect.h / imageH).let { imageW * it to imageH * it }
-            "outside" -> maxOf(rect.w / imageW, rect.h / imageH).let { imageW * it to imageH * it }
-            "fixwidth" -> rect.w to rect.w * imageH / imageW
-            "fixheight" -> rect.h * imageW / imageH to rect.h
-            else -> return rect
-        }
-        return Rect(rect.x + (rect.w - w) / 2, rect.y + (rect.h - h) / 2, w, h)
     }
 
     private fun grid(spec: WidgetSpec, rect: Rect, depth: Int, hidden: Boolean, clip: Rect, out: MutableList<Placed>) {
