@@ -159,7 +159,8 @@ inputs.
   cut off at their parent's edges unless it says `clipchildren 0`. Siblings are drawn by `priority`,
   lowest first. With `fixaspect`, a proportional
   `size` gives only a ratio: `outside` covers the parent with a box of that ratio, `inside` fits
-  one in it (`size 1.6 0.9` is a full 16:9 screen). Panels are filled with their
+  one in it (`size 1.6 0.9` is a full 16:9 screen), and `fixwidth` (`fixheight`) derives the width
+  (height) from the other side. Panels are filled with their
   `color` (not `blank` ones; a button's colour tints its style, so buttons are not), images show their `image0` (an imageset entry or a texture) or `imageTexture`,
   through the same cache as the texture hover, stretched to their box, tinted by their `color`,
   cut by their `Mask` at their `Progress` and mirrored by `flip u` / `flip v`, and turned by their

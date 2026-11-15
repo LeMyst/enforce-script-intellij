@@ -124,8 +124,9 @@ class EnfusionLayoutPreviewTest : BasePlatformTestCase() {
         assertEquals(Rect(0.0, -420.0, 1920.0, 1920.0), box("outside", "1", "1", "valign" to "center_ref"))
         assertEquals(Rect(0.0, 0.0, 2160.0, 1080.0), box("outside", "1", "0.5"))
         assertEquals(Rect(420.0, 0.0, 1080.0, 1080.0), box("inside", "1", "1", "halign" to "center_ref"))
-        assertEquals(Rect(0.0, 0.0, 960.0, 480.0), box("fixwidth", "0.5", "0.25"))
-        assertEquals(Rect(0.0, 0.0, 1080.0, 540.0), box("fixheight", "1", "0.5"))
+        // fixwidth derives the width (from the height), fixheight the height (from the width).
+        assertEquals(Rect(0.0, 0.0, 540.0, 270.0), box("fixwidth", "0.5", "0.25"))
+        assertEquals(Rect(0.0, 0.0, 1920.0, 960.0), box("fixheight", "1", "0.5"))
         assertEquals(Rect(0.0, 0.0, 960.0, 540.0), box("none", "0.5", "0.5"))
         val pixels = widget("ImageWidgetClass", "size" to "444 100", "hexactsize" to "1", "vexactsize" to "1", "fixaspect" to "outside")
         assertEquals("a pixel size already has its ratio", Rect(0.0, 0.0, 444.0, 100.0), LayoutGeometry.rectOf(pixels, hd))
@@ -325,6 +326,9 @@ class EnfusionLayoutPreviewTest : BasePlatformTestCase() {
         assertEquals(20.0, LayoutRenderer.textSize(widget("MultilineTextWidgetClass", "exact text" to "1", "exact text size" to "20", "text_proportion" to "0.5"), box))
         assertEquals(50.0, LayoutRenderer.textSize(widget("TextWidgetClass", "exact text" to "0", "text_proportion" to "0.5"), box))
         assertEquals(100.0, LayoutRenderer.textSize(widget("TextWidgetClass"), box))
+        assertEquals("exact without a size", 14.0, LayoutRenderer.textSize(widget("TextWidgetClass", "exact text" to "1"), box))
+        val sizedToText = widget("MultilineTextWidgetClass", "exact text" to "0", "exact text size" to "22", "size to text v" to "1")
+        assertEquals("sized to its text: the exact size, not the box", 22.0, LayoutRenderer.textSize(sizedToText, box))
     }
 
     fun testWrapBreaksAtSpaces() {

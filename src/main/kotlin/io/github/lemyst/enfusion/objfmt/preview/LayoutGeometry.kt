@@ -132,8 +132,9 @@ object LayoutGeometry {
      *   2160 x 1080.
      * - `inside`: the largest box of that ratio inside the parent (`BackPanelWidget`, 1.6 x 0.9, a
      *   frame laid over the whole inspect screen).
-     * - `fixwidth` / `fixheight`: that side as usual, the other from the ratio. Not checked in
-     *   Workbench; vanilla nearly always writes these on pixel sizes, where they change nothing.
+     * - `fixwidth`: the height as usual, the width from it and the ratio; `fixheight` the reverse.
+     *   `day_z_server_browser_new`'s `IMG_Loading`, `size 0.034 0.034` in a tall narrow panel, is
+     *   a 30-pixel square in Workbench: 0.034 of the panel's height, not of its width.
      *
      * A size in pixels already has its ratio, so it is left alone, as is a mixed one.
      */
@@ -152,8 +153,8 @@ object LayoutGeometry {
         return when (mode) {
             "outside" -> if (wider) parent.w to parent.w / ratio else parent.h * ratio to parent.h
             "inside" -> if (wider) parent.h * ratio to parent.h else parent.w to parent.w / ratio
-            "fixwidth" -> (fw * parent.w).let { it to it / ratio }
-            "fixheight" -> (fh * parent.h).let { it * ratio to it }
+            "fixwidth" -> (fh * parent.h).let { it * ratio to it }
+            "fixheight" -> (fw * parent.w).let { it to it / ratio }
             else -> null
         }
     }

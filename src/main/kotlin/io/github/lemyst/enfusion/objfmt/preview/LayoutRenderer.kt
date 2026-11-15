@@ -223,11 +223,26 @@ object LayoutRenderer {
      * becomes a font. The fonts themselves are not Enfusion's.
      */
     internal fun textSize(spec: WidgetSpec, r: Rect): Double =
-        if (spec.flag("exact text", false)) {
-            spec.number("exact text size", 0, 22.0)
+        if (exactText(spec)) {
+            spec.number("exact text size", 0, DEFAULT_EXACT_TEXT_SIZE)
         } else {
             r.h * spec.number("text_proportion", 0, 1.0)
         }
+
+    /**
+     * Whether the text size is `"exact text size"` rather than a share of the box: when it says
+     * `"exact text" 1`, and when its box follows its text (`"size to text v"`) and it has a size to
+     * use: a size from the box would grow the box, which grows the size. `dialog_input_password`'s
+     * `MessageText` says `"exact text" 0`, `"exact text size" 22` and is sized to its text.
+     */
+    private fun exactText(spec: WidgetSpec): Boolean =
+        spec.flag("exact text", false) || (spec.flag("size to text v", false) && spec.value("exact text size") != null)
+
+    /**
+     * Not 22, which vanilla writes 698 times, so is not what Workbench leaves out. 14 is what
+     * `day_z_server_browser_new`'s `ServerCountText` (`"exact text" 1`, no size) looks like there.
+     */
+    private const val DEFAULT_EXACT_TEXT_SIZE = 14.0
 
     /**
      * The IDE font size, in layout pixels, for [textSize]. An `"exact text size"` is the font's em:
@@ -237,7 +252,7 @@ object LayoutRenderer {
      * of a one-pixel font.
      */
     internal fun fontSize(spec: WidgetSpec, r: Rect, perEm: Double): Double =
-        if (spec.flag("exact text", false)) textSize(spec, r) else textSize(spec, r) / perEm
+        if (exactText(spec)) textSize(spec, r) else textSize(spec, r) / perEm
 
     /** [text] broken into lines no wider than [width] by [measure], at spaces; a word wider than that keeps its own line. */
     internal fun wrap(text: String, width: Double, measure: (String) -> Double): List<String> {
