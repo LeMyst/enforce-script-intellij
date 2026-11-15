@@ -1,5 +1,6 @@
 package io.github.lemyst.enfusion.objfmt.preview
 
+import com.intellij.ide.util.PropertiesComponent
 import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.editor.event.CaretEvent
@@ -19,19 +20,30 @@ import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.util.UserDataHolderBase
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiManager
+import com.intellij.ui.SimpleListCellRenderer
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBLabel
 import com.intellij.util.Alarm
 import com.intellij.util.concurrency.AppExecutorUtil
 import com.intellij.util.ui.JBUI
 import java.awt.BorderLayout
+import java.awt.Cursor
 import java.awt.FlowLayout
 import java.awt.Graphics
+import java.awt.Graphics2D
+import java.awt.event.ComponentAdapter
+import java.awt.event.ComponentEvent
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
+import java.awt.event.MouseWheelEvent
 import java.awt.image.BufferedImage
+import javax.swing.JButton
+import javax.swing.SwingUtilities
+import kotlin.math.abs
+import kotlin.math.pow
 import java.beans.PropertyChangeListener
 import javax.swing.JComponent
+import javax.swing.JList
 import javax.swing.JPanel
 
 /**
@@ -60,6 +72,9 @@ class LayoutPreviewEditorProvider : FileEditorProvider, DumbAware {
  * colours, texts and imageset images. Clicking a widget puts the caret on its declaration; moving
  * the caret outlines the widget it is in.
  *
+ * The wheel zooms around the pointer and dragging pans, as in Workbench; *Fit* fits the screen to
+ * the pane again, which is also what a resize does until the view is zoomed or panned.
+ *
  * It is rebuilt off the EDT, in a non-blocking read action, a moment after the text stops changing,
  * and only while it is on screen.
  */
@@ -77,7 +92,22 @@ class LayoutPreviewEditor(
     private val resolutions = ComboBox(arrayOf(Resolution(1280, 720), Resolution(1920, 1080), Resolution(2560, 1440), Resolution(3840, 2160)))
         .apply { selectedIndex = 1 }
     private val showHidden = JBCheckBox("Hidden widgets")
+
+    /** *Keys* (null) or a stringtable column, filled from the stringtables the layout's keys are in. */
+    private val languages = ComboBox<String>().apply {
+        // A subclass: SimpleListCellRenderer.create is deprecated on 2026.3.
+        renderer = object : SimpleListCellRenderer<String?>() {
+            override fun customize(list: JList<out String?>, value: String?, index: Int, selected: Boolean, hasFocus: Boolean) {
+                text = value ?: KEYS
+            }
+        }
+        toolTipText = "The language #key texts are shown in"
+    }
+    private var translations = LayoutTranslations.Table.EMPTY
     private val status = JBLabel()
+    private val zoomLabel = JBLabel()
+    private val fitButton = JButton("Fit")
+    private val actualButton = JButton("100%")
     private val canvas = Canvas()
     private val root = JPanel(BorderLayout())
     private val alarm = Alarm(Alarm.ThreadToUse.SWING_THREAD, this)
@@ -85,17 +115,41 @@ class LayoutPreviewEditor(
     private var placed: List<Placed> = emptyList()
     private var images: Map<WidgetSpec, BufferedImage?> = emptyMap()
     private var selected: WidgetSpec? = null
-    private var picture: BufferedImage? = null
+
+    /** The view: layout pixels to canvas pixels. Null while the screen is fitted to the pane. */
+    private var view: View? = null
+
+    private data class View(val scale: Double, val x: Double, val y: Double)
 
     init {
         val toolbar = JPanel(FlowLayout(FlowLayout.LEFT, JBUI.scale(8), JBUI.scale(2)))
         toolbar.add(resolutions)
+        toolbar.add(languages)
         toolbar.add(showHidden)
+        toolbar.add(fitButton)
+        toolbar.add(actualButton)
+        toolbar.add(zoomLabel)
         toolbar.add(status)
         root.add(toolbar, BorderLayout.NORTH)
         root.add(canvas, BorderLayout.CENTER)
-        resolutions.addActionListener { schedule(0) }
+        resolutions.addActionListener {
+            view = null
+            schedule(0)
+        }
         showHidden.addActionListener { repaintPicture() }
+        languages.addActionListener {
+            if (!fillingLanguages) {
+                PropertiesComponent.getInstance().setValue(LANGUAGE_KEY, languages.selectedItem as String? ?: KEYS)
+                repaintPicture()
+            }
+        }
+        fitButton.toolTipText = "Fit the screen to the pane"
+        fitButton.addActionListener {
+            view = null
+            repaintPicture()
+        }
+        actualButton.toolTipText = "One layout pixel to one screen pixel, around the pane's centre"
+        actualButton.addActionListener { zoomTo(1.0, canvas.width / 2.0, canvas.height / 2.0) }
         textEditor.editor.document.addDocumentListener(object : DocumentListener {
             override fun documentChanged(event: DocumentEvent) = schedule(300)
         }, this)
@@ -108,8 +162,51 @@ class LayoutPreviewEditor(
                 }
             }
         }, this)
-        canvas.addMouseListener(object : MouseAdapter() {
-            override fun mouseClicked(e: MouseEvent) = select(e)
+        val mouse = object : MouseAdapter() {
+            private var pressX = 0
+            private var pressY = 0
+            private var dragging = false
+
+            override fun mousePressed(e: MouseEvent) {
+                pressX = e.x
+                pressY = e.y
+                dragging = false
+            }
+
+            override fun mouseDragged(e: MouseEvent) {
+                // A few pixels of slack, so that a click with a shaky hand still selects.
+                if (!dragging && abs(e.x - pressX) + abs(e.y - pressY) < JBUI.scale(4)) return
+                if (!dragging) {
+                    dragging = true
+                    canvas.cursor = Cursor.getPredefinedCursor(Cursor.MOVE_CURSOR)
+                }
+                val v = currentView() ?: return
+                view = v.copy(x = v.x + e.x - pressX, y = v.y + e.y - pressY)
+                pressX = e.x
+                pressY = e.y
+                repaintPicture()
+            }
+
+            override fun mouseReleased(e: MouseEvent) {
+                if (dragging) {
+                    dragging = false
+                    canvas.cursor = Cursor.getDefaultCursor()
+                } else if (SwingUtilities.isLeftMouseButton(e)) {
+                    select(e)
+                }
+            }
+
+            override fun mouseWheelMoved(e: MouseWheelEvent) {
+                val v = currentView() ?: return
+                zoomTo(v.scale * 1.15.pow(-e.preciseWheelRotation), e.x.toDouble(), e.y.toDouble())
+            }
+        }
+        canvas.addMouseListener(mouse)
+        canvas.addMouseMotionListener(mouse)
+        canvas.addMouseWheelListener(mouse)
+        // While fitted, a resize changes the zoom shown in the toolbar.
+        canvas.addComponentListener(object : ComponentAdapter() {
+            override fun componentResized(e: ComponentEvent) = repaintPicture()
         })
         schedule(0)
     }
@@ -128,23 +225,26 @@ class LayoutPreviewEditor(
             return
         }
         val res = resolution
-        ReadAction.nonBlocking<Pair<List<Placed>, Map<WidgetSpec, BufferedImage?>>> {
-            val psi = PsiManager.getInstance(project).findFile(file) ?: return@nonBlocking emptyList<Placed>() to emptyMap()
+        ReadAction.nonBlocking<Built> {
+            val psi = PsiManager.getInstance(project).findFile(file) ?: return@nonBlocking Built(emptyList(), emptyMap(), LayoutTranslations.Table.EMPTY)
             val roots = LayoutSpecs.of(psi)
             val laid = LayoutGeometry.layout(roots, res.width.toDouble(), res.height.toDouble())
             val pictures = HashMap<WidgetSpec, BufferedImage?>()
             for (p in laid) {
-                if (p.spec.type == "ImageWidgetClass" && p.spec.value("image0") != null) {
+                if (p.spec.type == "ImageWidgetClass" && LayoutSpecs.hasImage(p.spec)) {
                     pictures[p.spec] = LayoutSpecs.image(psi, p.spec, maxOf(p.rect.w, p.rect.h).toInt().coerceIn(16, 1024))
                 }
             }
-            laid to pictures
+            val keys = laid.mapNotNullTo(HashSet()) { p -> p.spec.text?.takeIf { it.startsWith('#') }?.substring(1) }
+            Built(laid, pictures, LayoutTranslations.of(project, keys))
         }
             .withDocumentsCommitted(project)
             .expireWith(this)
-            .finishOnUiThread(ModalityState.any()) { (laid, pictures) ->
+            .finishOnUiThread(ModalityState.any()) { (laid, pictures, table) ->
                 placed = laid
                 images = pictures
+                translations = table
+                fillLanguages(table.languages)
                 selected = LayoutGeometry.at(placed, textEditor.editor.caretModel.offset)?.spec
                 val hidden = laid.count { it.hidden }
                 status.text = "${laid.size} widgets" + if (hidden > 0) ", $hidden hidden" else ""
@@ -153,24 +253,72 @@ class LayoutPreviewEditor(
             .submit(AppExecutorUtil.getAppExecutorService())
     }
 
+    private class Built(val placed: List<Placed>, val images: Map<WidgetSpec, BufferedImage?>, val translations: LayoutTranslations.Table) {
+        operator fun component1() = placed
+        operator fun component2() = images
+        operator fun component3() = translations
+    }
+
+    private var fillingLanguages = false
+
+    /**
+     * Offers *Keys* and every language the layout's stringtables have, keeping the remembered choice
+     * selected. The choice is application-wide: someone checking French wants French in every layout.
+     * Until it has been changed, English is shown when there is one.
+     */
+    private fun fillLanguages(found: List<String>) {
+        val items = listOf<String?>(null) + found
+        val current = (0 until languages.itemCount).map { languages.getItemAt(it) }
+        if (current != items) {
+            fillingLanguages = true
+            try {
+                languages.removeAllItems()
+                items.forEach { languages.addItem(it) }
+            } finally {
+                fillingLanguages = false
+            }
+        }
+        val wanted = PropertiesComponent.getInstance().getValue(LANGUAGE_KEY, "english")
+        fillingLanguages = true
+        try {
+            languages.selectedItem = found.firstOrNull { it.equals(wanted, ignoreCase = true) }
+        } finally {
+            fillingLanguages = false
+        }
+        languages.isVisible = found.isNotEmpty()
+    }
+
+    private val language: String? get() = languages.selectedItem as String?
+
     private fun repaintPicture() {
-        val res = resolution
-        picture = LayoutRenderer.render(placed, res.width, res.height, showHidden.isSelected, selected) { spec, _ -> images[spec] }
+        zoomLabel.text = currentView()?.let { "${(it.scale * 100).toInt()}%" } ?: ""
         canvas.repaint()
     }
 
-    /** The picture's scale and offset inside the canvas: fitted, centred, never enlarged past 1:1. */
-    private fun fit(): Triple<Double, Int, Int>? {
-        val image = picture ?: return null
-        val scale = minOf(canvas.width.toDouble() / image.width, canvas.height.toDouble() / image.height, 1.0)
-        val x = ((canvas.width - image.width * scale) / 2).toInt()
-        val y = ((canvas.height - image.height * scale) / 2).toInt()
-        return Triple(scale, x, y)
+    /** The screen fitted to the pane with a small margin, centred. */
+    private fun fitted(): View? {
+        val res = resolution
+        val margin = JBUI.scale(8).toDouble()
+        val w = canvas.width - 2 * margin
+        val h = canvas.height - 2 * margin
+        if (w <= 0 || h <= 0) return null
+        val scale = minOf(w / res.width, h / res.height)
+        return View(scale, (canvas.width - res.width * scale) / 2, (canvas.height - res.height * scale) / 2)
+    }
+
+    private fun currentView(): View? = view ?: fitted()
+
+    /** Zooms to [scale], keeping the layout point under ([cx], [cy]) where it is. */
+    private fun zoomTo(scale: Double, cx: Double, cy: Double) {
+        val v = currentView() ?: return
+        val s = scale.coerceIn(0.05, 8.0)
+        view = View(s, cx - (cx - v.x) * s / v.scale, cy - (cy - v.y) * s / v.scale)
+        repaintPicture()
     }
 
     private fun select(e: MouseEvent) {
-        val (scale, ox, oy) = fit() ?: return
-        val hit = LayoutGeometry.hit(placed, (e.x - ox) / scale, (e.y - oy) / scale, showHidden.isSelected) ?: return
+        val v = currentView() ?: return
+        val hit = LayoutGeometry.hit(placed, (e.x - v.x) / v.scale, (e.y - v.y) / v.scale, showHidden.isSelected) ?: return
         val editor = textEditor.editor
         editor.caretModel.moveToOffset(hit.spec.offset.coerceIn(0, editor.document.textLength))
         editor.scrollingModel.scrollToCaret(com.intellij.openapi.editor.ScrollType.CENTER)
@@ -180,10 +328,27 @@ class LayoutPreviewEditor(
 
     private inner class Canvas : JComponent() {
         override fun paintComponent(g: Graphics) {
-            val image = picture ?: return
-            val (scale, x, y) = fit() ?: return
-            g.drawImage(image, x, y, (image.width * scale).toInt(), (image.height * scale).toInt(), null)
+            if (placed.isEmpty()) return
+            val v = currentView() ?: return
+            val res = resolution
+            val g2 = g.create() as Graphics2D
+            try {
+                g2.translate(v.x, v.y)
+                g2.scale(v.scale, v.scale)
+                val lang = language
+                LayoutRenderer.paint(
+                    g2, placed, res.width, res.height, v.scale, showHidden.isSelected, selected,
+                    text = { spec -> spec.text?.let { translations.show(it, lang) } },
+                ) { spec, _ -> images[spec] }
+            } finally {
+                g2.dispose()
+            }
         }
+    }
+
+    private companion object {
+        const val KEYS = "Keys"
+        const val LANGUAGE_KEY = "enfusion.layoutPreview.language"
     }
 
     override fun getComponent(): JComponent = root

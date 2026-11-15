@@ -4,6 +4,7 @@ import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import io.github.lemyst.enfusion.objfmt.preview.LayoutGeometry
 import io.github.lemyst.enfusion.objfmt.preview.LayoutRenderer
 import io.github.lemyst.enfusion.objfmt.preview.LayoutSpecs
+import io.github.lemyst.enfusion.objfmt.preview.LayoutTranslations
 import io.github.lemyst.enfusion.objfmt.preview.Rect
 import io.github.lemyst.enfusion.objfmt.preview.WidgetSpec
 
@@ -106,6 +107,72 @@ class EnfusionLayoutPreviewTest : BasePlatformTestCase() {
         assertEquals("the last row ends at the screen's bottom edge", 500.0, placed.last().rect.let { it.y + it.h })
     }
 
+    /** The vanilla vignette: 512 × 512, `fixaspect outside`, in a box 160 % × 90 % of the screen. */
+    fun testFixAspect() {
+        val box = Rect(0.0, 108.0, 6144.0, 1944.0)
+        assertEquals(Rect(0.0, 108.0 + 972.0 - 3072.0, 6144.0, 6144.0), LayoutGeometry.imageRect(box, 512, 512, "outside"))
+        assertEquals(Rect(3072.0 - 972.0, 108.0, 1944.0, 1944.0), LayoutGeometry.imageRect(box, 512, 512, "inside"))
+        val square = Rect(0.0, 0.0, 100.0, 100.0)
+        assertEquals(Rect(0.0, 25.0, 100.0, 50.0), LayoutGeometry.imageRect(square, 200, 100, "fixwidth"))
+        assertEquals(Rect(-50.0, 0.0, 200.0, 100.0), LayoutGeometry.imageRect(square, 200, 100, "fixheight"))
+        assertEquals(square, LayoutGeometry.imageRect(square, 200, 100, null))
+        assertEquals(square, LayoutGeometry.imageRect(square, 200, 100, "none"))
+    }
+
+    fun testChildrenAreClippedUnlessTheParentSaysNot() {
+        val child = widget("PanelWidgetClass", "size" to "300 300", "hexactsize" to "1", "vexactsize" to "1")
+        val clipping = widget("FrameWidgetClass", "size" to "100 100", "hexactsize" to "1", "vexactsize" to "1", children = listOf(child))
+        val placed = LayoutGeometry.layout(listOf(clipping), 1000.0, 500.0)
+        assertEquals(Rect(0.0, 0.0, 100.0, 100.0), placed[1].clip)
+        assertNull("cut off past the parent", LayoutGeometry.hit(placed, 200.0, 200.0, includeHidden = false))
+
+        val open = widget("FrameWidgetClass", "size" to "100 100", "hexactsize" to "1", "vexactsize" to "1", "clipchildren" to "0", children = listOf(child))
+        val unclipped = LayoutGeometry.layout(listOf(open), 1000.0, 500.0)
+        assertEquals(Rect(0.0, 0.0, 1000.0, 500.0), unclipped[1].clip)
+        assertSame(child, LayoutGeometry.hit(unclipped, 200.0, 200.0, includeHidden = false)?.spec)
+    }
+
+    /**
+     * `day_z_ingamemenu`'s `play_panel_root`: `content_valign bottom` stacks the lines from the bottom
+     * edge upwards, so its first child (`bottom`: Continue, Respawn) is lowest and its last (`top`:
+     * Exit, Feedback, Options) highest, as Workbench draws it.
+     */
+    fun testContentValignBottomStacksUpwards() {
+        val first = widget("PanelWidgetClass", "size" to "1 90", "vexactsize" to "1")
+        val separator = widget("PanelWidgetClass", "size" to "1 2", "vexactsize" to "1")
+        val last = widget("PanelWidgetClass", "size" to "1 124", "vexactsize" to "1")
+        val column = widget(
+            "WrapSpacerWidgetClass", "size" to "400 400", "hexactsize" to "1", "vexactsize" to "1", "content_valign" to "bottom",
+            children = listOf(first, separator, last),
+        )
+        val rects = LayoutGeometry.layout(listOf(column), 1000.0, 500.0).associate { it.spec to it.rect }
+        assertEquals(Rect(0.0, 310.0, 400.0, 90.0), rects[first])
+        assertEquals(Rect(0.0, 308.0, 400.0, 2.0), rects[separator])
+        assertEquals(Rect(0.0, 184.0, 400.0, 124.0), rects[last])
+    }
+
+    fun testContentAlignment() {
+        val item = { widget("PanelWidgetClass", "size" to "40 20", "hexactsize" to "1", "vexactsize" to "1") }
+        fun first(vararg props: Pair<String, String>): Rect {
+            val box = widget("WrapSpacerWidgetClass", "size" to "100 100", "hexactsize" to "1", "vexactsize" to "1", *props, children = listOf(item(), item(), item()))
+            return LayoutGeometry.layout(listOf(box), 1000.0, 500.0)[1].rect
+        }
+        assertEquals(Rect(0.0, 0.0, 40.0, 20.0), first())
+        assertEquals("80 wide line centred in 100", Rect(10.0, 30.0, 40.0, 20.0), first("content_halign" to "center", "content_valign" to "center"))
+        assertEquals(Rect(20.0, 0.0, 40.0, 20.0), first("content_halign" to "right"))
+    }
+
+    fun testHiddenChildNeverMovesTheOthers() {
+        val wide = widget("PanelWidgetClass", "size" to "90 20", "hexactsize" to "1", "vexactsize" to "1", "visible" to "0")
+        val small = { widget("PanelWidgetClass", "size" to "30 20", "hexactsize" to "1", "vexactsize" to "1") }
+        val a = small()
+        val b = small()
+        val box = widget("WrapSpacerWidgetClass", "size" to "100 100", "hexactsize" to "1", "vexactsize" to "1", children = listOf(a, wide, b))
+        val rects = LayoutGeometry.layout(listOf(box), 1000.0, 500.0).associate { it.spec to it.rect }
+        assertEquals(Rect(30.0, 0.0, 30.0, 20.0), rects[b])
+        assertEquals("drawn where it would wrap to", Rect(0.0, 20.0, 90.0, 20.0), rects[wide])
+    }
+
     fun testWithoutSizeToContentASpacerKeepsItsSize() {
         val wrap = widget("WrapSpacerWidgetClass", "size" to "1 48", "vexactsize" to "1", "valign" to "bottom_ref", children = listOf(row(38), row(38)))
         assertEquals(Rect(0.0, 452.0, 400.0, 48.0), LayoutGeometry.layout(listOf(wrap), 400.0, 500.0)[0].rect)
@@ -157,5 +224,24 @@ class EnfusionLayoutPreviewTest : BasePlatformTestCase() {
         assertNull(LayoutSpecs.image(file, icon, 64))
         val picture = LayoutRenderer.render(placed, 1920, 1080, showHidden = true, selected = title) { spec, side -> LayoutSpecs.image(file, spec, side) }
         assertEquals(1920, picture.width)
+    }
+
+    fun testKeysShownInTheChosenLanguage() {
+        myFixture.addFileToProject(
+            "stringtable.csv",
+            """
+            "Language","original","english","french",
+            "STR_MOD_TITLE","Title","Title","Titre",
+            "STR_MOD_UNTRANSLATED","Only original","","",
+            """.trimIndent(),
+        )
+        val table = LayoutTranslations.of(project, setOf("STR_MOD_TITLE", "STR_MOD_UNTRANSLATED", "STR_MOD_MISSING"))
+        assertEquals(listOf("original", "english", "french"), table.languages)
+        assertEquals("Titre", table.show("#STR_MOD_TITLE", "french"))
+        assertEquals("Title", table.show("#STR_MOD_TITLE", "english"))
+        assertEquals("#STR_MOD_TITLE", table.show("#STR_MOD_TITLE", null))
+        assertEquals("an empty translation falls back to original", "Only original", table.show("#STR_MOD_UNTRANSLATED", "french"))
+        assertEquals("an unknown key stays a key", "#STR_MOD_MISSING", table.show("#STR_MOD_MISSING", "french"))
+        assertEquals("plain text is left alone", "Hello", table.show("Hello", "french"))
     }
 }

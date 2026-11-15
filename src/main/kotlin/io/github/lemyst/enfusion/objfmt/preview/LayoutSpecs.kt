@@ -2,10 +2,12 @@ package io.github.lemyst.enfusion.objfmt.preview
 
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
+import com.intellij.psi.PsiManager
 import com.intellij.psi.util.PsiTreeUtil
 import io.github.lemyst.enfusion.objfmt.psi.impl.EnObjDeclMixin
 import io.github.lemyst.enfusion.objfmt.psi.impl.EnObjPropertyMixin
 import io.github.lemyst.enfusion.objfmt.psi.impl.EnObjTree
+import io.github.lemyst.enfusion.refs.EnAssetPaths
 import io.github.lemyst.enfusion.refs.EnStringLiterals
 import io.github.lemyst.enfusion.texture.EnTextureMarkers
 import java.awt.image.BufferedImage
@@ -33,17 +35,36 @@ object LayoutSpecs {
         )
     }
 
+    /** Whether [spec] names a picture [image] can look for. */
+    fun hasImage(spec: WidgetSpec): Boolean = spec.value("image0") != null || spec.value("imagetexture") != null
+
     /**
-     * The picture an `ImageWidgetClass` shows: its `image0`, as an imageset entry
-     * (`"set:dayz_gui image:Icon"`) or a texture path, through the same resolution and cache as the
-     * texture hover. Null when it does not resolve or does not decode.
+     * The picture an `ImageWidgetClass` shows, through the same resolution and cache as the texture
+     * hover: its `image0`, as an imageset entry (`"set:dayz_gui image:Icon"`) or a texture path, else
+     * its `imageTexture`. Null when it does not resolve or does not decode.
      */
     fun image(file: PsiFile, spec: WidgetSpec, side: Int): BufferedImage? {
         if (spec.offset < 0) return null
         val decl = PsiTreeUtil.getParentOfType(file.findElementAt(spec.offset), EnObjDeclMixin::class.java, false) ?: return null
-        val value = decl.property("image0")?.values()?.firstOrNull() ?: return null
-        for (reference in value.references.reversed()) {
-            val target: PsiElement = reference.resolve() ?: continue
+        decl.property("image0")?.values()?.firstOrNull()?.let { value ->
+            for (reference in value.references.reversed()) {
+                val target: PsiElement = reference.resolve() ?: continue
+                EnTextureMarkers.preview(target, side)?.let { return it.image }
+            }
+        }
+        return spec.value("imagetexture")?.let { texture(file, it, side) }
+    }
+
+    /**
+     * An `imageTexture` value. It is a resource reference, `"{E6B3EF816E067499}Gui/textures/x.edds"`:
+     * the braces hold the resource's ID, which only Workbench's database maps, and the path after
+     * them is found like any asset path, by its longest matching suffix.
+     */
+    private fun texture(file: PsiFile, value: String, side: Int): BufferedImage? {
+        val path = value.substringAfter('}').trim().takeIf { it.isNotEmpty() } ?: return null
+        val psiManager = PsiManager.getInstance(file.project)
+        for (candidate in EnAssetPaths.findBySuffix(file.project, path)) {
+            val target = psiManager.findFile(candidate) ?: continue
             EnTextureMarkers.preview(target, side)?.let { return it.image }
         }
         return null

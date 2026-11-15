@@ -150,15 +150,21 @@ inputs.
   a screen of the chosen size (1920 × 1080 by default) the way the vanilla layouts use the
   properties: `size` / `position` in pixels or as fractions of the parent (`hexactsize`,
   `vexactsize`, `hexactpos`, `vexactpos`), `halign` / `valign` with offsets from the matching edge,
-  grid spacers in `Rows` × `Columns` cells and wrap spacers flowing their children, a `visible 0`
-  child taking no slot, and a wrap spacer's *Size To Content* fitting it to its children. Panels and
-  buttons are filled with their `color`, images show their `image0` (an imageset entry or a texture,
-  through the same cache as the texture hover), and text widgets their `text`. Every widget is
-  outlined; *Hidden widgets* shows the ones with `visible 0`, dashed. Clicking a widget puts the
-  caret on its declaration, and the caret's widget is outlined in blue. The preview updates a moment
-  after the text changes. **Approximate, not pixel-exact:** fonts, `Padding` / `Margin`, *Size To
-  Content* outside wrap spacers, `fixaspect`, scaling and image tinting are not modelled, a `#STR_…`
-  text shows as its key, and script classes do not run. Editing in the preview (moving, resizing, a properties panel) is not
+  grid spacers in `Rows` × `Columns` cells and wrap spacers flowing their children (lines placed by
+  `content_halign` / `content_valign`, `bottom` stacking them upwards), a `visible 0`
+  child taking no slot, a wrap spacer's *Size To Content* fitting it to its children, and children
+  cut off at their parent's edges unless it says `clipchildren 0`. Panels and buttons are filled with
+  their `color`, images show their `image0` (an imageset entry or a texture) or `imageTexture`,
+  through the same cache as the texture hover, fitted as `fixaspect` says, and text widgets their
+  `text`. A `#key` text shows in the language chosen in the toolbar, from the stringtables that
+  declare the key (the project's and the vanilla one), falling back to `original`, then to the key;
+  *Keys* shows the keys themselves. The choice is kept for every layout. Every widget is outlined; *Hidden widgets* shows the ones with `visible 0`, dashed.
+  Clicking a widget puts the caret on its declaration, and the caret's widget is outlined in blue,
+  its whole box even where its parent cuts it off. The wheel zooms around the pointer, dragging
+  pans, *Fit* fits the screen to the pane again and *100%* shows it at one layout pixel per screen
+  pixel; outlines stay one pixel wide at any zoom. The preview updates a moment after the text
+  changes. **Approximate, not pixel-exact:** fonts, `Padding` / `Margin`, *Size To Content* outside
+  wrap spacers, scaling and image tinting are not modelled, and script classes do not run. Editing in the preview (moving, resizing, a properties panel) is not
   supported.
 - **Class hierarchy** (`Ctrl+H`) modelling both relationships the language has: `extends`, and
   `modded class` layering. Every layer of a class hangs off the base, which is the view that matters
@@ -720,7 +726,14 @@ mod called BattleRoyale):
 - Switch the resolution → proportional widgets scale, pixel ones keep their size. The list runs from
   1280 × 720 to 3840 × 2160, with 1920 × 1080 selected.
 - In `day_z_ingamemenu`, the column above *Respawn* holds *Exit*, *Feedback* and *Options* at full
-  height, with no gap for the hidden *Restart*, and stays above *Respawn* rather than over it.
+  height, with no gap for the hidden *Restart*, and stays above *Respawn* rather than over it. The
+  vignette darkens the whole screen, as in Workbench, and its blue outline (caret on `vignette`)
+  runs past the screen's right edge.
+- Pick *french* in the language list → *Continue* reads *Continuer*; *Keys* → `#main_menu_continue`.
+  A mod layout using its own `STR_…` keys shows the mod's stringtable text.
+- At 3840 × 2160 every outline is still visible. Scroll the wheel over a button → it zooms in around
+  the pointer; drag → the view pans; a click without dragging still selects. *Fit* → back to the
+  whole screen; *100%* → one layout pixel per screen pixel.
 
 **Rename and inspections**
 
