@@ -369,6 +369,8 @@
         <postStartupActivity
                 implementation="io.github.lemyst.enfusion.tools.DayZDetectionStartup"/>
 
+        <configurationType implementation="io.github.lemyst.enfusion.tools.run.DayZRunConfigurationType"/>
+
         <statusBarWidgetFactory
                 id="EnfusionWorkDrive"
                 implementation="io.github.lemyst.enfusion.tools.WorkDriveWidgetFactory"/>
