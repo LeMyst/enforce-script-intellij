@@ -405,6 +405,12 @@ drive. Otherwise it is the project's folder through the entry at the drive's roo
 folder or holds it: the `P:\MyMod` link to a checkout elsewhere, which mod setup scripts create.
 With neither, Workbench starts with `-filePatching` only.
 
+Workbench mounts that folder at the root of the game's files, as the game does with an unpacked
+mod. An addon in a `Scripts` folder directly at the mod's root therefore puts its `config.cpp` over
+the game's `scripts\config.cpp`, and Workbench crashes as it starts, every time. In that case
+the plugin shows a notification instead of starting it: it names the folder, asks for it to be
+renamed, and offers *Start Workbench anyway*. `Scripts\Client\` is fine.
+
 **Toolbar.** In a project with an addon, the main toolbar (the navigation bar in the classic UI)
 gets four buttons:
 

@@ -1,6 +1,7 @@
 package io.github.lemyst.enfusion.tools
 
 import com.intellij.execution.configurations.GeneralCommandLine
+import com.intellij.notification.NotificationAction
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.actionSystem.ActionGroup
@@ -38,16 +39,24 @@ internal object DayZToolsLauncher {
 
     /**
      * Starts [tool] from its own folder, which Workbench needs as its current directory. Workbench,
-     * started on a project rather than a file, gets the project's mod (see [WorkbenchMod]).
+     * started on a project rather than a file, gets the project's mod (see [WorkbenchMod]), unless
+     * that mod would make it crash and [anyway] is false: then a notification says why instead.
      */
-    fun start(project: Project?, toolsBin: Path, tool: DayZToolsCatalog.Tool, file: Path? = null) {
+    fun start(project: Project?, toolsBin: Path, tool: DayZToolsCatalog.Tool, file: Path? = null, anyway: Boolean = false) {
         val exe = toolsBin.resolve(tool.exe)
         ApplicationManager.getApplication().executeOnPooledThread {
             try {
                 val args = when {
                     file != null -> listOf(exe.toString(), file.toString())
-                    tool == DayZToolsCatalog.WORKBENCH && project != null ->
-                        WorkbenchCommand.command(exe, WorkbenchMod.folder(project)?.toString())
+                    tool == DayZToolsCatalog.WORKBENCH && project != null -> {
+                        val mod = WorkbenchMod.folder(project)
+                        val crashing = mod?.let(WorkbenchCommand::crashingAddon)
+                        if (mod != null && crashing != null && !anyway) {
+                            warnCrashing(project, toolsBin, mod, crashing)
+                            return@executeOnPooledThread
+                        }
+                        WorkbenchCommand.command(exe, mod?.toString())
+                    }
                     else -> listOf(exe.toString())
                 }
                 GeneralCommandLine(args).withWorkDirectory(exe.parent.toFile()).createProcess()
@@ -59,6 +68,20 @@ internal object DayZToolsLauncher {
             }
         }
     }
+}
+
+private fun warnCrashing(project: Project, toolsBin: Path, mod: Path, folder: String) {
+    val text = "$mod has an addon in $folder\\. Workbench mounts the mod at the root of the game's files, so its config.cpp " +
+        "replaces the game's scripts\\config.cpp, and Workbench crashes as it starts. Rename the folder (such as MyMod_Scripts) " +
+        "and its paths in config.cpp."
+    NotificationGroupManager.getInstance().getNotificationGroup("Enforce Script")
+        .createNotification("Workbench would crash on this mod", StringUtil.escapeXmlEntities(text), NotificationType.WARNING)
+        .addAction(
+            NotificationAction.createSimpleExpiring("Start Workbench anyway") {
+                DayZToolsLauncher.start(project, toolsBin, DayZToolsCatalog.WORKBENCH, anyway = true)
+            },
+        )
+        .notify(project)
 }
 
 /** The folder Workbench is given as `-mod=` for a project. Reads the disk: not on the EDT. */
