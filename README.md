@@ -438,6 +438,11 @@ runs in one *Run* tab, where *Stop* stops it all.
   - A server needs its config: without `-config=` DayZ counts down ten seconds and quits, so an
     empty *Server config* is an error.
   - A warning when the server and a client would write to the same profile folder.
+  - A warning when the *Offline mission* is a server mission. Its `init.c` defines
+    `CreateCustomMission` and never makes a `MissionGameplay`, as every `dayzOffline.*` mission
+    returns `new CustomMission()`. Offline, such a mission never gives the client a character, and
+    it sits on *IDLE MODE ACTIVE*. An offline test mission returns `new MissionGameplay()` when not
+    on a multiplayer server. The warning is also the first line of the run's console.
 - **Command lines:**
   - **Server:** the dedicated `DayZServer_x64.exe`, or `DayZDiag_x64.exe -server` with DayZ Diag.
     It gets `-config=`, `-port=`, `-profiles=` (the server profile from the settings when empty),
@@ -898,7 +903,8 @@ mod called BattleRoyale):
 - Unmount `P:` and run → an error that `P:` is not mounted, nothing started.
 - A configuration saved before the mod list (with `;`-separated *Mods*) → its mods appear as rows.
 - *Start clients* only, an *Offline mission* and no *Connect to* → offline play on that mission.
-  Both set → an error.
+  Both set → an error. A server's `dayzOffline.*` mission as the *Offline mission* → a warning about
+  idle mode, in the configuration and at the top of the console.
 - *Start a server* with an empty *Server config* → an error in the configuration; Run does not start
   it. Server and client profiles both empty → a warning.
 - *Start a server* and *Start clients*, three players, Goldberg ticked, a DayZ Diag server with a

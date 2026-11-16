@@ -37,6 +37,7 @@ import io.github.lemyst.enfusion.tools.detect.DayZLaunchCommand
 import io.github.lemyst.enfusion.tools.detect.DayZMod
 import io.github.lemyst.enfusion.tools.detect.DayZModKind
 import io.github.lemyst.enfusion.tools.detect.DayZMods
+import io.github.lemyst.enfusion.tools.detect.DayZOfflineMission
 import io.github.lemyst.enfusion.tools.detect.DayZPaths
 import io.github.lemyst.enfusion.tools.detect.DayZPboStaging
 import io.github.lemyst.enfusion.tools.detect.DayZPlayer
@@ -262,6 +263,7 @@ class DayZRunConfiguration(project: Project, factory: ConfigurationFactory, name
         DayZLaunchCommand.serverProblem(paths, launch)?.let { throw RuntimeConfigurationError(it) }
         DayZLaunchCommand.sharedProfileWarning(paths, launch)?.let { throw RuntimeConfigurationWarning(it) }
         filePatchingRefused(launch)?.let { throw RuntimeConfigurationWarning(it) }
+        offlineMissionProblem(launch, paths)?.let { throw RuntimeConfigurationWarning(it) }
         val letter = paths.workDriveLetter ?: "P"
         launch.modList.firstOrNull { it.enabled && it.kind == DayZModKind.ADDON && !it.path.startsWith("$letter:", ignoreCase = true) }?.let {
             throw RuntimeConfigurationWarning("${it.path} is not on the work drive ($letter:), which file patching reads from.")
@@ -295,6 +297,16 @@ class DayZRunConfiguration(project: Project, factory: ConfigurationFactory, name
             "Add it to the config, or untick -filePatching."
     }
 
+    /**
+     * Why the clients' offline mission would leave them idle, or null: only when they play it, that
+     * is with no server started and none to join.
+     */
+    private fun offlineMissionProblem(launch: DayZLaunch, paths: DayZPaths): String? {
+        if (!launch.startClients || launch.startServer || !launch.connect.isNullOrBlank()) return null
+        val mission = launch.offlineMission ?: return null
+        return DayZOfflineMission.problemOf(mission, paths.game)?.let { "Offline mission $mission: $it" }
+    }
+
     override fun getState(executor: Executor, environment: ExecutionEnvironment): RunProfileState =
         object : CommandLineState(environment) {
             override fun startProcess(): ProcessHandler {
@@ -325,7 +337,9 @@ class DayZRunConfiguration(project: Project, factory: ConfigurationFactory, name
                         )
                     }
                 }
-                val report = prepared.lines + beforeLaunch(launch, server, clients, paths)
+                // Said again where the run's output is: the configuration's warning is easy to miss.
+                val report = listOfNotNull(offlineMissionProblem(launch, paths)?.let { "Warning: $it" }) +
+                    prepared.lines + beforeLaunch(launch, server, clients, paths)
                 val processes = ArrayList<DayZProcessesHandler.Process>()
                 server?.let { processes += DayZProcessesHandler.Process("Server", commandLine(it)) }
                 players.zip(clients).forEachIndexed { index, (player, command) ->
