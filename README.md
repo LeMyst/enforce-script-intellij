@@ -401,9 +401,9 @@ current directory, as `WorkbenchApp.exe -filePatching "-mod=P:\MyMod\"`: `-fileP
 read the mod's unpacked files, and `-mod=` is the mod's folder on the work drive. That folder is
 *Mod folder* under *Workbench* in the DayZ Installation settings, kept per project in
 `.idea/enfusion.xml`. Left empty, it is the project's own folder when the project lies on the work
-drive, or else the entry at the drive's root that is the project's folder: the `P:\MyMod` link to a
-checkout elsewhere that mod setup scripts create. With neither, Workbench starts with
-`-filePatching` only.
+drive. Otherwise it is the project's folder through the entry at the drive's root that is that
+folder or holds it: the `P:\MyMod` link to a checkout elsewhere, which mod setup scripts create.
+With neither, Workbench starts with `-filePatching` only.
 
 **Toolbar.** In a project with an addon, the main toolbar (the navigation bar in the classic UI)
 gets four buttons:

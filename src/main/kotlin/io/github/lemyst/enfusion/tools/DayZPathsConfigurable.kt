@@ -92,7 +92,8 @@ class DayZPathsConfigurable(private val project: Project) : BoundConfigurable("D
             group("Workbench") {
                 val settings = EnfusionProjectSettings.getInstance(project)
                 row("Mod folder:") {
-                    val field = folderField("Workbench Mod Folder")
+                    // Empty, the chooser opens at the work drive, where the mod's folder is.
+                    val field = folderField("Workbench Mod Folder") { paths -> Path.of("${WorkDrive.getInstance().letter(paths)}:\\") }
                         .bindText({ settings.workbenchMod ?: "" }, { settings.workbenchMod = it })
                         .comment(
                             "Workbench starts with -filePatching and -mod= this folder, so that it reads the mod's unpacked files. " +

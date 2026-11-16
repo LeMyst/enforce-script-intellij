@@ -18,16 +18,4 @@ object WorkbenchCommand {
     /** With the trailing backslash the working command line has (`-mod=P:\MyMod\`). */
     fun withTrailingSeparator(folder: String): String =
         if (folder.endsWith('\\') || folder.endsWith('/')) folder else "$folder\\"
-
-    /**
-     * The project's folder on the work drive, when no mod folder is set: the project itself when it
-     * lies on the drive, otherwise an entry at the drive's root that is the project's folder, such as
-     * the `P:\MyMod` link to a checkout elsewhere that mod setup scripts create. [entries] are the
-     * folders at [driveRoot]; [sameFile] says whether two paths are the same folder, links followed.
-     */
-    fun guessMod(projectBase: Path?, driveRoot: Path, entries: List<Path>, sameFile: (Path, Path) -> Boolean): Path? {
-        val base = projectBase ?: return null
-        if (base.startsWith(driveRoot)) return base
-        return entries.firstOrNull { sameFile(it, base) }
-    }
 }

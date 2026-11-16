@@ -17,6 +17,7 @@ import com.intellij.openapi.util.SystemInfo
 import com.intellij.openapi.util.text.StringUtil
 import io.github.lemyst.enfusion.settings.EnfusionProjectSettings
 import io.github.lemyst.enfusion.tools.detect.DayZToolsCatalog
+import io.github.lemyst.enfusion.tools.detect.WorkDriveLink
 import io.github.lemyst.enfusion.tools.detect.WorkbenchCommand
 import java.nio.file.Files
 import java.nio.file.Path
@@ -75,7 +76,10 @@ internal object WorkbenchMod {
         val drive = Path.of("$letter:\\")
         if (!Files.isDirectory(drive)) return null
         val entries = runCatching { Files.list(drive).use { s -> s.filter { Files.isDirectory(it) }.toList() } }.getOrDefault(emptyList())
-        return WorkbenchCommand.guessMod(base, drive, entries) { a, b -> runCatching { Files.isSameFile(a, b) }.getOrDefault(false) }
+        // The project itself when it lies on the drive, else the link at the drive's root to it or
+        // to a folder holding it (P:\MyMod → the checkout), as mod setup scripts create.
+        val link = WorkDriveLink.linkOf(base, drive, entries) { a, b -> runCatching { Files.isSameFile(a, b) }.getOrDefault(false) }
+        return link?.let { WorkDriveLink.onDrive(base, it) }
     }
 }
 
