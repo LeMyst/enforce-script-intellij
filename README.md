@@ -544,6 +544,43 @@ the options first, and *Tools → DayZ → Build All PBOs* builds every addon of
 - **Not supported:** a native packer that works without DayZ Tools (Addon Builder is required), and
   building before a run configuration starts.
 
+### Building the mod for release
+
+A **DayZ Mod Build** run configuration (*Run → Edit Configurations → + → DayZ Mod Build*) builds
+the `@MyMod` folder a mod ships, one configuration per mod:
+
+```
+@MyMod\
+    addons\   the project's addons, binarised and signed, and third-party PBOs
+    keys\     the .bikey of the mod's signing key, and the third-party ones
+    mod.cpp
+    LICENSE …
+```
+
+- **Mod folder:** the `@MyMod` folder to build. Its `addons\` and `keys\` are managed by the build.
+- **What goes into `addons\`:**
+  - *Rescan Project Addons* lists the project's `config.cpp` folders, as the DayZ run
+    configuration does, and *Add PBO Files…* adds third-party PBOs.
+  - **The project's addons** are built by Addon Builder, binarised, with each addon's saved
+    *Build PBO* include and exclude lists. Each one is built into a folder of its own, then moved
+    into `addons\` under its release name: its prefix's folders joined by `_`, so
+    `MyMod\Scripts\Client` becomes `Scripts_Client.pbo`, as mod build scripts name them.
+  - **Third-party PBOs** are copied with the `.bisign` files next to them.
+- **Signing:**
+  - Each built PBO is signed with DayZ Tools' `DSSignFile` and the *Signing key*
+    (`.biprivatekey`), after it has its release name.
+  - The `.bikey` of the same name next to the key goes into `keys\`, with the *Third-party keys*.
+  - Then `DSCheckSignatures` checks every signature in `addons\` against `keys\`, and any that is
+    wrong or has no key fails the build.
+- **`mod.cpp` and extra files** (such as `LICENSE`) are copied into the mod's folder. `mod.cpp`
+  starts as the one at the project's root.
+- **Only what changed:** an addon is built again only when its files, its prefix or the signing key
+  changed since the last build, or when its PBO or signature is missing. A copy is skipped when the
+  file is the same size and date. PBOs, signatures and keys no longer part of the mod are removed;
+  other files in `addons\` are left alone.
+- **Not supported yet:** publishing to the Steam Workshop (planned with SteamCMD), creating a
+  signing key, and generating `mod.cpp`.
+
 ## Feedback and error reports
 
 The plugin is young, so bug reports and feature requests are welcome on
@@ -930,6 +967,21 @@ mod called BattleRoyale):
   notification, and the `File …, line N` line is a link to the config.
 - Build with a signing key → the `.bisign` appears; with no `.bikey` in `@Mod\Keys` → a warning.
 - *Tools → DayZ → Build All PBOs* in a project with several addons → one tab, built one after the other.
+
+**Building the mod for release**
+
+- Add *DayZ Mod Build*:
+  - Set *Mod folder* to an empty test folder and click *Rescan Project Addons*. Set the signing key,
+    and add a third-party PBO with its key.
+  - Run → one *Run* tab:
+    - Addon Builder builds each addon.
+    - Each PBO arrives in `addons\` as `Scripts_Client.pbo` and the like, with its
+      `.MyMod.bisign`.
+    - `keys\` holds `MyMod.bikey` and the third-party key, and `mod.cpp` and the extras are copied.
+    - The last lines say *Signatures checked: all OK* and *Built …*.
+- Run again → *0 addon(s) to build*. Edit one script → that addon only.
+- Untick an addon and run → its PBO and signature are removed from `addons\`.
+- Start a server with `verifySignatures = 2` on the built mod → clients with it join.
 
 **Layout preview**
 
