@@ -185,9 +185,8 @@ class DayZModBuildHandler(
         return output.toString()
     }
 
-    private fun sameFile(source: Path, target: Path): Boolean =
-        Files.isRegularFile(target) && Files.size(source) == Files.size(target) &&
-            Files.getLastModifiedTime(source) == Files.getLastModifiedTime(target)
+    /** Same size and date, to the millisecond: a copy's date can keep less precision than the original's. */
+    private fun sameFile(source: Path, target: Path): Boolean = DayZPboStaging.sameSizeAndDate(source, target)
 
     private fun list(dir: Path): List<Path> =
         if (Files.isDirectory(dir)) Files.list(dir).use { s -> s.filter { Files.isRegularFile(it) }.toList() } else emptyList()
