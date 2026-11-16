@@ -161,10 +161,11 @@ class DayZModTable(
     }
 
     private fun scanProject(): Pair<List<String>, List<String>> {
-        val roots = ReadAction.compute<List<Path>, RuntimeException> {
-            ProjectRootManager.getInstance(project).contentRoots.map { it.toNioPath() }
-        }
-        val addons = ReadAction.compute<List<Path>, RuntimeException> { AddonBuildSupport.allAddons(project).map { it.toNioPath() } }
+        // Not ReadAction.compute, deprecated from 2026.1: this runs off the EDT under a progress.
+        val (roots, addons) = ReadAction.nonBlocking<Pair<List<Path>, List<Path>>> {
+            ProjectRootManager.getInstance(project).contentRoots.map { it.toNioPath() } to
+                AddonBuildSupport.allAddons(project).map { it.toNioPath() }
+        }.executeSynchronously()
         val letter = WorkDrive.getInstance().letter(DayZInstallation.getInstance().paths(project))
         val drive = Path.of("$letter:\\")
         val entries = if (Files.isDirectory(drive)) {
