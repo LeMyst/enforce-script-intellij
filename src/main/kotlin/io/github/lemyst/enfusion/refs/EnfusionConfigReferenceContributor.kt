@@ -26,7 +26,7 @@ class EnfusionConfigReferenceContributor : PsiReferenceContributor() {
     override fun registerReferenceProviders(registrar: PsiReferenceRegistrar) {
         val value = psiElement(EnCfgValueMixin::class.java)
         registrar.registerReferenceProvider(value, EnCfgAddonReferenceProvider())
-        registrar.registerReferenceProvider(value, StringTableKeyReferenceProvider())
+        registrar.registerReferenceProvider(value, StringTableKeyReferenceProvider(dollar = true))
         registrar.registerReferenceProvider(value, EnImageSetReferenceProvider())
         registrar.registerReferenceProvider(value, EnAssetPathReferenceProvider())
     }

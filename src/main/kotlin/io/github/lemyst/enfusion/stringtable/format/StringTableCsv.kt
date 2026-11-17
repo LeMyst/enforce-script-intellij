@@ -37,8 +37,12 @@ class StringTableCsv private constructor(
     /** The index of [name] among [columns], ignoring case, or -1. */
     fun columnIndex(name: String): Int = columns.indexOfFirst { it.equals(name, ignoreCase = true) }
 
-    /** The data row declaring [key], or null. */
-    fun rowOf(key: String): CsvRow? = dataRows.firstOrNull { it.key == key }
+    /**
+     * The data row declaring [key], or null: the one spelt the same, else one differing only in
+     * case, which the engine takes for the same key.
+     */
+    fun rowOf(key: String): CsvRow? =
+        dataRows.firstOrNull { it.key == key } ?: dataRows.firstOrNull { it.key.equals(key, ignoreCase = true) }
 
     /** Structural problems: syntax, cell counts that differ from the header, duplicate keys. */
     fun problems(): List<CsvProblem> {

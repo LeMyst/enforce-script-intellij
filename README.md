@@ -64,7 +64,9 @@ inputs.
   Ctrl+Click resolves: a widget name in `FindAnyWidget(...)` to its declaration in whichever
   `.layout` the enclosing class loads; a `.layout` / `.imageset` / asset path (including ones built by
   `+` concatenation through `const string` constants) to the file; a stringtable key
-  (`"#STR_BR_..."` or the bare server-side form) to its row in `stringtable.csv`; each half of
+  (`"#STR_BR_..."`, any other `"#key"` such as vanilla's `"#menu_add"`, the bare server-side
+  `"STR_…"`, or a config's `"$STR_…"`) to its row in `stringtable.csv`, ignoring case as the game
+  does, the vanilla stringtable included although it is too large for the platform to index; each half of
   `"set:x image:y"` to the `ImageSetClass` and `ImageSetDefClass` respectively; a dispatch-by-name
   string (`AddRPC`, `SendRPC`, `AddTimer`, `GameScript.Call`, ...) to the target method, inferring the
   receiving class where the call shape carries one; and a keybind action name (`UA...`, always behind
@@ -109,6 +111,31 @@ inputs.
   under *Settings → Editor → General → Gutter Icons*: "Texture preview", and "Texture preview in
   configs" for `config.cpp` and `mod.cpp` on their own. Textures that cannot be previewed, such as
   an ARGB4444 `.paa`, get no icon.
+- **Packing an imageset** — *Pack into Imageset…* on a folder in the *Project* view packs its
+  pictures (PNG, TGA, BMP, GIF, JPEG and TIFF, at any depth) into one `.edds` atlas and the
+  `.imageset` that names them, both written next to the folder by default.
+  - Each picture is an image named after its file (`arrow_left.png` → `arrow_left`; characters a
+    `"set:… image:…"` string cannot hold become `_`). Two pictures with one name are refused.
+    *Subfolders become groups* puts each first-level subfolder's pictures in its own
+    `ImageSetGroupClass`.
+  - Pictures are placed largest first with MaxRects, on the smallest power-of-two atlas that holds
+    them (at most *Largest atlas side*). *Gap between pictures* is 0 by default, as DayZ's atlases
+    are packed: vanilla's images are mostly 0 or 1 pixel apart and against the atlas edge, mods'
+    almost all 0. The gap is only ever between pictures, never along the edge, so sixteen 64² icons
+    still fill a 256² atlas. A gap of 2 keeps an icon drawn smaller, from a smaller mip, from
+    blending into its neighbour; *Repeat each picture's edge* fills half the gap on each side with
+    the picture's own edge pixels.
+  - The atlas is BGRA8, uncompressed, with a full mip chain: the format of most vanilla UI atlases
+    (13 of the 23 under `P:\gui\imagesets`), with every mip stored raw as in `dayz_gui.edds`, whose
+    header it copies (most others compress their larger mips). The `.imageset` lists the images by name and names the
+    atlas by its game path (the addon's prefix and the path inside it, prefilled), without a
+    `{GUID}`, as vanilla's `dayz_inventory.imageset` does.
+  - **Repeatable:** the same pictures and options give byte-identical files, so packing again with
+    no change is no diff.
+  - **Not supported yet:** block compression (DXT1, DXT5, BC7) and LZ4-compressed mips, which make
+    smaller files (a 1024² atlas is 5.6 MB uncompressed); updating an existing imageset while
+    keeping its images in place; cutting an atlas back into pictures; remembering the options per
+    folder.
 - **Stringtable editor** — a `stringtable.csv` opens as text with a *Table* tab next to it: one
   row per key and one column per language, named from the file's own header, with the key and
   `original` columns kept on the left while the languages scroll. Editing a cell edits the text, so
@@ -118,7 +145,7 @@ inputs.
     and a tooltip. Each language's header shows its coverage (`french 412/430`), and *Show* lists
     only the rows missing a translation in one language. A search field filters by key or text.
   - **Add Key…** writes a correctly quoted row from one field per language. The key starts with the
-    prefix most of the file's keys share and must be new in every indexed stringtable. **Add
+    prefix most of the file's keys share and must be new in every stringtable, ignoring case. **Add
     Language…** adds a column to the header and every row, empty or filled from `original`;
     **Remove Language…** takes one out; **Fill from Original…** copies `original` into the empty
     cells of a language for a first pass.
@@ -130,9 +157,12 @@ inputs.
     under the caret.
   - **Malformed rows are errors** in the text: a row with more or fewer cells than the header (which
     shifts every translation after it into the wrong language), an unclosed quote, text after a
-    closing quote, and a duplicate key. The table marks the key of such a row in red.
+    closing quote, and a duplicate key. The table marks the key of such a row in red. Two keys
+    differing only in case are not reported as duplicates, though the game takes them for one key:
+    the vanilla stringtable itself has three such pairs.
   - **From the code:** *Localization key with no stringtable row* offers *Create stringtable row
-    for 'STR_…'*. The row goes into one of the project's own stringtables, never a library's. When
+    for 'STR_…'*. Only `STR_…` keys are reported: most other `"#…"` strings are keys too, but not
+    surely. The row goes into one of the project's own stringtables, never a library's. When
     the file's own addon (the nearest folder with `config.cpp`) has one, that is used directly.
     Otherwise a list offers every stringtable of the project, plus a new `stringtable.csv` in the
     file's addon. It is ranked by the new key's prefix, so for `STR_AUTORUN_…` the table already
@@ -199,10 +229,26 @@ inputs.
   already a real `PsiReference` and the platform's default search runs on top of that.
 - **Formatter** (`Ctrl+Alt+L`) — **indentation only**, deliberately. It adds no spacing or wrapping
   rules, so Allman braces and however you spaced a line survive untouched; it defaults to tabs
-  because vanilla is tab-indented without exception. A test formats 150 vanilla files and asserts no
-  token ever moves between lines. `#ifdef` / `#else` / `#endif` are pinned to the first column, which
-  is the one formatting choice the corpus does *not* settle — vanilla writes it both ways — so it is
-  a checkbox under *Code Style | Enforce Script | Wrapping and Braces*, not a rule.
+  because vanilla is tab-indented without exception. One level deeper, each as vanilla writes it
+  in the large majority of cases:
+  - the contents of `{ }` (class and method bodies, blocks, enums, `switch`, array literals);
+  - the body of an `if`, `else`, `for`, `foreach` or `while` without braces, while an `else if`
+    chain stays flat;
+  - the statements under a `case` label, while a `{` right after a label stays at its level;
+  - a line continuing a statement (arguments, conditions, long expressions), while a lone closing
+    `)` goes back to the statement's level.
+
+  Enter follows the same rules: after `if (x)` without a brace, or after `case 1:`, the caret goes
+  one level deeper.
+
+  Two tests format vanilla code. One checks that no token ever moves between lines (150 files). The
+  other checks that at least 98% of lines keep their indentation (400 files). The lines that do
+  move are vanilla's minority styles, such as `break;` at its `case` label's level or parameters
+  aligned to a column.
+
+  `#ifdef` / `#else` / `#endif` are pinned to the first column, which is the one formatting choice
+  the corpus does *not* settle — vanilla writes it both ways — so it is a checkbox under
+  *Code Style | Enforce Script | Wrapping and Braces*, not a rule.
 - **A bundled Community Framework stub** — `GetRPCManager()`, `CallType` and `RPCManager`'s five
   methods resolve without a real `@CF` checkout, which most machines never have (it is a Steam
   Workshop dependency, not a plain checkout like Expansion or COT). Deliberately narrow: it stubs
@@ -217,8 +263,8 @@ inputs.
   config worth opening: `class X : Y` resolves to Y's declaration in any indexed config,
   `requiredAddons[]` jumps to that addon's `CfgPatches` class — the mod load order, which exists
   nowhere else as a link — and `inputs`, `picture` and `files[]` resolve to the file or folder they
-  name. `displayName="#STR_…"` and `ghostIcon="set:… image:…"` work through the *existing* stringtable
-  and imageset providers, reused unchanged. Vanilla's own configs are opt-in: add the unpacked game
+  name. `displayName="$STR_…"` (or `"#STR_…"`) and `ghostIcon="set:… image:…"` work through the
+  *existing* stringtable and imageset providers. Vanilla's own configs are opt-in: add the unpacked game
   data (`P:\DZ`) to the roots and only its 207 configs are indexed, but they sit inside 24 GB of
   unpacked game that must be walked once, so the settings page warns before adding it.
 - **`#ifdef` completion** over the engine's flags *plus* every flag the project's `config.cpp` files
@@ -536,6 +582,38 @@ runs in one *Run* tab, where *Stop* stops it all.
   binarised) and signing the packed addons; for those, build with Addon Builder. Starting Buldozer
   (Object Builder's viewer) is left for later.
 
+### New mods and addons
+
+*File → New* (and *New* in the *Project* view's menu) has **DayZ Mod…** and **DayZ Addon…**, both
+working in the folder chosen.
+
+- **DayZ Mod:** a folder (empty for the chosen folder itself) with a `mod.cpp` (name, author,
+  version, tooltip, overview and action link) and, as ticked, a `LICENSE` (MIT, or GPL-3.0 from the
+  plugin's own licence text), a `README.md` and a `.gitignore` for built PBOs, signatures, private
+  keys, logs and the IDE's folder. *Then create its first addon* opens *DayZ Addon* in the new folder.
+- **DayZ Addon:** an addon folder with a `config.cpp` that is right the first time.
+  - **Kind**, which sets the defaults below: *Scripts* (folder `Scripts`, modules `3_Game` to
+    `5_Mission`, `DZ_Data` and `DZ_Scripts`), *Data* for models, textures and item configs
+    (`Data`, no module, `DZ_Data`), *GUI* (`GUI`, with `layouts` and `imagesets` folders) and
+    *Language* (`LanguageCore`, with a `stringtable.csv` holding vanilla's header). The dialog
+    starts on the first kind whose folder the mod does not have yet; everything stays editable.
+  - **Prefix:** prefilled with the folder's path on the work drive, through the drive's link to the
+    project as *Rescan Project Addons* finds it (`MyMod\Scripts`). Without a link, the path from the
+    folder holding the project, since a checkout is usually named after its mod.
+  - **`CfgPatches` class:** `<Mod>_<Folder>` (`MyMod_Scripts`); class and prefix follow the folder's
+    name until edited.
+  - **`requiredAddons[]`:** a searchable list of every `CfgPatches` class the project indexes,
+    vanilla's and the dependency mods', with `DZ_Data` ticked, and `DZ_Scripts` when a script module
+    is.
+  - **Script modules:** `1_Core` to `5_Mission`, `3_Game` to `5_Mission` ticked. Each ticked module
+    gets its folder with a first script, and a `CfgMods` entry: `class defs { class
+    gameScriptModule { value = ""; files[] = { "MyMod/Scripts/3_Game" }; }; … }`, with `dir`,
+    `name`, `type = "mod"`, `dependencies[]` from the modules and optional `defines[]`.
+  - A `$PBOPREFIX$` file, ticked by default.
+- **Not supported:** a new IDE project (both work in a folder of the current one), logos and
+  pictures, which are added by hand, editing an existing `config.cpp` through a form, and file
+  templates for `.c` classes.
+
 ### Game logs
 
 The **DayZ Logs** tool window follows the game's logs: one tab each for `script_*.log`, the `.RPT`
@@ -810,6 +888,9 @@ mod called BattleRoyale):
   the file. This is the one that proves `EnConstantEvaluator` folds through a `const string`.
 - Ctrl+Click a bare `"STR_BR_..."` (server-side, no `#`) → its row in `LanguageCore/stringtable.csv`;
   and a `"#STR_PARTY_..."` inside a `.layout` → `Party/stringtable.csv`.
+- Ctrl+Click `"#menu_add"` or `"#STR_TextInputDialogRoot_WindowLabel0"` in a vanilla layout
+  (`P:\gui\layouts\…`) → its row in `P:\languagecore\stringtable.csv`, though that row is spelt
+  in lower case and the file is too large for the platform to index.
 - Open the mod's `stringtable.csv` → a *Table* tab next to the text. In it, untranslated cells
   are tinted, and the headers show coverage. Edit a `french` cell → the text tab changes on that
   one line; `Ctrl+Z` undoes it. Change an `original` whose `english` is a copy → `english` follows,
@@ -840,7 +921,9 @@ mod called BattleRoyale):
   own `config.cpp`.
 - Ctrl+Click `"BattleRoyale/Data/Inputs.xml"` → the file; `"…/Mod_Logo.paa"` → the texture.
 - Ctrl+Click `"#STR_…"` and `"set:… image:…"` inside a config → the stringtable row and the imageset
-  entry, resolved by the providers written for script and layouts with no config-specific code.
+  entry, resolved by the providers written for script and layouts.
+- Ctrl+Click `displayName="$STR_CfgVehicles_…"` in a vanilla `P:\DZ` config → its row in the vanilla
+  stringtable.
 - Type `#ifdef ` in any `.c` file → the list offers `DAYZ_BATTLEROYALE` and `BR_PARTY` alongside
   the engine's own flags.
 - Add `P:\DZ` to the roots in the settings → a warning about the first indexing appears; *Cancel*
@@ -891,6 +974,17 @@ mod called BattleRoyale):
   and scrolling and typing do not stall.
 - Open a mod's `config.cpp` with `hiddenSelectionsTextures[]` → one icon per line. Untick "Texture
   preview in configs" → they disappear from configs only.
+
+**Packing an imageset**
+
+- Right-click a folder of PNG or TGA icons inside an addon → *Pack into Imageset…* → the texture path
+  is the addon's prefix and the path to the `.edds`. *Pack* → the `.imageset` opens, with a gutter
+  icon on each image showing the right picture; the `.edds` opens in the texture viewer, BGRA8 with
+  its mips.
+- Pack again with no change → Git shows no change to either file.
+- Use one of the icons in a layout (`image0 "set:<name> image:<icon>"`) → the layout preview shows
+  it. In game, the icon shows, with no neighbour bleeding into its edge.
+- A folder with two `icon.png` in different subfolders → refused, naming `icon`.
 
 **DayZ installation**
 
@@ -988,6 +1082,24 @@ mod called BattleRoyale):
 - Two players with the same name → an error in the configuration. Several players without Goldberg
   → a warning. Neither box ticked → an error.
 - *Tools → DayZ* and the toolbar's *DayZ* drop-down have no *Launch Buldozer*.
+
+**New mods and addons**
+
+- Right-click a folder in the *Project* view → *New → DayZ Mod…* → enter a folder and a name, keep
+  the defaults → the folder has `mod.cpp`, `LICENSE`, `README.md` and `.gitignore`, and `mod.cpp`
+  opens. *New DayZ Addon* follows, prefilled: folder `Scripts`, class `<Folder>_Scripts`, prefix
+  from the work drive's link when the project has one.
+- In the addon dialog, type `DZ_` in the search field → only the matching addons stay listed, the
+  ticked ones still ticked. Untick `4_World` and `5_Mission`, *OK* → `config.cpp` opens with only
+  `gameScriptModule`, `files[] = { "<prefix>/3_Game" }`, `dependencies[] = { "Game" }`; the folder
+  has `$PBOPREFIX$` and `3_Game\<Class>.c`.
+- *Run → Edit Configurations → DayZ → Rescan Project Addons* → the new addon is listed with its
+  prefix. *Build PBO* on its folder builds it.
+- Choose a folder that already has a `config.cpp`, or a class name starting with a digit → the
+  dialog says so and *OK* stays disabled.
+- *DayZ Addon* again on the same mod → it starts on *Data*. Switch the kind to *Language* → folder
+  `LanguageCore`, no module ticked, only `DZ_Data`; *OK* → a `stringtable.csv` with vanilla's
+  header and a `config.cpp` with no `CfgMods`. *GUI* → `layouts` and `imagesets` folders.
 
 **Game logs**
 

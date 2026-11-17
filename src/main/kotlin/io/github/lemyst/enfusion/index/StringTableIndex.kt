@@ -19,8 +19,16 @@ import com.intellij.util.io.KeyDescriptor
  * from the offsets an editor would use — by one character per preceding line. A line number
  * survives that normalisation untouched, and `OpenFileDescriptor` accepts one directly.
  *
+ * Keys are stored in lower case ([normalise]): the engine matches them ignoring case. Vanilla's
+ * `dialog_input_password.layout` writes `#STR_TextInputDialogRoot_WindowLabel0` for the row
+ * `str_textinputdialogroot_windowlabel0`, and 2,300 of the keys vanilla scripts, layouts and
+ * configs use (1,940 of them config `$STR_…` values) match their rows only that way.
+ *
  * No parser is involved. The format is regular, and rename is out of scope, so a language would buy
  * nothing that this does not.
+ *
+ * A stringtable over the platform's IntelliSense size limit is not indexed at all, which is the
+ * case of the vanilla one; [StringTables] reads those directly.
  */
 object StringTableIndex {
 
@@ -43,6 +51,9 @@ object StringTableIndex {
         return trimmed.substring(1, end)
     }
 
+    /** A key as the index stores it and lookups must ask for it. */
+    fun normalise(key: String): String = key.lowercase()
+
     /** The header row names the column set rather than declaring a key. */
     private fun isHeader(key: String): Boolean = key.equals("Language", ignoreCase = true)
 
@@ -51,7 +62,7 @@ object StringTableIndex {
         var line = 0
         for (raw in text.lineSequence()) {
             val key = keyOf(raw)
-            if (key != null && key.isNotEmpty() && !isHeader(key)) result.putIfAbsent(key, line)
+            if (key != null && key.isNotEmpty() && !isHeader(key)) result.putIfAbsent(normalise(key), line)
             line++
         }
         return result
@@ -69,7 +80,7 @@ class EnfusionStringTableIndex : FileBasedIndexExtension<String, Int>() {
     override fun dependsOnFileContent(): Boolean = true
 
     /** Bump on any change to what is indexed or to the meaning of the value. */
-    override fun getVersion(): Int = 1
+    override fun getVersion(): Int = 2
 
     /**
      * Matched by name, not by file type: `.csv` belongs to no plugin here, and a stringtable is

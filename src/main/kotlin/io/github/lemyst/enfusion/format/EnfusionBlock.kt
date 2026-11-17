@@ -23,6 +23,16 @@ import io.github.lemyst.enfusion.psi.EnfusionTypes
  * are indented in `dayzgame.c` against 29 at column 0, and those 29 are top-level wrappers that
  * normal indentation leaves at column 0 anyway. Forcing column 0 -- the obvious guess -- would have
  * been wrong for the large majority.
+ *
+ * The rest of the indentation follows vanilla's majority too, counted over every file of
+ * `P:\scripts`:
+ * - the body of an `if` / `else` / `for` / `foreach` / `while` without braces is one level deeper
+ *   (8,483 lines against 192);
+ * - statements under `case X:` are one level deeper than the label (1,763 against 24), while a `{`
+ *   right after a label stays at its level (649 against 12);
+ * - a line continuing a statement is one level deeper (82 of 122 such lines; the others are
+ *   scattered between two levels back and aligned columns), and a lone closing `)` goes back to the
+ *   statement's level (49 against 5).
  */
 class EnfusionBlock(
     node: ASTNode,
@@ -49,6 +59,33 @@ class EnfusionBlock(
             EnfusionTypes.SWITCH_STMT,
             EnfusionTypes.ARRAY_LITERAL_EXPR,
         )
+
+        /** The statements whose body may be a single statement without braces. */
+        val BODY_OWNERS = setOf(
+            EnfusionTypes.IF_STMT,
+            EnfusionTypes.FOR_STMT,
+            EnfusionTypes.FOREACH_STMT,
+            EnfusionTypes.WHILE_STMT,
+        )
+
+        /**
+         * The rules whose later lines continue the first: expressions, argument and parameter
+         * lists, declarations and `return`. A child that starts a line in one of them is a
+         * continuation line.
+         */
+        val CONTINUED = setOf(
+            EnfusionTypes.ADD_EXPR, EnfusionTypes.AND_EXPR, EnfusionTypes.ASSIGN_EXPR, EnfusionTypes.BIT_AND_EXPR,
+            EnfusionTypes.BIT_OR_EXPR, EnfusionTypes.BIT_XOR_EXPR, EnfusionTypes.CALL_EXPR, EnfusionTypes.CAST_EXPR,
+            EnfusionTypes.EQ_EXPR, EnfusionTypes.EXPR, EnfusionTypes.GENERIC_QUALIFIER_EXPR, EnfusionTypes.INDEX_EXPR,
+            EnfusionTypes.MEMBER_EXPR, EnfusionTypes.MUL_EXPR, EnfusionTypes.NEW_EXPR, EnfusionTypes.OPERAND,
+            EnfusionTypes.OR_EXPR, EnfusionTypes.PAREN_EXPR, EnfusionTypes.REL_EXPR, EnfusionTypes.SHIFT_EXPR,
+            EnfusionTypes.UNARY_EXPR, EnfusionTypes.ARG_LIST, EnfusionTypes.PARAM_LIST, EnfusionTypes.EXPR_LIST,
+            EnfusionTypes.VAR_DECLARATOR, EnfusionTypes.VAR_DECL, EnfusionTypes.LOCAL_VAR_DECL_STMT,
+            EnfusionTypes.RETURN_STMT,
+        )
+
+        /** Tokens that close what a continuation opened, and go back to its first line's level. */
+        val CLOSING = setOf(EnfusionTypes.RPAREN, EnfusionTypes.RBRACKET, EnfusionTypes.SEMICOLON)
     }
 
     override fun buildChildren(): List<Block> {
@@ -86,7 +123,14 @@ class EnfusionBlock(
         }
 
         val parent = myNode.treeParent ?: return Indent.getNoneIndent()
-        if (parent.elementType !in INDENTING) return Indent.getNoneIndent()
+        when (parent.elementType) {
+            in INDENTING -> {}
+            EnfusionTypes.SWITCH_CASE -> return caseIndent()
+            in BODY_OWNERS -> return bodyIndent(parent)
+            in CONTINUED ->
+                return if (type in CLOSING) Indent.getNoneIndent() else Indent.getContinuationWithoutFirstIndent()
+            else -> return Indent.getNoneIndent()
+        }
 
         if (type === EnfusionTypes.LBRACE || type === EnfusionTypes.RBRACE) return Indent.getNoneIndent()
 
@@ -96,6 +140,30 @@ class EnfusionBlock(
         if (start < open.startOffset) return Indent.getNoneIndent()
         if (close != null && start >= close.startOffset) return Indent.getNoneIndent()
         return Indent.getNormalIndent()
+    }
+
+    /** Under `case X:`, a statement is one level deeper, but a `{` block stays at the label's level. */
+    private fun caseIndent(): Indent =
+        if (myNode.elementType === EnfusionTypes.STATEMENT && !isBlock(myNode)) Indent.getNormalIndent() else Indent.getNoneIndent()
+
+    /**
+     * A body without braces is one level deeper than its `if`, `for`, `foreach` or `while`. A body
+     * in braces is not (Allman: the `{` lines up with the statement), and neither is the `if` of an
+     * `else if`, so that a chain of them stays flat.
+     */
+    private fun bodyIndent(parent: ASTNode): Indent {
+        if (myNode.elementType !== EnfusionTypes.STATEMENT || isBlock(myNode)) return Indent.getNoneIndent()
+        if (parent.elementType === EnfusionTypes.IF_STMT && isElseIf(myNode)) return Indent.getNoneIndent()
+        return Indent.getNormalIndent()
+    }
+
+    private fun isBlock(statement: ASTNode): Boolean = statement.firstChildNode?.elementType === EnfusionTypes.BLOCK_STMT
+
+    private fun isElseIf(statement: ASTNode): Boolean {
+        if (statement.firstChildNode?.elementType !== EnfusionTypes.IF_STMT) return false
+        var previous = statement.treePrev
+        while (previous != null && (previous.elementType === TokenType.WHITE_SPACE || previous.textLength == 0)) previous = previous.treePrev
+        return previous?.elementType === EnfusionTypes.ELSE
     }
 
     /**
@@ -114,9 +182,39 @@ class EnfusionBlock(
 
     override fun isLeaf(): Boolean = myNode.firstChildNode == null
 
-    /** Where the caret lands on Enter inside a block. */
+    /**
+     * Where the caret lands on Enter: inside braces, under a `case` label and after an `if (…)` or
+     * loop header still waiting for its body, one level deeper; inside an unfinished expression, at
+     * the continuation indent.
+     */
     override fun getChildAttributes(newChildIndex: Int): ChildAttributes {
-        val indent = if (myNode.elementType in INDENTING) Indent.getNormalIndent() else Indent.getNoneIndent()
+        val indent = when (myNode.elementType) {
+            in INDENTING, EnfusionTypes.SWITCH_CASE -> Indent.getNormalIndent()
+            in BODY_OWNERS -> if (hasBody()) Indent.getNoneIndent() else Indent.getNormalIndent()
+            in CONTINUED -> Indent.getContinuationIndent()
+            else -> Indent.getNoneIndent()
+        }
         return ChildAttributes(indent, null)
+    }
+
+    /**
+     * An `if (…)` or loop header with no body yet is incomplete, so that Enter after it asks this
+     * block where to go rather than its parent. A `case` always is: the statements after it, however
+     * many, belong to it.
+     */
+    override fun isIncomplete(): Boolean = when (myNode.elementType) {
+        EnfusionTypes.SWITCH_CASE -> true
+        in BODY_OWNERS -> !hasBody()
+        // The wrapper around every statement: as finished as the statement it holds, which is what
+        // Enter asks of the block before the caret.
+        EnfusionTypes.STATEMENT -> subBlocks.lastOrNull()?.isIncomplete == true
+        else -> super.isIncomplete()
+    }
+
+    /** Whether the statement has its body: a `STATEMENT` after the closing `)` of its header. */
+    private fun hasBody(): Boolean {
+        var child = myNode.lastChildNode
+        while (child != null && (child.elementType === TokenType.WHITE_SPACE || child.textLength == 0)) child = child.treePrev
+        return child?.elementType === EnfusionTypes.STATEMENT
     }
 }

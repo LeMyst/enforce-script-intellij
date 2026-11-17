@@ -4,13 +4,11 @@ import com.intellij.openapi.project.DumbService
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.ui.ValidationInfo
-import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.JBTextField
 import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.panel
-import com.intellij.util.indexing.FileBasedIndex
-import io.github.lemyst.enfusion.index.StringTableIndex
+import io.github.lemyst.enfusion.index.StringTables
 import io.github.lemyst.enfusion.stringtable.format.StringTableCsv
 import io.github.lemyst.enfusion.stringtable.format.StringTableKeys
 import java.awt.Dimension
@@ -58,7 +56,8 @@ class AddKeyDialog(private val project: Project, private val csv: StringTableCsv
         StringTableKeys.problem(key)?.let { return ValidationInfo(it, keyField) }
         if (csv.rowOf(key) != null) return ValidationInfo("This stringtable already has '$key'", keyField)
         if (DumbService.isDumb(project)) return null
-        val elsewhere = FileBasedIndex.getInstance().getContainingFiles(StringTableIndex.NAME, key, GlobalSearchScope.allScope(project))
+        // Ignoring case, as the engine does: another table's `str_title` is the same key as `STR_TITLE`.
+        val elsewhere = StringTables.filesOf(project, key)
         if (elsewhere.isNotEmpty()) {
             val where = elsewhere.first().parent?.name ?: elsewhere.first().path
             return ValidationInfo("'$key' already exists in the stringtable of $where", keyField)

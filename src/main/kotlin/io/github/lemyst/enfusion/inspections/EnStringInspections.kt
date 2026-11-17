@@ -6,13 +6,12 @@ import com.intellij.codeInspection.ProblemsHolder
 import com.intellij.openapi.project.DumbService
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiElementVisitor
-import com.intellij.psi.search.GlobalSearchScope
-import com.intellij.util.indexing.FileBasedIndex
-import io.github.lemyst.enfusion.index.StringTableIndex
+import io.github.lemyst.enfusion.index.StringTables
 import io.github.lemyst.enfusion.stringtable.CreateStringTableRowFix
 import io.github.lemyst.enfusion.psi.EnfusionTypes
 import io.github.lemyst.enfusion.refs.EnMethodNameReference
 import io.github.lemyst.enfusion.refs.StringTableKeyReference
+import io.github.lemyst.enfusion.refs.StringTableKeyReferenceProvider
 
 /**
  * A dispatch string naming a method the target does not have.
@@ -48,7 +47,8 @@ class EnUnresolvedDispatchNameInspection : LocalInspectionTool() {
 }
 
 /**
- * A `STR_…` key with no row in any stringtable.
+ * A `STR_…` key with no row in any stringtable. Other `#` keys are not reported: most are keys, but
+ * a `#` literal is not surely one.
  *
  * The engine's behaviour on a missing key is to display the key itself, so the mistake reaches the
  * player's screen as `STR_BR_WIN` in raw form rather than as an error anywhere a developer looks.
@@ -61,14 +61,15 @@ class EnUnresolvedStringTableKeyInspection : LocalInspectionTool() {
 
     override fun buildVisitor(holder: ProblemsHolder, isOnTheFly: Boolean): PsiElementVisitor {
         val project = holder.project
-        // With no stringtable indexed at all -- a project that has not had its roots configured --
+        // With no stringtable at all -- a project that has not had its roots configured --
         // every key in the file is unresolved and the inspection would be pure noise.
-        if (DumbService.isDumb(project) || !hasAnyStringTable(project)) return PsiElementVisitor.EMPTY_VISITOR
+        if (DumbService.isDumb(project) || !StringTables.hasAny(project)) return PsiElementVisitor.EMPTY_VISITOR
 
         return object : PsiElementVisitor() {
             override fun visitElement(element: PsiElement) {
                 for (reference in element.references) {
                     if (reference !is StringTableKeyReference) continue
+                    if (!StringTableKeyReferenceProvider.isSurelyKey(reference.value)) continue
                     if (reference.multiResolve(false).isNotEmpty()) continue
                     holder.registerProblem(
                         element,
@@ -80,16 +81,5 @@ class EnUnresolvedStringTableKeyInspection : LocalInspectionTool() {
                 }
             }
         }
-    }
-
-    private fun hasAnyStringTable(project: com.intellij.openapi.project.Project): Boolean {
-        val index = FileBasedIndex.getInstance()
-        val scope = GlobalSearchScope.allScope(project)
-        var found = false
-        index.processAllKeys(StringTableIndex.NAME, { key ->
-            found = index.getContainingFiles(StringTableIndex.NAME, key, scope).isNotEmpty()
-            !found
-        }, project)
-        return found
     }
 }

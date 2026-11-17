@@ -1,7 +1,11 @@
 package io.github.lemyst.enfusion
 
 import com.intellij.psi.PsiPolyVariantReference
+import com.intellij.psi.search.FilenameIndex
+import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
+import com.intellij.util.indexing.FileBasedIndex
+import io.github.lemyst.enfusion.index.StringTableIndex
 import io.github.lemyst.enfusion.refs.StringTableEntry
 
 /**
@@ -138,6 +142,87 @@ class EnfusionStringReferenceTest : BasePlatformTestCase() {
         val reference = myFixture.getReferenceAtCaretPosition()
         assertNotNull("The literal should still be recognised as a key", reference)
         assertNull(reference!!.resolve())
+    }
+
+    /** The engine ignores the case of a key; vanilla writes `#STR_TextInputDialogRoot_…` for `str_textinputdialogroot_…`. */
+    fun testKeyResolvesIgnoringCase() {
+        addStringTable()
+        myFixture.configureByText(
+            "br.es",
+            """
+            class Hud { void Show() { SetText("#str_Br<caret>_Win"); } }
+            """.trimIndent(),
+        )
+        val entry = resolveAtCaret()
+        assertNotNull("#str_Br_Win should resolve to the STR_BR_WIN row", entry)
+        assertEquals(2, lineOf(entry!!))
+    }
+
+    /** Vanilla writes `"#menu_add"` and the like: a `#` key need not start with `STR_`. */
+    fun testHashKeyWithoutStrPrefixResolves() {
+        myFixture.addFileToProject("stringtable.csv", "\"Language\",\"original\"\n\"menu_add\",\"Add\"\n")
+        myFixture.configureByText(
+            "br.es",
+            """
+            class Hud { void Show() { SetText("#menu<caret>_add"); } }
+            """.trimIndent(),
+        )
+        assertNotNull("#menu_add should resolve", resolveAtCaret())
+    }
+
+    /** A bare `str_…` is not taken for a key: with no sigil, a lower-case one is as likely any string. */
+    fun testBareLowerCaseKeyHasNoReference() {
+        addStringTable()
+        myFixture.configureByText(
+            "br.es",
+            """
+            class Hud { void Show() { Print("str_br<caret>_win"); } }
+            """.trimIndent(),
+        )
+        assertNull(myFixture.getReferenceAtCaretPosition())
+    }
+
+    /** `$STR_…` is the config form only. */
+    fun testDollarKeyIsNotAKeyInScript() {
+        addStringTable()
+        myFixture.configureByText(
+            "br.es",
+            """
+            class Hud { void Show() { Print("${'$'}STR_BR<caret>_WIN"); } }
+            """.trimIndent(),
+        )
+        assertNull(myFixture.getReferenceAtCaretPosition())
+    }
+
+    /**
+     * A stringtable over the platform's IntelliSense size limit is not indexed, as the vanilla one
+     * (5 MB) is not; its keys are still found.
+     */
+    fun testKeyInAStringTableTooLargeToIndex() {
+        val text = buildString {
+            append("\"Language\",\"original\"\n")
+            var i = 0
+            while (length < 3_000_000) append("\"str_filler_").append(i++).append("\",\"").append("x".repeat(60)).append("\"\n")
+            append("\"str_big_last\",\"Last\"\n")
+        }
+        val table = myFixture.addFileToProject("languagecore/stringtable.csv", text).virtualFile
+        assertTrue(
+            "the premise: the index has nothing for a file this large",
+            FileBasedIndex.getInstance().getFileData(StringTableIndex.NAME, table, project).isEmpty(),
+        )
+        assertTrue(
+            "and neither has FilenameIndex, so the large ones are looked for in the roots",
+            FilenameIndex.getVirtualFilesByName(StringTableIndex.FILE_NAME, false, GlobalSearchScope.allScope(project)).isEmpty(),
+        )
+        myFixture.configureByText(
+            "br.es",
+            """
+            class Hud { void Show() { SetText("#STR_BIG<caret>_LAST"); } }
+            """.trimIndent(),
+        )
+        val entry = resolveAtCaret()
+        assertNotNull("a key of the large stringtable should resolve", entry)
+        assertEquals(text.lines().indexOfFirst { it.startsWith("\"str_big_last\"") }, lineOf(entry!!))
     }
 
     // ---- asset paths -------------------------------------------------------------------------
