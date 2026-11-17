@@ -364,47 +364,6 @@ class DayZRunConfiguration(project: Project, factory: ConfigurationFactory, name
 
             private fun commandLine(command: List<String>) = GeneralCommandLine(command).withWorkDirectory(File(command.first()).parentFile)
 
-            /**
-             * The generated mods, in a folder of this configuration's own in the IDE's system folder
-             * rather than the project: the ticked loose PBOs copied into one, and the ticked project
-             * addons packed into another, each only where something changed since the last launch.
-             */
-            private fun prepareMods(launch: DayZLaunch, paths: DayZPaths): PreparedMods {
-                val ticked = launch.modList.filter { it.enabled }
-                val pbos = ticked.filter { it.kind == DayZModKind.PBO }.map { Path.of(it.path.trim()) }
-                val addons = ticked.filter { it.kind == DayZModKind.ADDON }.map { Path.of(it.path.trim()) }
-                if (pbos.isEmpty() && addons.isEmpty()) return PreparedMods(null, null, emptyList())
-                val folder = Path.of(PathManager.getSystemPath(), "enfusion", "run-mods", "${project.locationHash}-${stagingName(name)}")
-                val lines = ArrayList<String>()
-                try {
-                    val pboMod = if (pbos.isEmpty()) null else DayZPboStaging.stage(pbos, folder.resolve("pbos")).toString()
-                    var addonMod: String? = null
-                    if (addons.isNotEmpty()) {
-                        val letter = (paths.workDriveLetter ?: "P").first()
-                        val packing = addons.map { DayZAddonPacking.Addon(it, DayZAddonPacking.prefixOf(it, letter)) }
-                        val mod = folder.resolve("addons").resolve("@" + stagingName(project.name))
-                        // The mod's mod.cpp is at the root its addons' prefixes start from (P:\MyMod).
-                        val modRoot = packing.firstNotNullOfOrNull { addon ->
-                            addon.prefix.substringBefore('\\').takeIf { it.isNotEmpty() }?.let { Path.of("$letter:\\", it) }
-                        }
-                        val result = DayZAddonPacking.pack(packing, mod, folder.resolve("manifests"), modRoot?.resolve("mod.cpp"))
-                        lines += buildString {
-                            append("Packed ${result.packed.size} addon(s)")
-                            if (result.packed.isNotEmpty()) append(" (${result.packed.joinToString(", ")})")
-                            append(", ${result.unchanged.size} unchanged")
-                            if (result.removed.isNotEmpty()) append(", removed ${result.removed.joinToString(", ")}")
-                            append(", into $mod.")
-                        }
-                        addonMod = mod.toString()
-                    }
-                    return PreparedMods(pboMod, addonMod, lines)
-                } catch (e: DayZLaunchCommand.Problem) {
-                    throw ExecutionException(e.message)
-                } catch (e: IOException) {
-                    throw ExecutionException("Could not prepare the mods in $folder: ${e.message}")
-                }
-            }
-
             /** Disk work: under a modal progress on the EDT, where a run may be started from. */
             private fun <T> onBackground(title: String, work: () -> T): T {
                 val computable = ThrowableComputable<T, ExecutionException> { work() }
@@ -475,7 +434,49 @@ class DayZRunConfiguration(project: Project, factory: ConfigurationFactory, name
             }
         }
 
-    private class PreparedMods(val pboMod: String?, val addonMod: String?, val lines: List<String>)
+    /**
+     * The generated mods, in a folder of this configuration's own in the IDE's system folder
+     * rather than the project: the ticked loose PBOs copied into one, and the ticked project
+     * addons packed into another, each only where something changed since the last launch.
+     * *Check Scripts* starts its server on the same mods. Disk work: not on the EDT.
+     */
+    internal fun prepareMods(launch: DayZLaunch, paths: DayZPaths): PreparedMods {
+        val ticked = launch.modList.filter { it.enabled }
+        val pbos = ticked.filter { it.kind == DayZModKind.PBO }.map { Path.of(it.path.trim()) }
+        val addons = ticked.filter { it.kind == DayZModKind.ADDON }.map { Path.of(it.path.trim()) }
+        if (pbos.isEmpty() && addons.isEmpty()) return PreparedMods(null, null, emptyList())
+        val folder = Path.of(PathManager.getSystemPath(), "enfusion", "run-mods", "${project.locationHash}-${stagingName(name)}")
+        val lines = ArrayList<String>()
+        try {
+            val pboMod = if (pbos.isEmpty()) null else DayZPboStaging.stage(pbos, folder.resolve("pbos")).toString()
+            var addonMod: String? = null
+            if (addons.isNotEmpty()) {
+                val letter = (paths.workDriveLetter ?: "P").first()
+                val packing = addons.map { DayZAddonPacking.Addon(it, DayZAddonPacking.prefixOf(it, letter)) }
+                val mod = folder.resolve("addons").resolve("@" + stagingName(project.name))
+                // The mod's mod.cpp is at the root its addons' prefixes start from (P:\MyMod).
+                val modRoot = packing.firstNotNullOfOrNull { addon ->
+                    addon.prefix.substringBefore('\\').takeIf { it.isNotEmpty() }?.let { Path.of("$letter:\\", it) }
+                }
+                val result = DayZAddonPacking.pack(packing, mod, folder.resolve("manifests"), modRoot?.resolve("mod.cpp"))
+                lines += buildString {
+                    append("Packed ${result.packed.size} addon(s)")
+                    if (result.packed.isNotEmpty()) append(" (${result.packed.joinToString(", ")})")
+                    append(", ${result.unchanged.size} unchanged")
+                    if (result.removed.isNotEmpty()) append(", removed ${result.removed.joinToString(", ")}")
+                    append(", into $mod.")
+                }
+                addonMod = mod.toString()
+            }
+            return PreparedMods(pboMod, addonMod, lines)
+        } catch (e: DayZLaunchCommand.Problem) {
+            throw ExecutionException(e.message)
+        } catch (e: IOException) {
+            throw ExecutionException("Could not prepare the mods in $folder: ${e.message}")
+        }
+    }
+
+    internal class PreparedMods(val pboMod: String?, val addonMod: String?, val lines: List<String>)
 
     private companion object {
         /** A configuration's name as a folder name. */
