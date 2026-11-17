@@ -203,7 +203,7 @@ inputs.
   (its colour tints its style, so it would be a block of colour). Images show their `image0` (an imageset entry or a texture) or `imageTexture`,
   through the same cache as the texture hover, stretched to their box, tinted by their `color`,
   cut by their `Mask` at their `Progress` and mirrored by `flip u` / `flip v`, and turned by their
-  `rotation` about their `pivot` (the outline stays upright, as in Workbench). Text widgets show
+  `rotation` about their `pivot`, the centre by default (the outline stays upright, as in Workbench). Text widgets show
   their `text` at `"exact text size"` pixels (with `"exact text" 1` and no size, their `font`'s own
   size: 24 for `sdf_MetronBook24`), or `text_proportion` of their height, wrapped to the
   box with `wrap 1` and placed by `"text halign"` / `"text valign"` (top left by default) and

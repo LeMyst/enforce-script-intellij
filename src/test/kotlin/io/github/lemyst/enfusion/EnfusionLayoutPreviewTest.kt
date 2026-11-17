@@ -195,6 +195,23 @@ class EnfusionLayoutPreviewTest : BasePlatformTestCase() {
         assertEquals(Rect(178.0, 0.0, 52.0, 35.0), placed[stomach])
     }
 
+    fun testRotationTurnsAboutTheCentreByDefault() {
+        // day_z_hud's voice levels: turned by 180 with no pivot, still in their boxes in Workbench.
+        val picture = BufferedImage(2, 1, BufferedImage.TYPE_INT_ARGB)
+        picture.setRGB(0, 0, 0xFFFF0000.toInt())
+        picture.setRGB(1, 0, 0xFF0000FF.toInt())
+        fun drawn(vararg more: Pair<String, String>): BufferedImage {
+            val turned = widget("ImageWidgetClass", "size" to "20 10", "position" to "10 10", "hexactsize" to "1", "vexactsize" to "1",
+                "hexactpos" to "1", "vexactpos" to "1", "rotation" to "0 0 180", *more)
+            return LayoutRenderer.render(LayoutGeometry.layout(listOf(turned), 40.0, 30.0), 40, 30, showHidden = false, selected = null) { _, _ -> picture }
+        }
+        val centred = drawn()
+        assertEquals("the blue half now on the left", 0xFF0000FF.toInt(), centred.getRGB(13, 15))
+        assertEquals(0xFFFF0000.toInt(), centred.getRGB(26, 15))
+        // About its top left corner, it lands above and left of its box.
+        assertEquals(0xFFFF0000.toInt(), drawn("pivot" to "0 0").getRGB(8, 5))
+    }
+
     fun testHiddenChildNeverMovesTheOthers() {
         val wide = widget("PanelWidgetClass", "size" to "90 20", "hexactsize" to "1", "vexactsize" to "1", "visible" to "0")
         val small = { widget("PanelWidgetClass", "size" to "30 20", "hexactsize" to "1", "vexactsize" to "1") }

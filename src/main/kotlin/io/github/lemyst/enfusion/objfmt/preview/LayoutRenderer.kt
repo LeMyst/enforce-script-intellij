@@ -255,14 +255,16 @@ object LayoutRenderer {
 
     /**
      * `rotation x y z` turns the widget's picture and text by `z` degrees about its `pivot` (fractions
-     * of its box, 0 0 by default), negative being anticlockwise: the car HUD's needles are drawn
-     * upright and turned, `RPMPointer` by -90 to point left. The outline stays upright, as in
-     * Workbench, and children are not turned.
+     * of its box), negative being anticlockwise: the car HUD's needles are drawn upright and turned,
+     * `RPMPointer` by -90 to point left about its `pivot 0.5 0.77`. With no `pivot`, about the box's
+     * centre: `day_z_hud`'s voice levels, turned by 180, stay in their boxes in Workbench, and
+     * vanilla writes `pivot 0 0` where it wants the corner, which Workbench would not save were it
+     * the default. The outline stays upright, as in Workbench, and children are not turned.
      */
     private fun rotate(g: Graphics2D, spec: WidgetSpec, r: Rect) {
         val degrees = spec.number("rotation", 2, 0.0)
         if (degrees == 0.0) return
-        g.rotate(Math.toRadians(degrees), r.x + spec.number("pivot", 0, 0.0) * r.w, r.y + spec.number("pivot", 1, 0.0) * r.h)
+        g.rotate(Math.toRadians(degrees), r.x + spec.number("pivot", 0, 0.5) * r.w, r.y + spec.number("pivot", 1, 0.5) * r.h)
     }
 
     /**
