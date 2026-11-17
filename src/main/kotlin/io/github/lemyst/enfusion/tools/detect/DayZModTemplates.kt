@@ -22,6 +22,30 @@ object DayZModTemplates {
         MISSION("5_Mission", "missionScriptModule", "Mission"),
     }
 
+    /**
+     * What an addon is for, which decides the dialog's defaults: its folder, its script modules,
+     * its `requiredAddons[]`, and the folders or files it starts with. A mod usually splits into
+     * addons like these, each its own PBO.
+     */
+    enum class AddonKind(
+        val label: String,
+        val folder: String,
+        val modules: Set<Module>,
+        val requiredAddons: List<String>,
+        /** Folders created inside the addon. */
+        val subfolders: List<String> = emptyList(),
+        /** Whether the addon starts with a `stringtable.csv`. */
+        val stringTable: Boolean = false,
+    ) {
+        SCRIPTS("Scripts", "Scripts", setOf(Module.GAME, Module.WORLD, Module.MISSION), listOf("DZ_Data", "DZ_Scripts")),
+        DATA("Data: models, textures, item configs", "Data", emptySet(), listOf("DZ_Data")),
+        GUI("GUI: layouts and imagesets", "GUI", emptySet(), listOf("DZ_Data"), subfolders = listOf("layouts", "imagesets")),
+        LANGUAGE("Language: stringtable.csv", "LanguageCore", emptySet(), listOf("DZ_Data"), stringTable = true),
+        ;
+
+        override fun toString(): String = label
+    }
+
     /** What `mod.cpp` says about the mod in the launcher. */
     data class ModInfo(
         val name: String,

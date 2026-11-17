@@ -546,6 +546,11 @@ working in the folder chosen.
   plugin's own licence text), a `README.md` and a `.gitignore` for built PBOs, signatures, private
   keys, logs and the IDE's folder. *Then create its first addon* opens *DayZ Addon* in the new folder.
 - **DayZ Addon:** an addon folder with a `config.cpp` that is right the first time.
+  - **Kind**, which sets the defaults below: *Scripts* (folder `Scripts`, modules `3_Game` to
+    `5_Mission`, `DZ_Data` and `DZ_Scripts`), *Data* for models, textures and item configs
+    (`Data`, no module, `DZ_Data`), *GUI* (`GUI`, with `layouts` and `imagesets` folders) and
+    *Language* (`LanguageCore`, with a `stringtable.csv` holding vanilla's header). The dialog
+    starts on the first kind whose folder the mod does not have yet; everything stays editable.
   - **Prefix:** prefilled with the folder's path on the work drive, through the drive's link to the
     project as *Rescan Project Addons* finds it (`MyMod\Scripts`). Without a link, the path from the
     folder holding the project, since a checkout is usually named after its mod.
@@ -978,6 +983,9 @@ mod called BattleRoyale):
   prefix. *Build PBO* on its folder builds it.
 - Choose a folder that already has a `config.cpp`, or a class name starting with a digit → the
   dialog says so and *OK* stays disabled.
+- *DayZ Addon* again on the same mod → it starts on *Data*. Switch the kind to *Language* → folder
+  `LanguageCore`, no module ticked, only `DZ_Data`; *OK* → a `stringtable.csv` with vanilla's
+  header and a `config.cpp` with no `CfgMods`. *GUI* → `layouts` and `imagesets` folders.
 
 **Building PBOs**
 

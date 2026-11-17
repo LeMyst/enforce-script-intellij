@@ -18,14 +18,16 @@ import com.intellij.ui.dsl.builder.columns
 import com.intellij.ui.dsl.builder.panel
 import com.intellij.util.ui.JBUI
 import io.github.lemyst.enfusion.tools.detect.DayZModTemplates
+import io.github.lemyst.enfusion.tools.detect.DayZModTemplates.AddonKind
 import io.github.lemyst.enfusion.tools.detect.DayZModTemplates.Module
 import java.awt.Dimension
 import javax.swing.JComponent
 import javax.swing.event.DocumentEvent
 
 /**
- * *New DayZ Addon*: the folder, the `CfgPatches` class, the prefix, `requiredAddons[]` and the
- * script modules. The class and the prefix follow the folder's name until they are edited.
+ * *New DayZ Addon*: what kind of addon, the folder, the `CfgPatches` class, the prefix,
+ * `requiredAddons[]` and the script modules. The kind sets the folder, the modules and the
+ * required addons; the class and the prefix follow the folder's name until they are edited.
  */
 internal class NewDayZAddonDialog(
     project: Project,
@@ -35,13 +37,15 @@ internal class NewDayZAddonDialog(
 ) : DialogWrapper(project) {
 
     private val modFolder = context.parentPrefix.substringAfterLast('\\').ifEmpty { parent.name }
-    private val folderField = JBTextField(if (parent.findChild("Scripts") == null) "Scripts" else "")
+    private val kindBox = ComboBox(AddonKind.entries.toTypedArray())
+    private val folderField = JBTextField()
+    private var folderEdited = false
     private val nameField = JBTextField()
     private val prefixField = JBTextField()
     private val modNameField = JBTextField(modName)
     private val definesField = JBTextField()
     private val pboPrefix = JBCheckBox("Write a \$PBOPREFIX\$ file", true)
-    private val moduleBoxes = Module.entries.associateWith { JBCheckBox(it.folder, it in DEFAULT_MODULES) }
+    private val moduleBoxes = Module.entries.associateWith { JBCheckBox(it.folder) }
     private val search = SearchTextField(false)
     private val required = CheckBoxList<String>()
 
@@ -53,11 +57,15 @@ internal class NewDayZAddonDialog(
 
     init {
         title = "New DayZ Addon"
-        ticked += "DZ_Data"
-        if (moduleBoxes.any { it.value.isSelected }) ticked += "DZ_Scripts"
-        follow()
+        // The first kind whose folder is not taken: a mod's second addon is rarely its scripts again.
+        kindBox.selectedItem = AddonKind.entries.firstOrNull { parent.findChild(it.folder)?.findChild("config.cpp") == null } ?: AddonKind.SCRIPTS
+        applyKind()
+        kindBox.addActionListener { applyKind() }
         folderField.document.addDocumentListener(object : DocumentAdapter() {
-            override fun textChanged(e: DocumentEvent) = follow()
+            override fun textChanged(e: DocumentEvent) {
+                if (!updating) folderEdited = true
+                follow()
+            }
         })
         nameField.document.addDocumentListener(edited { nameEdited = true })
         prefixField.document.addDocumentListener(edited { prefixEdited = true })
@@ -88,6 +96,24 @@ internal class NewDayZAddonDialog(
         }
     }
 
+    private val kind: AddonKind get() = kindBox.selectedItem as? AddonKind ?: AddonKind.SCRIPTS
+
+    /** The kind's folder (unless one was typed), modules and required addons. */
+    private fun applyKind() {
+        val kind = kind
+        updating = true
+        try {
+            if (!folderEdited) folderField.text = kind.folder
+        } finally {
+            updating = false
+        }
+        follow()
+        ticked.clear()
+        ticked += kind.requiredAddons
+        moduleBoxes.forEach { (module, box) -> box.isSelected = module in kind.modules }
+        fill()
+    }
+
     /** The class and the prefix, from the folder, unless they were edited. */
     private fun follow() {
         updating = true
@@ -110,6 +136,10 @@ internal class NewDayZAddonDialog(
     }
 
     override fun createCenterPanel(): JComponent = panel {
+        row("Kind:") {
+            cell(kindBox)
+                .comment("Sets the folder, the script modules and requiredAddons[]. GUI adds layouts and imagesets folders, Language a stringtable.csv.")
+        }
         row("Folder:") {
             cell(folderField).columns(COLUMNS_LARGE).align(AlignX.FILL)
                 .comment("Created in ${parent.presentableUrl}")
@@ -171,11 +201,8 @@ internal class NewDayZAddonDialog(
             defines = definesField.text.split(' ', ',').map { it.trim() }.filter { it.isNotEmpty() },
         ),
         pboPrefix = pboPrefix.isSelected,
+        kind = kind,
     )
-
-    private companion object {
-        val DEFAULT_MODULES = setOf(Module.GAME, Module.WORLD, Module.MISSION)
-    }
 }
 
 /** *New DayZ Mod*: the folder, what `mod.cpp` says, and the files to start the repository with. */

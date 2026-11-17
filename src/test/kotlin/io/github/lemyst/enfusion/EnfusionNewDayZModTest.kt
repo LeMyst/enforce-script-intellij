@@ -116,4 +116,28 @@ class EnfusionNewDayZModTest : BasePlatformTestCase() {
         assertEquals(parent, mod)
         assertEquals(listOf("mod.cpp"), parent.children.map { it.name })
     }
+
+    /** The kinds other than scripts: no script module, and what each starts with. */
+    fun testAddonKinds() {
+        val mod = myFixture.tempDirFixture.findOrCreateDir("Kinds")
+        fun create(kind: DayZModTemplates.AddonKind) = NewDayZFiles.createAddon(
+            project, mod,
+            NewDayZFiles.AddonSpec(
+                kind.folder,
+                DayZModTemplates.Addon("Kinds_${kind.folder}", "Kinds\\${kind.folder}", kind.requiredAddons, kind.modules),
+                pboPrefix = true,
+                kind = kind,
+            ),
+        ).parent
+        val language = create(DayZModTemplates.AddonKind.LANGUAGE)
+        assertEquals("LanguageCore", language.name)
+        val table = String(language.findChild("stringtable.csv")!!.contentsToByteArray())
+        assertTrue(table, table.startsWith("\"Language\",\"original\","))
+        val config = String(language.findChild("config.cpp")!!.contentsToByteArray())
+        assertFalse("no script module, no CfgMods", config.contains("CfgMods"))
+        assertTrue(config, config.contains("\"DZ_Data\"") && !config.contains("DZ_Scripts"))
+        val gui = create(DayZModTemplates.AddonKind.GUI)
+        assertEquals(listOf("\$PBOPREFIX\$", "config.cpp", "imagesets", "layouts"), gui.children.map { it.name }.sorted())
+        assertEquals(setOf(Module.GAME, Module.WORLD, Module.MISSION), DayZModTemplates.AddonKind.SCRIPTS.modules)
+    }
 }

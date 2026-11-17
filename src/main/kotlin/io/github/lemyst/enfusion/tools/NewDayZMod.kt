@@ -17,6 +17,7 @@ import com.intellij.psi.PsiManager
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.util.indexing.FileBasedIndex
 import io.github.lemyst.enfusion.index.EnfusionConfigIndexes
+import io.github.lemyst.enfusion.stringtable.format.StringTableCsv
 import io.github.lemyst.enfusion.tools.detect.DayZModTemplates
 import io.github.lemyst.enfusion.tools.detect.WorkDriveLink
 import java.nio.file.Files
@@ -98,6 +99,8 @@ internal object NewDayZFiles {
         val folder: String,
         val addon: DayZModTemplates.Addon,
         val pboPrefix: Boolean,
+        /** The folders and files it starts with besides `config.cpp`. */
+        val kind: DayZModTemplates.AddonKind = DayZModTemplates.AddonKind.SCRIPTS,
     )
 
     /** A new mod: its folder (the chosen one itself when empty), `mod.cpp` and the templates ticked. */
@@ -118,6 +121,10 @@ internal object NewDayZFiles {
             for (module in DayZModTemplates.Module.entries.filter { it in spec.addon.modules }) {
                 val moduleDir = VfsUtil.createDirectoryIfMissing(dir, module.folder) ?: continue
                 if (moduleDir.children.isEmpty()) write(moduleDir, "${spec.addon.name}.c", DayZModTemplates.moduleScript(module))
+            }
+            spec.kind.subfolders.forEach { VfsUtil.createDirectoryIfMissing(dir, it) }
+            if (spec.kind.stringTable && dir.findChild("stringtable.csv") == null) {
+                write(dir, "stringtable.csv", StringTableCsv.headerLine(StringTableCsv.DEFAULT_COLUMNS) + "\n")
             }
             config
         }
