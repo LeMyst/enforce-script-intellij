@@ -178,6 +178,23 @@ class EnfusionLayoutPreviewTest : BasePlatformTestCase() {
         assertEquals(Rect(20.0, 0.0, 40.0, 20.0), first("content_halign" to "right"))
     }
 
+    fun testRightAlignedChildrenFlowFromTheRight() {
+        // day_z_hud's BadgesPanel: content_halign right, every badge right_ref, the first declared
+        // drawn rightmost in Workbench.
+        fun badge(w: Int) = widget("ImageWidgetClass", "size" to "$w 35", "hexactsize" to "1", "vexactsize" to "1", "halign" to "right_ref")
+        val wetness = badge(35)
+        val fracture = badge(35)
+        val stomach = badge(52)
+        val panel = widget(
+            "WrapSpacerWidgetClass", "size" to "300 79", "hexactsize" to "1", "vexactsize" to "1", "content_halign" to "right",
+            children = listOf(wetness, fracture, stomach),
+        )
+        val placed = LayoutGeometry.layout(listOf(panel), 1000.0, 500.0).associate { it.spec to it.rect }
+        assertEquals(Rect(265.0, 0.0, 35.0, 35.0), placed[wetness])
+        assertEquals(Rect(230.0, 0.0, 35.0, 35.0), placed[fracture])
+        assertEquals(Rect(178.0, 0.0, 52.0, 35.0), placed[stomach])
+    }
+
     fun testHiddenChildNeverMovesTheOthers() {
         val wide = widget("PanelWidgetClass", "size" to "90 20", "hexactsize" to "1", "vexactsize" to "1", "visible" to "0")
         val small = { widget("PanelWidgetClass", "size" to "30 20", "hexactsize" to "1", "vexactsize" to "1") }

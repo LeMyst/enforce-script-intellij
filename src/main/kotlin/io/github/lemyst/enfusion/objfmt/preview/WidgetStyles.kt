@@ -31,8 +31,14 @@ object WidgetStyles {
         }
     }
 
-    /** A style: its imageset, and the pictures of each state by piece (states by lower-case name). */
-    class Style(val name: String, val imageSet: String, val states: Map<String, Map<Piece, String>>) {
+    /**
+     * A style: its imageset, the pictures of each state by piece (states by lower-case name), and
+     * its own `Color`, an ARGB integer, which tints a widget that sets no `color`: vanilla's are
+     * white (`4294967295`) or transparent (`0`, and three blues with no alpha). `Colorable` is white
+     * pixels with `Color="0"`, so `day_z_hud`'s `QuickbarGrid`, wearing it with no colour, shows
+     * nothing in Workbench rather than a white bar.
+     */
+    class Style(val name: String, val imageSet: String, val states: Map<String, Map<Piece, String>>, val color: Int? = null) {
         /** The pieces of [state] that name a picture; empty when the style draws nothing in it. */
         fun frame(state: String = "Normal"): Map<Piece, String> = states[state.lowercase()].orEmpty()
     }
@@ -72,6 +78,7 @@ object WidgetStyles {
         var widget: LinkedHashMap<String, Style>? = null
         var styleName: String? = null
         var imageSet = ""
+        var color: Int? = null
         var states = LinkedHashMap<String, Map<Piece, String>>()
         var state: String? = null
         var pieces = LinkedHashMap<Piece, String>()
@@ -85,7 +92,7 @@ object WidgetStyles {
         fun closeStyle() {
             closeState()
             val name = styleName
-            if (name != null) widget?.putIfAbsent(name.lowercase(), Style(name, imageSet, states))
+            if (name != null) widget?.putIfAbsent(name.lowercase(), Style(name, imageSet, states, color))
             styleName = null
             states = LinkedHashMap()
         }
@@ -107,6 +114,7 @@ object WidgetStyles {
                     if (!closing) {
                         styleName = attributes["name"]
                         imageSet = attributes["imageset"].orEmpty()
+                        color = attributes["color"]?.trim()?.toLongOrNull()?.takeIf { it in 0..0xFFFFFFFFL }?.toInt()
                         if (selfClosing) closeStyle()
                     }
                 }

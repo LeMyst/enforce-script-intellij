@@ -29,6 +29,11 @@ class EnfusionWidgetStylesTest : TestCase() {
                 <Style Name="blank" Font="" ImageSet="my_set" Color="4294967295">
                     <State Name="Normal" />
                 </Style>
+                <Style Name="Colorable" Font="" ImageSet="my_set" Color="0">
+                    <State Name="Normal">
+                        <Item Name="Center" Image="WhitePixel" />
+                    </State>
+                </Style>
             </Widget>
             <Widget Name="ButtonWidget">
                 <Style Name="Default" Font="" ImageSet="other_set" Color="4294967295">
@@ -52,6 +57,8 @@ class EnfusionWidgetStylesTest : TestCase() {
         assertNull("a panel has no Default", sheet.styleOf("PanelWidgetClass", null))
         assertNull(sheet.styleOf("PanelWidgetClass", "nope"))
         assertNull(sheet.styleOf("TextWidgetClass", "framed"))
+        assertEquals("a style's own colour", -1, framed.color)
+        assertEquals("transparent", 0, sheet.styleOf("PanelWidgetClass", "colorable")!!.color)
     }
 
     fun testFirstSheetWinsOnTheSameName() {

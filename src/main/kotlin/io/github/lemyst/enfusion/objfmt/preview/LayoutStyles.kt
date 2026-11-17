@@ -51,8 +51,9 @@ object LayoutStyles {
 
     /**
      * The frames of [specs] that wear a style with pictures in its `Normal` state, tinted by their
-     * `color`. A widget whose style is unknown, draws nothing, or whose pictures are all missing
-     * is left out, and keeps its plain colour.
+     * `color`, or the style's own when they set none ([WidgetStyles.Style.color]). A widget whose
+     * style is unknown, draws nothing, is tinted fully transparent, or whose pictures are all
+     * missing is left out, and keeps its plain colour.
      */
     fun frames(project: Project, specs: Collection<WidgetSpec>, sheet: WidgetStyles.Sheet = sheet(project)): Map<WidgetSpec, LayoutRenderer.Frame> {
         if (DumbService.isDumb(project)) return emptyMap()
@@ -62,10 +63,11 @@ object LayoutStyles {
             val style = sheet.styleOf(spec.type, spec.value("style")) ?: continue
             val names = style.frame()
             if (names.isEmpty()) continue
+            val tint = spec.color ?: style.color
+            if (tint != null && tint ushr 24 == 0) continue
             val pieces = names.mapNotNull { (piece, image) ->
                 val picture = pictures.getOrPut(style.imageSet to image) { picture(project, style.imageSet, image) } ?: return@mapNotNull null
-                val tint = spec.color
-                piece to if (tint == null) picture else LayoutRenderer.Picture(LayoutImages.tint(picture.image, tint), picture.width, picture.height)
+                piece to if (tint == null || tint == -1) picture else LayoutRenderer.Picture(LayoutImages.tint(picture.image, tint), picture.width, picture.height)
             }.toMap()
             if (pieces.isNotEmpty()) result[spec] = LayoutRenderer.Frame(pieces)
         }

@@ -96,6 +96,28 @@ class EnfusionLayoutPreviewCorpusTest : BasePlatformTestCase() {
     }
 
     /**
+     * `day_z_hud`, against the author's Workbench screenshot: its badges are drawn right to left
+     * (`Wetness`, declared first, rightmost), and its `QuickbarGrid`, wearing `Colorable` with no
+     * colour of its own, draws nothing, where the preview had drawn a white bar across the screen.
+     */
+    fun testVanillaHudBadgesAndQuickbar() {
+        val gui = System.getProperty("enfusion.layout.roots").orEmpty().split(';').map { File(it.trim()) }
+            .firstOrNull { File(it, "looknfeel/dayzwidgets.styles").isFile && File(it, "layouts/day_z_hud.layout").isFile }
+        if (gui == null) {
+            println("[hud] no vanilla gui folder under the layout roots, skipping")
+            return
+        }
+        myFixture.addFileToProject("gui/looknfeel/dayzwidgets.styles", File(gui, "looknfeel/dayzwidgets.styles").readText().replace("\r\n", "\n"))
+        val psi = myFixture.addFileToProject("gui/layouts/hud.layout", File(gui, "layouts/day_z_hud.layout").readText().replace("\r\n", "\n"))
+        val placed = LayoutGeometry.layout(LayoutSpecs.of(psi), 1920.0, 1080.0)
+        val byName = placed.associateBy { it.spec.name }
+        val badges = listOf("Wetness", "Fracture", "Stomach", "Sick", "Pills", "Poisoned", "Bleeding", "Shock", "InjuredLegs").map { byName.getValue(it).rect.x }
+        assertEquals("right to left in declaration order: $badges", badges.sortedDescending(), badges)
+        val frames = LayoutStyles.frames(project, placed.map { it.spec })
+        assertNull("Colorable with no colour draws nothing", frames[byName.getValue("QuickbarGrid").spec])
+    }
+
+    /**
      * Every `.fnt` font under the layout roots in the two versions [FontFiles] reads (`FNT3`, `FNT5`)
      * reads, with the size its name ends with when it has one, and a line height no shorter than
      * that size for each distance-field font (`FNT5`). Other versions are counted, not failed:
