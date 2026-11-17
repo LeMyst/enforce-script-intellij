@@ -96,8 +96,9 @@ class EnfusionLayoutPreviewCorpusTest : BasePlatformTestCase() {
     }
 
     /**
-     * `day_z_hud`, against the author's Workbench screenshot: its badges are drawn right to left
-     * (`Wetness`, declared first, rightmost), and its `QuickbarGrid`, wearing `Colorable` with no
+     * `day_z_hud`, against the author's Workbench screenshots: its badges are drawn right to left
+     * (`Wetness`, declared first, rightmost), its voice levels left to right (`Whisper` first), and
+     * its `QuickbarGrid`, wearing `Colorable` with no
      * colour of its own, draws nothing, where the preview had drawn a white bar across the screen.
      */
     fun testVanillaHudBadgesAndQuickbar() {
@@ -113,6 +114,8 @@ class EnfusionLayoutPreviewCorpusTest : BasePlatformTestCase() {
         val byName = placed.associateBy { it.spec.name }
         val badges = listOf("Wetness", "Fracture", "Stomach", "Sick", "Pills", "Poisoned", "Bleeding", "Shock", "InjuredLegs").map { byName.getValue(it).rect.x }
         assertEquals("right to left in declaration order: $badges", badges.sortedDescending(), badges)
+        val levels = listOf("Whisper", "Talk", "Shout").map { byName.getValue(it).rect.x }
+        assertEquals("the voice levels left to right: $levels", levels.sorted(), levels)
         val frames = LayoutStyles.frames(project, placed.map { it.spec })
         assertNull("Colorable with no colour draws nothing", frames[byName.getValue("QuickbarGrid").spec])
     }

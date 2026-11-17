@@ -359,10 +359,11 @@ object LayoutGeometry {
      * holds `bottom` (Continue, Respawn), the red separator, then `top` (Exit, Feedback, Options),
      * and shows `top` above the separator above `bottom`.
      *
-     * A child that says `halign right_ref` counts its place in the line from the line's right end,
-     * as a right-aligned position counts inwards from the right edge: `day_z_hud`'s `BadgesPanel`
-     * declares `Wetness` first and Workbench draws it rightmost, the other badges leftwards in turn.
-     * 24 vanilla wrap spacers have `content_halign right` and only `right_ref` children.
+     * `content_halign right` also fills each line from its right end, in declaration order:
+     * `day_z_hud`'s `BadgesPanel` declares `Wetness` first and Workbench draws it rightmost, the
+     * other badges leftwards in turn. The children's own `halign` plays no part, like the rest of
+     * their position: `VoiceLevelsPanel`, with no `content_halign` and only `right_ref` children,
+     * shows them left to right in Workbench, `Whisper`, `Talk` then `Shout`.
      */
     private fun flow(spec: WidgetSpec, rect: Rect): List<Pair<WidgetSpec, Rect>> {
         val lines = lines(spec, rect)
@@ -383,7 +384,7 @@ object LayoutGeometry {
             if (valign == "bottom") y -= line.h
             val x = rect.x + (rect.w - line.w) * across
             for ((child, r) in line.items) {
-                val from = if (child.value("halign") == "right_ref") line.w - r.x - r.w else r.x
+                val from = if (across == 1.0) line.w - r.x - r.w else r.x
                 out += child to Rect(x + from, y, r.w, r.h)
             }
             if (valign != "bottom") y += line.h

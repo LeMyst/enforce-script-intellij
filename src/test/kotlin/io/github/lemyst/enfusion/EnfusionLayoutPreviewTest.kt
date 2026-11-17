@@ -175,12 +175,13 @@ class EnfusionLayoutPreviewTest : BasePlatformTestCase() {
         }
         assertEquals(Rect(0.0, 0.0, 40.0, 20.0), first())
         assertEquals("80 wide line centred in 100", Rect(10.0, 30.0, 40.0, 20.0), first("content_halign" to "center", "content_valign" to "center"))
-        assertEquals(Rect(20.0, 0.0, 40.0, 20.0), first("content_halign" to "right"))
+        assertEquals("the first child at the right end of its line", Rect(60.0, 0.0, 40.0, 20.0), first("content_halign" to "right"))
     }
 
-    fun testRightAlignedChildrenFlowFromTheRight() {
-        // day_z_hud's BadgesPanel: content_halign right, every badge right_ref, the first declared
-        // drawn rightmost in Workbench.
+    fun testContentHalignRightFillsLinesFromTheRight() {
+        // day_z_hud's BadgesPanel: content_halign right, the first badge declared drawn rightmost in
+        // Workbench. Its VoiceLevelsPanel: no content_halign, its levels left to right, although
+        // they say right_ref too.
         fun badge(w: Int) = widget("ImageWidgetClass", "size" to "$w 35", "hexactsize" to "1", "vexactsize" to "1", "halign" to "right_ref")
         val wetness = badge(35)
         val fracture = badge(35)
@@ -193,6 +194,13 @@ class EnfusionLayoutPreviewTest : BasePlatformTestCase() {
         assertEquals(Rect(265.0, 0.0, 35.0, 35.0), placed[wetness])
         assertEquals(Rect(230.0, 0.0, 35.0, 35.0), placed[fracture])
         assertEquals(Rect(178.0, 0.0, 52.0, 35.0), placed[stomach])
+
+        val whisper = badge(9)
+        val talk = badge(9)
+        val levels = widget("WrapSpacerWidgetClass", "size" to "40 31", "hexactsize" to "1", "vexactsize" to "1", children = listOf(whisper, talk))
+        val voice = LayoutGeometry.layout(listOf(levels), 1000.0, 500.0).associate { it.spec to it.rect }
+        assertEquals(0.0, voice.getValue(whisper).x)
+        assertEquals(9.0, voice.getValue(talk).x)
     }
 
     fun testRotationTurnsAboutTheCentreByDefault() {
