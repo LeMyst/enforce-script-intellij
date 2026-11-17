@@ -234,6 +234,10 @@ Opening a real DayZ mod. The examples below use a mod called MyMod.
 - Use one of the icons in a layout (`image0 "set:<name> image:<icon>"`) → the layout preview shows
   it. In game, the icon shows, with no neighbour bleeding into its edge.
 - A folder with two `icon.png` in different subfolders → refused, naming `icon`.
+- Pack the same folder as *DXT5* with *Compress the mipmaps with LZ4* → a much smaller `.edds` that
+  the viewer opens as DXT5 with `LZ4` mips. **In game**, use an icon from it in a layout: it shows,
+  with its soft edges. Do the same with *DXT1* on opaque icons.
+- Choose *DXT1* for pictures with soft edges → a warning before packing.
 
 ## DayZ installation
 
