@@ -1,15 +1,20 @@
 package io.github.lemyst.enfusion.hints
 
-import com.intellij.codeInsight.hints.HintInfo
-import com.intellij.codeInsight.hints.InlayInfo
-import com.intellij.codeInsight.hints.InlayParameterHintsProvider
+import com.intellij.codeInsight.hints.declarative.HintFormat
+import com.intellij.codeInsight.hints.declarative.InlayHintsCollector
+import com.intellij.codeInsight.hints.declarative.InlayHintsProvider
+import com.intellij.codeInsight.hints.declarative.InlayTreeSink
+import com.intellij.codeInsight.hints.declarative.InlineInlayPosition
+import com.intellij.codeInsight.hints.declarative.SharedBypassCollector
+import com.intellij.openapi.editor.Editor
 import com.intellij.psi.PsiComment
 import com.intellij.psi.PsiElement
+import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiPolyVariantReference
 import com.intellij.psi.PsiWhiteSpace
 import com.intellij.psi.util.PsiTreeUtil
-import io.github.lemyst.enfusion.lang.EnfusionLanguage
 import io.github.lemyst.enfusion.psi.EnNamedElement
+import io.github.lemyst.enfusion.psi.EnfusionFile
 import io.github.lemyst.enfusion.psi.EnfusionTypes
 import io.github.lemyst.enfusion.psi.impl.EnClassDeclMixin
 import io.github.lemyst.enfusion.psi.impl.EnMethodDeclMixin
@@ -19,61 +24,78 @@ import io.github.lemyst.enfusion.resolve.EnCallTargets
  * Parameter names before the literal arguments of a call: in
  * `CallLater(Refresh, 1000, false)`, is `false` *repeat*?
  *
+ * A declarative provider, not the platform's `InlayParameterHintsProvider`: that one and every
+ * class it takes (`InlayInfo`, `HintInfo`) are experimental API, which the Plugin Verifier
+ * reports; the declarative API is not. The cost is the platform's editable exclude list, so the
+ * list here is fixed ([EnParameterNameHints.EXCLUDED]).
+ *
  * Literals only, as Java does: a number, `true` / `false`, `null` or a string, or a negated
  * number. A name or a constant usually says what it is (`ECE_PLACE_ON_SURFACE`). Shown only when
  * every overload the call may mean has the same parameter name at that position, so a hint is
  * never a guess; and not for a one-parameter setter, whose name already says it.
- *
- * The exclude list (*Settings → Editor → Inlay Hints → Parameter names*) starts with the calls
- * whose arguments are obvious: printing, maths, container access.
  */
-class EnParameterNameHintsProvider : InlayParameterHintsProvider {
+class EnParameterNameHintsProvider : InlayHintsProvider {
 
-    override fun getParameterHints(element: PsiElement): List<InlayInfo> {
+    override fun createCollector(file: PsiFile, editor: Editor): InlayHintsCollector? =
+        if (file is EnfusionFile) Collector else null
+
+    private object Collector : SharedBypassCollector {
+        override fun collectFromElement(element: PsiElement, sink: InlayTreeSink) {
+            for ((offset, name) in EnParameterNameHints.hintsFor(element)) {
+                sink.addPresentation(InlineInlayPosition(offset, relatedToPrevious = false), hintFormat = HintFormat.default) {
+                    text("$name:")
+                }
+            }
+        }
+    }
+}
+
+internal object EnParameterNameHints {
+
+    /**
+     * Calls whose arguments are obvious, as `Class.Method` patterns where `*` is any run of
+     * characters: printing, maths, container access, and the `Param` holders, whose arguments
+     * are just the next value.
+     */
+    val EXCLUDED = listOf(
+        "Print", "PrintFormat", "Error", "Error2", "ErrorEx", "DPrint", "PrintString",
+        "Math.*", "Vector", "*.Clamp",
+        "*.Get", "*.Set", "*.Insert", "*.InsertAt", "*.Find", "*.Remove", "*.RemoveItem",
+        "*.Contains", "*.IndexOf", "string.Format", "*.Substring", "*.Replace", "*.Split",
+        "Param*.Param*",
+    )
+
+    private val excluded: List<Regex> = EXCLUDED.map { pattern ->
+        Regex(pattern.split('*').joinToString(".*") { Regex.escape(it) })
+    }
+
+    /** `Class.Method`, or the bare name of a free function, as [EXCLUDED] matches it. */
+    fun qualifiedName(method: EnMethodDeclMixin): String {
+        val owner = PsiTreeUtil.getParentOfType(method, EnClassDeclMixin::class.java)?.name
+        return listOfNotNull(owner, method.name).joinToString(".")
+    }
+
+    fun isExcluded(qualifiedName: String): Boolean = excluded.any { it.matches(qualifiedName) }
+
+    /** The hints of the argument list [element]: each at a literal argument's start, with its name. */
+    fun hintsFor(element: PsiElement): List<Pair<Int, String>> {
         val call = EnCalls.ofArgList(element) ?: return emptyList()
         val arguments = EnCalls.arguments(element)
         if (arguments.none(EnCalls::isLiteral)) return emptyList()
         val methods = EnCalls.methodsOf(call, arguments.size)
-        if (methods.isEmpty()) return emptyList()
+        if (methods.isEmpty() || methods.any { isExcluded(qualifiedName(it)) }) return emptyList()
         val names = methods.map(EnCalls::parameterNames)
         if (names.first().size == 1 && methods.first().name?.startsWith("Set") == true) return emptyList()
 
-        val hints = ArrayList<InlayInfo>()
+        val hints = ArrayList<Pair<Int, String>>()
         for ((index, argument) in arguments.withIndex()) {
             if (!EnCalls.isLiteral(argument)) continue
             val name = names.first().getOrNull(index) ?: continue
             if (name.isEmpty() || names.any { it.getOrNull(index) != name }) continue
-            hints += InlayInfo(name, argument.textRange.startOffset)
+            hints += argument.textRange.startOffset to name
         }
         return hints
     }
-
-    /** `Math.Clamp` with its parameter names, which the exclude list's patterns match. */
-    override fun getHintInfo(element: PsiElement): HintInfo? {
-        val call = EnCalls.ofArgList(element) ?: return null
-        val method = EnCalls.methodsOf(call, EnCalls.arguments(element).size).firstOrNull() ?: return null
-        val owner = PsiTreeUtil.getParentOfType(method, EnClassDeclMixin::class.java)?.name
-        val name = listOfNotNull(owner, method.name).joinToString(".")
-        return HintInfo.MethodInfo(name, EnCalls.parameterNames(method), EnfusionLanguage)
-    }
-
-    override fun getDefaultBlackList(): Set<String> = setOf(
-        // Printing and errors: the one argument is the message.
-        "Print", "PrintFormat", "Error", "Error2", "ErrorEx", "DPrint", "PrintString",
-        // Maths: the parameter names (`a`, `b`, `min`, `max`) add nothing.
-        "Math.*", "Vector", "*.Clamp",
-        // Containers and strings: element access reads plainly.
-        "*.Get", "*.Set", "*.Insert", "*.InsertAt", "*.Find", "*.Remove", "*.RemoveItem",
-        "*.Contains", "*.IndexOf", "string.Format", "*.Substring", "*.Replace", "*.Split",
-        // Construction of the `Param` holders: each argument is just the next value.
-        "Param*.Param*",
-    )
-
-    override fun getSettingsPreview(): String =
-        "class Preview\n{\n\tvoid Run(Object item)\n\t{\n\t\tGetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(Run, 1000, false, item);\n\t}\n}\n"
-
-    override fun getDescription(): String =
-        "Parameter names before number, boolean, null and string arguments of a call"
 }
 
 /** The call around an argument list, its arguments, and what it calls. */

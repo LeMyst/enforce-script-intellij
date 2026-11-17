@@ -321,9 +321,16 @@
                 language="EnfusionScript"
                 implementationClass="io.github.lemyst.enfusion.doc.EnfusionDocumentationProvider"/>
         <!-- Inlay hints: parameter names before literal arguments, and the type of `auto`. -->
-        <codeInsight.parameterNameHints
+        <!-- Declarative, both: the parameterNameHints EP's provider API is experimental. -->
+        <codeInsight.declarativeInlayProvider
                 language="EnfusionScript"
-                implementationClass="io.github.lemyst.enfusion.hints.EnParameterNameHintsProvider"/>
+                implementationClass="io.github.lemyst.enfusion.hints.EnParameterNameHintsProvider"
+                isEnabledByDefault="true"
+                group="PARAMETERS_GROUP"
+                providerId="enfusion.parameter.names"
+                bundle="messages.EnforceScriptBundle"
+                nameKey="inlay.parameter.names.name"
+                descriptionKey="inlay.parameter.names.description"/>
         <codeInsight.declarativeInlayProvider
                 language="EnfusionScript"
                 implementationClass="io.github.lemyst.enfusion.hints.EnAutoTypeHintsProvider"

@@ -1,14 +1,10 @@
 package io.github.lemyst.enfusion
 
-import com.intellij.codeInsight.hints.HintInfo
-import com.intellij.codeInsight.hints.InlayParameterHintsExtension
-import com.intellij.codeInsight.hints.filtering.MatcherConstructor
 import com.intellij.psi.PsiElement
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import io.github.lemyst.enfusion.hints.EnAutoTypeHints
-import io.github.lemyst.enfusion.hints.EnParameterNameHintsProvider
-import io.github.lemyst.enfusion.lang.EnfusionLanguage
+import io.github.lemyst.enfusion.hints.EnParameterNameHints
 import io.github.lemyst.enfusion.psi.EnfusionTypes
 
 /**
@@ -16,8 +12,6 @@ import io.github.lemyst.enfusion.psi.EnfusionTypes
  * Each hint reads `text@word`, the word being the source text right after the hint.
  */
 class EnfusionInlayHintsTest : BasePlatformTestCase() {
-
-    private val provider = EnParameterNameHintsProvider()
 
     override fun setUp() {
         super.setUp()
@@ -48,8 +42,8 @@ class EnfusionInlayHintsTest : BasePlatformTestCase() {
     private fun parameterHints(body: String): List<String> {
         myFixture.configureByText("test.es", "class T\n{\n\tvoid F(Queue q)\n\t{\n\t\t$body\n\t}\n\tvoid Refresh() {}\n}")
         val text = myFixture.file.text
-        return argLists().flatMap { provider.getParameterHints(it) }.map { hint ->
-            "${hint.text}@" + text.substring(hint.offset).takeWhile { it != ',' && it != ')' }
+        return argLists().flatMap { EnParameterNameHints.hintsFor(it) }.map { (offset, name) ->
+            "$name@" + text.substring(offset).takeWhile { it != ',' && it != ')' }
         }
     }
 
@@ -78,17 +72,14 @@ class EnfusionInlayHintsTest : BasePlatformTestCase() {
         assertEquals(emptyList<String>(), parameterHints("q.SetSpeed(5);"))
     }
 
-    fun testHintInfoAndDefaultExcludeList() {
-        parameterHints("float v = Math.Clamp(5, 0, 10);")
-        val info = provider.getHintInfo(argLists().single()) as HintInfo.MethodInfo
-        assertEquals("Math.Clamp", info.fullyQualifiedName)
-        val excluded = provider.defaultBlackList.mapNotNull { MatcherConstructor.createMatcher(it) }
-        assertTrue(excluded.any { it.isMatching(info.fullyQualifiedName, info.paramNames) })
-        assertFalse(excluded.any { it.isMatching("Queue.CallLater", listOf("fn", "delay", "repeat")) })
-    }
-
-    fun testRegisteredForTheLanguage() {
-        assertTrue(InlayParameterHintsExtension.forLanguage(EnfusionLanguage) is EnParameterNameHintsProvider)
+    fun testExcludedCalls() {
+        assertEquals(emptyList<String>(), parameterHints("float v = Math.Clamp(5, 0, 10);"))
+        assertTrue(EnParameterNameHints.isExcluded("Math.Clamp"))
+        assertTrue(EnParameterNameHints.isExcluded("Print"))
+        assertTrue(EnParameterNameHints.isExcluded("array.Insert"))
+        assertTrue(EnParameterNameHints.isExcluded("Param2.Param2"))
+        assertFalse(EnParameterNameHints.isExcluded("Queue.CallLater"))
+        assertFalse(EnParameterNameHints.isExcluded("Printer.Run"))
     }
 
     private fun typeHints(body: String): List<String> {
@@ -110,5 +101,13 @@ class EnfusionInlayHintsTest : BasePlatformTestCase() {
 
     fun testWrittenTypesAndFailedInferenceGetNone() {
         assertEquals(emptyList<String>(), typeHints("Foo f = new Foo(); auto u = Unknown();"))
+    }
+
+    /** Both providers are found through the declarative extension point, by their IDs. */
+    fun testRegistered() {
+        val ids = com.intellij.openapi.extensions.ExtensionPointName
+            .create<com.intellij.codeInsight.hints.declarative.InlayHintsProviderExtensionBean>("com.intellij.codeInsight.declarativeInlayProvider")
+            .extensionList.filter { it.language == "EnfusionScript" }.mapNotNull { it.providerId }
+        assertSameElements(ids, "enfusion.parameter.names", "enfusion.auto.types")
     }
 }
