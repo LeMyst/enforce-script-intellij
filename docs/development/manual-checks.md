@@ -234,6 +234,9 @@ Opening a real DayZ mod. The examples below use a mod called MyMod.
 - Use one of the icons in a layout (`image0 "set:<name> image:<icon>"`) → the layout preview shows
   it. In game, the icon shows, with no neighbour bleeding into its edge.
 - A folder with two `icon.png` in different subfolders → refused, naming `icon`.
+- Right-click a vanilla imageset such as `P:\gui\imagesets\dayz_gui.imageset` → *Extract Images…*
+  → choose a folder → one PNG per image, each matching its gutter icon. Pack that folder again →
+  an imageset naming the same images.
 
 ## DayZ installation
 

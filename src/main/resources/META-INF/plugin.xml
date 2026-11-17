@@ -489,6 +489,11 @@
                     class="io.github.lemyst.enfusion.texture.PackImageSetAction"
                     text="Pack into Imageset…"
                     description="Pack this folder's pictures into an .edds atlas and the .imageset that names them"/>
+            <!-- On an .imageset: its images cut back out of the atlas, as pictures. -->
+            <action id="Enfusion.ExtractImageSet"
+                    class="io.github.lemyst.enfusion.texture.ExtractImageSetAction"
+                    text="Extract Images…"
+                    description="Cut every image of this imageset out of its atlas into a PNG picture"/>
             <separator/>
         </group>
         <!-- File | New and the Project view's New: a mod, and an addon with its config.cpp. -->
