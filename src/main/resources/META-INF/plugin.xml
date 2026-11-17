@@ -469,6 +469,21 @@
                     description="Change this addon's Addon Builder options, then build it"/>
             <separator/>
         </group>
+        <!-- File | New and the Project view's New: a mod, and an addon with its config.cpp. -->
+        <group id="Enfusion.NewDayZ">
+            <add-to-group group-id="NewGroup" anchor="last"/>
+            <separator/>
+            <action id="Enfusion.NewDayZMod"
+                    class="io.github.lemyst.enfusion.tools.NewDayZModAction"
+                    icon="io.github.lemyst.enfusion.lang.EnfusionIcons.FILE"
+                    text="DayZ Mod…"
+                    description="Create a mod folder with its mod.cpp, licence, README and .gitignore"/>
+            <action id="Enfusion.NewDayZAddon"
+                    class="io.github.lemyst.enfusion.tools.NewDayZAddonAction"
+                    icon="io.github.lemyst.enfusion.lang.EnfusionIcons.FILE"
+                    text="DayZ Addon…"
+                    description="Create an addon folder with its config.cpp, script modules and $PBOPREFIX$"/>
+        </group>
         <!-- Help: the issue tracker, reachable after the startup notice has been dismissed. -->
         <group id="Enfusion.Feedback">
             <add-to-group group-id="HelpMenu" anchor="after" relative-to-action="SendFeedback"/>
