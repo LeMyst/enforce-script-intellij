@@ -126,6 +126,24 @@ Opening a real DayZ mod.
 - `Widget.Cast(` and `ButtonWidget.Cast(` → `Class from`: `Cast` lives on vanilla's root `Class`,
   which `Widget` reaches only implicitly.
 
+## Quick Documentation
+
+Opening a real DayZ mod, with vanilla indexed.
+
+- `Ctrl+Q` on `Math.RandomInt(` → the signature, the `\brief` text, the parameters with their
+  text, *Returns*, and the `@code` example as code. *Class* links to `Math`.
+- `Ctrl+Q` on `GetGame().CreateObjectEx(` → the signature with its defaulted flags.
+- `Ctrl+Q` on a method of a `modded class` that has no comment of its own → the vanilla comment,
+  with *From …* naming the vanilla declaration, and *Other layers* listing the layers. Clicking a
+  link shows that declaration's documentation.
+- `Ctrl+Q` on `PlayerBase` → its *Extends* chain and every *Modded by* layer, each a link.
+- `Ctrl+Q` on `ECE_PLACE_ON_SURFACE` → its value in decimal and hex.
+- `Ctrl+Q` on an `auto` local → *Type* with the inferred type and *(inferred)*.
+- Turn on *Settings → Editor → General → Code Completion → Show the documentation popup* and
+  *Show quick documentation on mouse move*; hover a vanilla call → the same popup, and hovering a
+  texture path still shows the texture.
+- `Ctrl` + hover a call → one line: class, signature, file.
+
 ## Navigation from string literals
 
 Opening a real DayZ mod. The examples below use a mod called MyMod.

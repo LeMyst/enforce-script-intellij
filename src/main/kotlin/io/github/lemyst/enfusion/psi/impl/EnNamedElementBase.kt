@@ -54,7 +54,7 @@ abstract class EnNamedElementBase(node: ASTNode) : ASTWrapperPsiElement(node), E
      * `modded class` looks identical ("Math / Enforce Script Sources" twice over). Showing the tail
      * of the path is what makes the choice meaningful.
      */
-    protected fun fileLocation(): String? {
+    fun fileLocation(): String? {
         val path = containingFile?.virtualFile?.path?.replace('\\', '/') ?: return null
         val origin = originOf(path)
         val tail = path.split('/').filter { it.isNotEmpty() }
