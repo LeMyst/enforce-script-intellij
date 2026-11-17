@@ -467,6 +467,11 @@
                     class="io.github.lemyst.enfusion.tools.ConfigurePboBuildAction"
                     text="Build PBO with Options…"
                     description="Change this addon's Addon Builder options, then build it"/>
+            <!-- On a folder of pictures: an .edds atlas and its .imageset. -->
+            <action id="Enfusion.PackImageSet"
+                    class="io.github.lemyst.enfusion.texture.PackImageSetAction"
+                    text="Pack into Imageset…"
+                    description="Pack this folder's pictures into an .edds atlas and the .imageset that names them"/>
             <separator/>
         </group>
         <!-- Help: the issue tracker, reachable after the startup notice has been dismissed. -->
