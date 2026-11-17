@@ -181,6 +181,10 @@ Opening a real DayZ mod. The examples below use a mod called MyMod.
   appears under *External Libraries*; confirm the IDE indexes configs only and does not sit on
   24 GB of `.paa`. Adding `P:\scripts` or a mod checkout shows no warning.
 - A C or C++ file in an unrelated project is **not** claimed.
+- `Ctrl+Alt+L` on a hand-written mod `config.cpp` with mixed indentation → class bodies and
+  multi-line arrays indented with tabs, spacing and one-line arrays unchanged. On a vanilla
+  `P:\DZ` config → no change at all. Enter after `class X: Y` and its `{` → one level deeper.
+- *Settings → Editor → Code Style → Enforce Config* exists, with tabs on.
 
 ## Texture viewer
 
