@@ -370,6 +370,7 @@
                 implementation="io.github.lemyst.enfusion.tools.DayZDetectionStartup"/>
 
         <configurationType implementation="io.github.lemyst.enfusion.tools.run.DayZRunConfigurationType"/>
+        <configurationType implementation="io.github.lemyst.enfusion.tools.run.DayZModBuildConfigurationType"/>
 
         <toolWindow id="DayZ Logs"
                     anchor="bottom"
