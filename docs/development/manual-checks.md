@@ -426,6 +426,16 @@ Opening a real DayZ mod. The examples below use a mod called MyMod.
   the pointer; drag → the view pans; a click without dragging still selects. *Fit* → back to the
   whole screen; *100%* → one layout pixel per screen pixel.
 
+## Stringtable texts in place of keys
+
+- Open a mod script with `"#STR_…"` strings → each shows its text, collapsed; moving the caret
+  into one shows the key again. Vanilla keys such as `"#menu_add"` fold too.
+- A layout's `text "#STR_…"` and a config's `displayName="$STR_…"` fold the same way.
+- Pick *french* in a layout preview's language list → the folds read French after the next
+  reparse (type a character).
+- Untick *Code Folding → Enforce Script → Stringtable keys as their text* → the keys are back.
+- In a large vanilla file (`missiongameplay.c`), typing stays smooth.
+
 ## Rename and inspections
 
 - `Shift+F6` on a method in a `modded class` that overrides vanilla → **refused**, with a message

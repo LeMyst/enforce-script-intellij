@@ -138,6 +138,17 @@
         <lang.foldingBuilder
                 language="EnfusionScript"
                 implementationClass="io.github.lemyst.enfusion.lang.EnfusionFoldingBuilder"/>
+        <!-- A stringtable key folds to its text, in script, layouts and configs alike. -->
+        <lang.foldingBuilder
+                language="EnfusionScript"
+                implementationClass="io.github.lemyst.enfusion.stringtable.EnStringTableFoldingBuilder"/>
+        <lang.foldingBuilder
+                language="EnfusionObject"
+                implementationClass="io.github.lemyst.enfusion.stringtable.EnStringTableFoldingBuilder"/>
+        <lang.foldingBuilder
+                language="EnfusionConfig"
+                implementationClass="io.github.lemyst.enfusion.stringtable.EnStringTableFoldingBuilder"/>
+        <codeFoldingOptionsProvider instance="io.github.lemyst.enfusion.stringtable.EnStringTableFoldingOptionsProvider"/>
 
         <!-- Indentation only; the settings provider is what defaults the language to tabs. -->
         <lang.formatter
