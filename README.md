@@ -539,8 +539,13 @@ runs in one *Run* tab, where *Stop* stops it all.
 ### Game logs
 
 The **DayZ Logs** tool window follows the game's logs: one tab each for `script_*.log`, the `.RPT`
-and `crash_*.log` of the client profile (`%LOCALAPPDATA%\DayZ` unless set otherwise), and the same
-three for the server profile when one is set in the DayZ Installation settings.
+and `crash_*.log` of every profile folder the game writes to.
+
+- **Which profiles:** those of the selected DayZ run configuration, named after their process
+  (*Server*, then each player, or *Client* for a single unnamed one), as its *Profile* fields and
+  players work them out. The tabs change with the selected configuration. With no DayZ
+  configuration selected, the client profile (`%LOCALAPPDATA%\DayZ` unless set otherwise) and the
+  server profile of the DayZ Installation settings.
 
 - Each tab shows the newest file of its kind and keeps up with it once a second; when the game
   starts again and writes a new file, the tab switches to it. *Open Older Run…* shows an earlier
@@ -962,6 +967,8 @@ mod called BattleRoyale):
 
 - Open *DayZ Logs* → *Script*, *RPT* and *Crash* tabs, each naming its file; start the game → the
   tabs switch to the new run and follow it.
+- Select a DayZ run configuration with a server and two players → *Server*, *Alice* and *Bob* tabs
+  of each kind, on their profile folders; select another configuration → the tabs follow it.
 - In the *Script* tab, click an `@"scripts/3_Game/….c,17"` link → vanilla opens at
   that line; a mod's own `…(1):` compile error → the mod's file.
 - *Errors and Warnings Only* → a stack trace stays under its error. *Open Older Run…* → the chosen

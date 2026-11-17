@@ -25,8 +25,13 @@ import com.intellij.ui.components.JBLabel
 import com.intellij.ui.content.ContentFactory
 import com.intellij.util.concurrency.AppExecutorUtil
 import com.intellij.util.ui.JBUI
+import com.intellij.execution.RunManager
+import com.intellij.execution.RunManagerListener
+import com.intellij.execution.RunnerAndConfigurationSettings
 import io.github.lemyst.enfusion.refs.EnAssetPaths
 import io.github.lemyst.enfusion.tools.DayZInstallation
+import io.github.lemyst.enfusion.tools.detect.DayZLaunchCommand
+import io.github.lemyst.enfusion.tools.run.DayZRunConfiguration
 import java.awt.BorderLayout
 import java.awt.Font
 import java.nio.file.Path
@@ -34,9 +39,12 @@ import java.util.concurrent.TimeUnit
 import javax.swing.JPanel
 
 /**
- * The content of the *DayZ Logs* tool window: one tab per log kind (script, RPT, crash) of the
- * client profile and, when one is set, the server profile. Each tab follows the newest file of its
- * kind, switches to the next one when the game starts again, and turns source locations into links.
+ * The content of the *DayZ Logs* tool window: one tab per log kind (script, RPT, crash) of each
+ * profile folder the game writes to. Those are the server's and each player's of the selected DayZ
+ * run configuration, or with none selected, the client and server profiles of the DayZ Installation
+ * settings. The tabs follow the selected configuration as it changes. Each tab follows the newest
+ * file of its kind, switches to the next one when the game starts again, and turns source locations
+ * into links.
  *
  * The factory itself is Java ([DayZLogsToolWindowFactory]): a Kotlin `ToolWindowFactory` gets
  * compiler bridges for the interface's deprecated and internal default methods, which the Plugin
@@ -46,27 +54,51 @@ object DayZLogsContent {
 
     @JvmStatic
     fun fill(project: Project, toolWindow: ToolWindow) {
+        var shown: List<Pair<String, Path>>? = null
+        fun refill() {
+            ApplicationManager.getApplication().executeOnPooledThread {
+                val profiles = profiles(project)
+                ApplicationManager.getApplication().invokeLater({
+                    if (profiles == shown) return@invokeLater
+                    shown = profiles
+                    toolWindow.contentManager.removeAllContents(true)
+                    show(project, toolWindow, profiles)
+                }, { project.isDisposed || toolWindow.isDisposed })
+            }
+        }
+        project.messageBus.connect(toolWindow.disposable).subscribe(RunManagerListener.TOPIC, object : RunManagerListener {
+            override fun runConfigurationSelected(settings: RunnerAndConfigurationSettings?) = refill()
+            override fun runConfigurationChanged(settings: RunnerAndConfigurationSettings) = refill()
+        })
+        refill()
+    }
+
+    /** The profile folders to follow, named: the selected DayZ run configuration's, else the settings'. */
+    private fun profiles(project: Project): List<Pair<String, Path>> {
+        val paths = DayZInstallation.getInstance().paths(project)
+        val selected = RunManager.getInstance(project).selectedConfiguration?.configuration as? DayZRunConfiguration
+        val fromRun = selected?.let { DayZLaunchCommand.logProfiles(paths, it.options.toLaunch()) }.orEmpty()
+            .mapNotNull { (name, folder) -> runCatching { Path.of(folder) }.getOrNull()?.let { name to it } }
+        if (fromRun.isNotEmpty()) return fromRun
+        return listOfNotNull(paths.clientProfile?.let { "Client" to it }, paths.serverProfile?.let { "Server" to it })
+    }
+
+    private fun show(project: Project, toolWindow: ToolWindow, profiles: List<Pair<String, Path>>) {
         val factory = ContentFactory.getInstance()
-        ApplicationManager.getApplication().executeOnPooledThread {
-            val paths = DayZInstallation.getInstance().paths(project)
-            val profiles = listOfNotNull(paths.clientProfile?.let { "Client" to it }, paths.serverProfile?.let { "Server" to it })
-            ApplicationManager.getApplication().invokeLater({
-                if (profiles.isEmpty()) {
-                    val label = JBLabel("No profile folder is known. Set one in Settings | Languages & Frameworks | Enforce Script | DayZ Installation.")
-                    label.border = JBUI.Borders.empty(12)
-                    toolWindow.contentManager.addContent(factory.createContent(label, "", false))
-                    return@invokeLater
-                }
-                for ((side, folder) in profiles) {
-                    for (kind in listOf(DayZLogLines.Kind.SCRIPT, DayZLogLines.Kind.RPT, DayZLogLines.Kind.CRASH)) {
-                        val panel = LogPanel(project, folder, kind)
-                        val title = if (profiles.size > 1) "$side ${kind.title}" else kind.title
-                        val content = factory.createContent(panel, title, false)
-                        content.setDisposer(panel)
-                        toolWindow.contentManager.addContent(content)
-                    }
-                }
-            }, { project.isDisposed })
+        if (profiles.isEmpty()) {
+            val label = JBLabel("No profile folder is known. Set one in Settings | Languages & Frameworks | Enforce Script | DayZ Installation.")
+            label.border = JBUI.Borders.empty(12)
+            toolWindow.contentManager.addContent(factory.createContent(label, "", false))
+            return
+        }
+        for ((side, folder) in profiles) {
+            for (kind in listOf(DayZLogLines.Kind.SCRIPT, DayZLogLines.Kind.RPT, DayZLogLines.Kind.CRASH)) {
+                val panel = LogPanel(project, folder, kind)
+                val title = if (profiles.size > 1) "$side ${kind.title}" else kind.title
+                val content = factory.createContent(panel, title, false)
+                content.setDisposer(panel)
+                toolWindow.contentManager.addContent(content)
+            }
         }
     }
 }
