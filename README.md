@@ -565,7 +565,9 @@ the `@MyMod` folder a mod ships, one configuration per mod:
     *Build PBO* include and exclude lists. Each one is built into a folder of its own, then moved
     into `addons\` under its release name: its prefix's folders joined by `_`, so
     `MyMod\Scripts\Client` becomes `Scripts_Client.pbo`, as mod build scripts name them.
-  - **Third-party PBOs** are copied with the `.bisign` files next to them.
+    *Lower-case PBO names* makes it `scripts_client.pbo`, signature included; switching it
+    rebuilds every addon once.
+  - **Third-party PBOs** are copied with the `.bisign` files next to them, under their own names.
 - **Signing:**
   - Each built PBO is signed with DayZ Tools' `DSSignFile` and the *Signing key*
     (`.biprivatekey`), after it has its release name.
