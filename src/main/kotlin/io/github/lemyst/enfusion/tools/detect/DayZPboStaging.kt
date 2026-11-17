@@ -73,13 +73,20 @@ object DayZPboStaging {
         val addons = mod.resolve("Addons")
         Files.createDirectories(addons)
         val existing = Files.list(addons).use { files -> files.filter { Files.isRegularFile(it) }.toList() }
-        val plan = plan(pbos, addons, existing, ::signaturesOf) { source, target ->
-            Files.size(source) == Files.size(target) && Files.getLastModifiedTime(source) == Files.getLastModifiedTime(target)
-        }
+        val plan = plan(pbos, addons, existing, ::signaturesOf, ::sameSizeAndDate)
         plan.delete.forEach { Files.deleteIfExists(it) }
         for ((source, target) in plan.copy) {
             Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.COPY_ATTRIBUTES)
         }
         return mod
     }
+
+    /**
+     * Whether [target] is a copy of [source] that needs no copying again: same size, same date to
+     * the millisecond. Not the exact date: a copy keeps the original's date, but Linux file systems
+     * can store it with less precision than the original had, and the copy would never match.
+     */
+    fun sameSizeAndDate(source: Path, target: Path): Boolean =
+        Files.isRegularFile(target) && Files.size(source) == Files.size(target) &&
+            Files.getLastModifiedTime(source).toMillis() == Files.getLastModifiedTime(target).toMillis()
 }

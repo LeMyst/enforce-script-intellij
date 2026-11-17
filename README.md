@@ -64,7 +64,9 @@ inputs.
   Ctrl+Click resolves: a widget name in `FindAnyWidget(...)` to its declaration in whichever
   `.layout` the enclosing class loads; a `.layout` / `.imageset` / asset path (including ones built by
   `+` concatenation through `const string` constants) to the file; a stringtable key
-  (`"#STR_BR_..."` or the bare server-side form) to its row in `stringtable.csv`; each half of
+  (`"#STR_BR_..."`, any other `"#key"` such as vanilla's `"#menu_add"`, the bare server-side
+  `"STR_…"`, or a config's `"$STR_…"`) to its row in `stringtable.csv`, ignoring case as the game
+  does, the vanilla stringtable included although it is too large for the platform to index; each half of
   `"set:x image:y"` to the `ImageSetClass` and `ImageSetDefClass` respectively; a dispatch-by-name
   string (`AddRPC`, `SendRPC`, `AddTimer`, `GameScript.Call`, ...) to the target method, inferring the
   receiving class where the call shape carries one; and a keybind action name (`UA...`, always behind
@@ -109,6 +111,31 @@ inputs.
   under *Settings → Editor → General → Gutter Icons*: "Texture preview", and "Texture preview in
   configs" for `config.cpp` and `mod.cpp` on their own. Textures that cannot be previewed, such as
   an ARGB4444 `.paa`, get no icon.
+- **Packing an imageset** — *Pack into Imageset…* on a folder in the *Project* view packs its
+  pictures (PNG, TGA, BMP, GIF, JPEG and TIFF, at any depth) into one `.edds` atlas and the
+  `.imageset` that names them, both written next to the folder by default.
+  - Each picture is an image named after its file (`arrow_left.png` → `arrow_left`; characters a
+    `"set:… image:…"` string cannot hold become `_`). Two pictures with one name are refused.
+    *Subfolders become groups* puts each first-level subfolder's pictures in its own
+    `ImageSetGroupClass`.
+  - Pictures are placed largest first with MaxRects, on the smallest power-of-two atlas that holds
+    them (at most *Largest atlas side*). *Gap between pictures* is 0 by default, as DayZ's atlases
+    are packed: vanilla's images are mostly 0 or 1 pixel apart and against the atlas edge, mods'
+    almost all 0. The gap is only ever between pictures, never along the edge, so sixteen 64² icons
+    still fill a 256² atlas. A gap of 2 keeps an icon drawn smaller, from a smaller mip, from
+    blending into its neighbour; *Repeat each picture's edge* fills half the gap on each side with
+    the picture's own edge pixels.
+  - The atlas is BGRA8, uncompressed, with a full mip chain: the format of most vanilla UI atlases
+    (13 of the 23 under `P:\gui\imagesets`), with every mip stored raw as in `dayz_gui.edds`, whose
+    header it copies (most others compress their larger mips). The `.imageset` lists the images by name and names the
+    atlas by its game path (the addon's prefix and the path inside it, prefilled), without a
+    `{GUID}`, as vanilla's `dayz_inventory.imageset` does.
+  - **Repeatable:** the same pictures and options give byte-identical files, so packing again with
+    no change is no diff.
+  - **Not supported yet:** block compression (DXT1, DXT5, BC7) and LZ4-compressed mips, which make
+    smaller files (a 1024² atlas is 5.6 MB uncompressed); updating an existing imageset while
+    keeping its images in place; cutting an atlas back into pictures; remembering the options per
+    folder.
 - **Stringtable editor** — a `stringtable.csv` opens as text with a *Table* tab next to it: one
   row per key and one column per language, named from the file's own header, with the key and
   `original` columns kept on the left while the languages scroll. Editing a cell edits the text, so
@@ -118,7 +145,7 @@ inputs.
     and a tooltip. Each language's header shows its coverage (`french 412/430`), and *Show* lists
     only the rows missing a translation in one language. A search field filters by key or text.
   - **Add Key…** writes a correctly quoted row from one field per language. The key starts with the
-    prefix most of the file's keys share and must be new in every indexed stringtable. **Add
+    prefix most of the file's keys share and must be new in every stringtable, ignoring case. **Add
     Language…** adds a column to the header and every row, empty or filled from `original`;
     **Remove Language…** takes one out; **Fill from Original…** copies `original` into the empty
     cells of a language for a first pass.
@@ -130,9 +157,12 @@ inputs.
     under the caret.
   - **Malformed rows are errors** in the text: a row with more or fewer cells than the header (which
     shifts every translation after it into the wrong language), an unclosed quote, text after a
-    closing quote, and a duplicate key. The table marks the key of such a row in red.
+    closing quote, and a duplicate key. The table marks the key of such a row in red. Two keys
+    differing only in case are not reported as duplicates, though the game takes them for one key:
+    the vanilla stringtable itself has three such pairs.
   - **From the code:** *Localization key with no stringtable row* offers *Create stringtable row
-    for 'STR_…'*. The row goes into one of the project's own stringtables, never a library's. When
+    for 'STR_…'*. Only `STR_…` keys are reported: most other `"#…"` strings are keys too, but not
+    surely. The row goes into one of the project's own stringtables, never a library's. When
     the file's own addon (the nearest folder with `config.cpp`) has one, that is used directly.
     Otherwise a list offers every stringtable of the project, plus a new `stringtable.csv` in the
     file's addon. It is ranked by the new key's prefix, so for `STR_AUTORUN_…` the table already
@@ -206,10 +236,26 @@ inputs.
   already a real `PsiReference` and the platform's default search runs on top of that.
 - **Formatter** (`Ctrl+Alt+L`) — **indentation only**, deliberately. It adds no spacing or wrapping
   rules, so Allman braces and however you spaced a line survive untouched; it defaults to tabs
-  because vanilla is tab-indented without exception. A test formats 150 vanilla files and asserts no
-  token ever moves between lines. `#ifdef` / `#else` / `#endif` are pinned to the first column, which
-  is the one formatting choice the corpus does *not* settle — vanilla writes it both ways — so it is
-  a checkbox under *Code Style | Enforce Script | Wrapping and Braces*, not a rule.
+  because vanilla is tab-indented without exception. One level deeper, each as vanilla writes it
+  in the large majority of cases:
+  - the contents of `{ }` (class and method bodies, blocks, enums, `switch`, array literals);
+  - the body of an `if`, `else`, `for`, `foreach` or `while` without braces, while an `else if`
+    chain stays flat;
+  - the statements under a `case` label, while a `{` right after a label stays at its level;
+  - a line continuing a statement (arguments, conditions, long expressions), while a lone closing
+    `)` goes back to the statement's level.
+
+  Enter follows the same rules: after `if (x)` without a brace, or after `case 1:`, the caret goes
+  one level deeper.
+
+  Two tests format vanilla code. One checks that no token ever moves between lines (150 files). The
+  other checks that at least 98% of lines keep their indentation (400 files). The lines that do
+  move are vanilla's minority styles, such as `break;` at its `case` label's level or parameters
+  aligned to a column.
+
+  `#ifdef` / `#else` / `#endif` are pinned to the first column, which is the one formatting choice
+  the corpus does *not* settle — vanilla writes it both ways — so it is a checkbox under
+  *Code Style | Enforce Script | Wrapping and Braces*, not a rule.
 - **A bundled Community Framework stub** — `GetRPCManager()`, `CallType` and `RPCManager`'s five
   methods resolve without a real `@CF` checkout, which most machines never have (it is a Steam
   Workshop dependency, not a plain checkout like Expansion or COT). Deliberately narrow: it stubs
@@ -224,8 +270,8 @@ inputs.
   config worth opening: `class X : Y` resolves to Y's declaration in any indexed config,
   `requiredAddons[]` jumps to that addon's `CfgPatches` class — the mod load order, which exists
   nowhere else as a link — and `inputs`, `picture` and `files[]` resolve to the file or folder they
-  name. `displayName="#STR_…"` and `ghostIcon="set:… image:…"` work through the *existing* stringtable
-  and imageset providers, reused unchanged. Vanilla's own configs are opt-in: add the unpacked game
+  name. `displayName="$STR_…"` (or `"#STR_…"`) and `ghostIcon="set:… image:…"` work through the
+  *existing* stringtable and imageset providers. Vanilla's own configs are opt-in: add the unpacked game
   data (`P:\DZ`) to the roots and only its 207 configs are indexed, but they sit inside 24 GB of
   unpacked game that must be walked once, so the settings page warns before adding it.
 - **`#ifdef` completion** over the engine's flags *plus* every flag the project's `config.cpp` files
@@ -543,6 +589,90 @@ runs in one *Run* tab, where *Stop* stops it all.
   binarised) and signing the packed addons; for those, build with Addon Builder. Starting Buldozer
   (Object Builder's viewer) is left for later.
 
+### New mods and addons
+
+*File → New* (and *New* in the *Project* view's menu) has **DayZ Mod…** and **DayZ Addon…**, both
+working in the folder chosen.
+
+- **DayZ Mod:** a folder (empty for the chosen folder itself) with a `mod.cpp` (name, author,
+  version, tooltip, overview and action link) and, as ticked, a `LICENSE` (MIT, or GPL-3.0 from the
+  plugin's own licence text), a `README.md` and a `.gitignore` for built PBOs, signatures, private
+  keys, logs and the IDE's folder. *Then create its first addon* opens *DayZ Addon* in the new folder.
+- **DayZ Addon:** an addon folder with a `config.cpp` that is right the first time.
+  - **Kind**, which sets the defaults below: *Scripts* (folder `Scripts`, modules `3_Game` to
+    `5_Mission`, `DZ_Data` and `DZ_Scripts`), *Data* for models, textures and item configs
+    (`Data`, no module, `DZ_Data`), *GUI* (`GUI`, with `layouts` and `imagesets` folders) and
+    *Language* (`LanguageCore`, with a `stringtable.csv` holding vanilla's header). The dialog
+    starts on the first kind whose folder the mod does not have yet; everything stays editable.
+  - **Prefix:** prefilled with the folder's path on the work drive, through the drive's link to the
+    project as *Rescan Project Addons* finds it (`MyMod\Scripts`). Without a link, the path from the
+    folder holding the project, since a checkout is usually named after its mod.
+  - **`CfgPatches` class:** `<Mod>_<Folder>` (`MyMod_Scripts`); class and prefix follow the folder's
+    name until edited.
+  - **`requiredAddons[]`:** a searchable list of every `CfgPatches` class the project indexes,
+    vanilla's and the dependency mods', with `DZ_Data` ticked, and `DZ_Scripts` when a script module
+    is.
+  - **Script modules:** `1_Core` to `5_Mission`, `3_Game` to `5_Mission` ticked. Each ticked module
+    gets its folder with a first script, and a `CfgMods` entry: `class defs { class
+    gameScriptModule { value = ""; files[] = { "MyMod/Scripts/3_Game" }; }; … }`, with `dir`,
+    `name`, `type = "mod"`, `dependencies[]` from the modules and optional `defines[]`.
+  - A `$PBOPREFIX$` file, ticked by default.
+- **Not supported:** a new IDE project (both work in a folder of the current one), logos and
+  pictures, which are added by hand, editing an existing `config.cpp` through a form, and file
+  templates for `.c` classes.
+
+### Game logs
+
+The **DayZ Logs** tool window follows the game's logs: one tab each for `script_*.log`, the `.RPT`
+and `crash_*.log` of every profile folder the game writes to.
+
+- **Which profiles:** those of the selected DayZ run configuration, named after their process
+  (*Server*, then each player, or *Client* for a single unnamed one), as its *Profile* fields and
+  players work them out. The tabs change with the selected configuration. With no DayZ
+  configuration selected, the client profile (`%LOCALAPPDATA%\DayZ` unless set otherwise) and the
+  server profile of the DayZ Installation settings.
+
+- Each tab shows the newest file of its kind and keeps up with it once a second; when the game
+  starts again and writes a new file, the tab switches to it. *Open Older Run…* shows an earlier
+  file instead, and *Follow Newest* goes back. A file over 8 MB opens on its last 8 MB.
+- Errors are red and warnings amber. *Errors and Warnings Only* hides the rest, keeping the report
+  that follows an error (the *Can't compile* summary, a stack trace) with it. *Collapse Repeated
+  Lines* shows a line repeated back to back once, with a count, timestamps aside. The console's own
+  search (`Ctrl+F`) works as usual.
+- The three shapes of source location the game writes — `@"scripts/3_Game/human.c,17"`,
+  `MyMod/Scripts/3_Game/x.c(1):` and the stack-trace `MyMod/Scripts/5_Mission/x.c:276 Function …` —
+  are links. The path is the game's, from a PBO prefix or the work drive, so it is matched from the
+  right against the project and its roots, like an asset path: a mod's own file opens in the
+  project, a vanilla one under `P:\scripts`, and a dependency's in its PBO cache.
+- **Not supported:** a *Problems* list of the last run's errors, and attaching to a running DayZ
+  run configuration's output (the game writes nothing useful to it).
+
+### Checking scripts with the engine
+
+*Tools → DayZ → Check Scripts (Server)* and *Check Scripts (Client)* (also in the toolbar's *DayZ*
+drop-down) let DayZ itself compile the project's scripts, which catches what the plugin cannot,
+such as a symbol the engine does not know. The server compiles with `SERVER` defined, so code in
+`#ifndef SERVER`, most of a mod's UI, is checked only by the client.
+
+- **What they start:** DayZ Diag on the mod list of a DayZ run configuration: the selected one, or
+  else the project's first. The project's addons are packed into PBOs as a run packs them, and the
+  loose PBOs staged; *-filePatching* and the mods are the configuration's, *Server only* ones on the
+  server only.
+  - **Server:** `DayZDiag_x64.exe -server`, no game window, with a config written into a throwaway
+    profile folder, on port 2402. Its mission names nothing that exists: the server is stopped once
+    the scripts compile, before it would load one, so no mission's storage is written to.
+  - **Client:** `DayZDiag_x64.exe -window` with a throwaway profile, joining nothing and playing no
+    mission. A game window opens for about a game start's time and closes once the scripts compile.
+- **The verdict:** as soon as the script log says the last module (`Mission`) compiled, or that a
+  module could not be compiled, the game is stopped. The verdict appears in a *Run* tab and a
+  notification, with each error as a link to its file and line. The profile folder is deleted.
+- It takes about as long as a game start, so it is an explicit action. Cancelling the task stops the
+  game, and it gives up after five minutes. Without a DayZ run configuration it says to create one.
+
+**Not supported:** checking without DayZ Diag, both sides in one action, showing the errors as
+annotations in open files, and telling apart an error in the project from one in a dependency mod
+(both are listed).
+
 ### Building PBOs
 
 *Build PBO* on an addon folder in the *Project* view (or on any file inside one: the nearest folder
@@ -563,6 +693,45 @@ the options first, and *Tools → DayZ → Build All PBOs* builds every addon of
   mod's `Keys` folder next to `Addons`, which servers need; a missing one is a warning.
 - **Not supported:** a native packer that works without DayZ Tools (Addon Builder is required), and
   building before a run configuration starts.
+
+### Building the mod for release
+
+A **DayZ Mod Build** run configuration (*Run → Edit Configurations → + → DayZ Mod Build*) builds
+the `@MyMod` folder a mod ships, one configuration per mod:
+
+```
+@MyMod\
+    addons\   the project's addons, binarised and signed, and third-party PBOs
+    keys\     the .bikey of the mod's signing key, and the third-party ones
+    mod.cpp
+    LICENSE …
+```
+
+- **Mod folder:** the `@MyMod` folder to build. Its `addons\` and `keys\` are managed by the build.
+- **What goes into `addons\`:**
+  - *Rescan Project Addons* lists the project's `config.cpp` folders, as the DayZ run
+    configuration does, and *Add PBO Files…* adds third-party PBOs.
+  - **The project's addons** are built by Addon Builder, binarised, with each addon's saved
+    *Build PBO* include and exclude lists. Each one is built into a folder of its own, then moved
+    into `addons\` under its release name: its prefix's folders joined by `_`, so
+    `MyMod\Scripts\Client` becomes `Scripts_Client.pbo`, as mod build scripts name them.
+    *Lower-case PBO names* makes it `scripts_client.pbo`, signature included; switching it
+    rebuilds every addon once.
+  - **Third-party PBOs** are copied with the `.bisign` files next to them, under their own names.
+- **Signing:**
+  - Each built PBO is signed with DayZ Tools' `DSSignFile` and the *Signing key*
+    (`.biprivatekey`), after it has its release name.
+  - The `.bikey` of the same name next to the key goes into `keys\`, with the *Third-party keys*.
+  - Then `DSCheckSignatures` checks every signature in `addons\` against `keys\`, and any that is
+    wrong or has no key fails the build.
+- **`mod.cpp` and extra files** (such as `LICENSE`) are copied into the mod's folder. `mod.cpp`
+  starts as the one at the project's root.
+- **Only what changed:** an addon is built again only when its files, its prefix or the signing key
+  changed since the last build, or when its PBO or signature is missing. A copy is skipped when the
+  file is the same size and date. PBOs, signatures and keys no longer part of the mod are removed;
+  other files in `addons\` are left alone.
+- **Not supported yet:** publishing to the Steam Workshop (planned with SteamCMD), creating a
+  signing key, and generating `mod.cpp`.
 
 ## Feedback and error reports
 
@@ -765,6 +934,9 @@ mod called BattleRoyale):
   the file. This is the one that proves `EnConstantEvaluator` folds through a `const string`.
 - Ctrl+Click a bare `"STR_BR_..."` (server-side, no `#`) → its row in `LanguageCore/stringtable.csv`;
   and a `"#STR_PARTY_..."` inside a `.layout` → `Party/stringtable.csv`.
+- Ctrl+Click `"#menu_add"` or `"#STR_TextInputDialogRoot_WindowLabel0"` in a vanilla layout
+  (`P:\gui\layouts\…`) → its row in `P:\languagecore\stringtable.csv`, though that row is spelt
+  in lower case and the file is too large for the platform to index.
 - Open the mod's `stringtable.csv` → a *Table* tab next to the text. In it, untranslated cells
   are tinted, and the headers show coverage. Edit a `french` cell → the text tab changes on that
   one line; `Ctrl+Z` undoes it. Change an `original` whose `english` is a copy → `english` follows,
@@ -795,7 +967,9 @@ mod called BattleRoyale):
   own `config.cpp`.
 - Ctrl+Click `"BattleRoyale/Data/Inputs.xml"` → the file; `"…/Mod_Logo.paa"` → the texture.
 - Ctrl+Click `"#STR_…"` and `"set:… image:…"` inside a config → the stringtable row and the imageset
-  entry, resolved by the providers written for script and layouts with no config-specific code.
+  entry, resolved by the providers written for script and layouts.
+- Ctrl+Click `displayName="$STR_CfgVehicles_…"` in a vanilla `P:\DZ` config → its row in the vanilla
+  stringtable.
 - Type `#ifdef ` in any `.c` file → the list offers `DAYZ_BATTLEROYALE` and `BR_PARTY` alongside
   the engine's own flags.
 - Add `P:\DZ` to the roots in the settings → a warning about the first indexing appears; *Cancel*
@@ -846,6 +1020,17 @@ mod called BattleRoyale):
   and scrolling and typing do not stall.
 - Open a mod's `config.cpp` with `hiddenSelectionsTextures[]` → one icon per line. Untick "Texture
   preview in configs" → they disappear from configs only.
+
+**Packing an imageset**
+
+- Right-click a folder of PNG or TGA icons inside an addon → *Pack into Imageset…* → the texture path
+  is the addon's prefix and the path to the `.edds`. *Pack* → the `.imageset` opens, with a gutter
+  icon on each image showing the right picture; the `.edds` opens in the texture viewer, BGRA8 with
+  its mips.
+- Pack again with no change → Git shows no change to either file.
+- Use one of the icons in a layout (`image0 "set:<name> image:<icon>"`) → the layout preview shows
+  it. In game, the icon shows, with no neighbour bleeding into its edge.
+- A folder with two `icon.png` in different subfolders → refused, naming `icon`.
 
 **DayZ installation**
 
@@ -944,6 +1129,47 @@ mod called BattleRoyale):
   → a warning. Neither box ticked → an error.
 - *Tools → DayZ* and the toolbar's *DayZ* drop-down have no *Launch Buldozer*.
 
+**New mods and addons**
+
+- Right-click a folder in the *Project* view → *New → DayZ Mod…* → enter a folder and a name, keep
+  the defaults → the folder has `mod.cpp`, `LICENSE`, `README.md` and `.gitignore`, and `mod.cpp`
+  opens. *New DayZ Addon* follows, prefilled: folder `Scripts`, class `<Folder>_Scripts`, prefix
+  from the work drive's link when the project has one.
+- In the addon dialog, type `DZ_` in the search field → only the matching addons stay listed, the
+  ticked ones still ticked. Untick `4_World` and `5_Mission`, *OK* → `config.cpp` opens with only
+  `gameScriptModule`, `files[] = { "<prefix>/3_Game" }`, `dependencies[] = { "Game" }`; the folder
+  has `$PBOPREFIX$` and `3_Game\<Class>.c`.
+- *Run → Edit Configurations → DayZ → Rescan Project Addons* → the new addon is listed with its
+  prefix. *Build PBO* on its folder builds it.
+- Choose a folder that already has a `config.cpp`, or a class name starting with a digit → the
+  dialog says so and *OK* stays disabled.
+- *DayZ Addon* again on the same mod → it starts on *Data*. Switch the kind to *Language* → folder
+  `LanguageCore`, no module ticked, only `DZ_Data`; *OK* → a `stringtable.csv` with vanilla's
+  header and a `config.cpp` with no `CfgMods`. *GUI* → `layouts` and `imagesets` folders.
+
+**Game logs**
+
+- Open *DayZ Logs* → *Script*, *RPT* and *Crash* tabs, each naming its file; start the game → the
+  tabs switch to the new run and follow it.
+- Select a DayZ run configuration with a server and two players → *Server*, *Alice* and *Bob* tabs
+  of each kind, on their profile folders; select another configuration → the tabs follow it.
+- In the *Script* tab, click an `@"scripts/3_Game/….c,17"` link → vanilla opens at
+  that line; a mod's own `…(1):` compile error → the mod's file.
+- *Errors and Warnings Only* → a stack trace stays under its error. *Open Older Run…* → the chosen
+  file; *Follow Newest* → back.
+- With no profile folder → a message pointing to the settings, no error.
+
+**Checking scripts**
+
+- Select your DayZ run configuration, then *Tools → DayZ → Check Scripts (Server)* on a mod that compiles →
+  the *Run* tab says the addons were packed, then after a game start's time *All five script modules
+  compiled*, and no `DayZDiag_x64.exe` is left running.
+- Break a `3_Game` file (use an unknown type) → *The "Game" script module does not compile*, with the
+  error linking to that file and line.
+- Cancel while it runs → the server stops.
+- *Check Scripts (Client)* → a game window opens, then closes once *All five script modules compiled
+  on the client*. Break a file inside `#ifndef SERVER` → only the client check reports it.
+
 **Building PBOs**
 
 - Right-click a mod's addon folder → *Build PBO* → the options dialog, prefilled; *Build* → a *Run*
@@ -953,6 +1179,21 @@ mod called BattleRoyale):
   notification, and the `File …, line N` line is a link to the config.
 - Build with a signing key → the `.bisign` appears; with no `.bikey` in `@Mod\Keys` → a warning.
 - *Tools → DayZ → Build All PBOs* in a project with several addons → one tab, built one after the other.
+
+**Building the mod for release**
+
+- Add *DayZ Mod Build*:
+  - Set *Mod folder* to an empty test folder and click *Rescan Project Addons*. Set the signing key,
+    and add a third-party PBO with its key.
+  - Run → one *Run* tab:
+    - Addon Builder builds each addon.
+    - Each PBO arrives in `addons\` as `Scripts_Client.pbo` and the like, with its
+      `.MyMod.bisign`.
+    - `keys\` holds `MyMod.bikey` and the third-party key, and `mod.cpp` and the extras are copied.
+    - The last lines say *Signatures checked: all OK* and *Built …*.
+- Run again → *0 addon(s) to build*. Edit one script → that addon only.
+- Untick an addon and run → its PBO and signature are removed from `addons\`.
+- Start a server with `verifySignatures = 2` on the built mod → clients with it join.
 
 **Layout preview**
 

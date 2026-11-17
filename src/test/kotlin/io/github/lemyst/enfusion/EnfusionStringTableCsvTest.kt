@@ -176,6 +176,15 @@ class EnfusionStringTableCsvTest : TestCase() {
         assertTrue(messages.toString(), messages.any { it.startsWith("Unclosed quote") })
     }
 
+    /** The engine takes keys differing only in case for the same key; the exact spelling wins when both exist. */
+    fun testRowOfIgnoresCase() {
+        val csv = StringTableCsv.parse("\"Language\",\"original\",\n\"str_title\",\"lower\",\n\"STR_HINT\",\"upper\",\n\"str_hint\",\"lower\",\n")
+        assertEquals("lower", csv.rowOf("STR_TITLE")?.value(1))
+        assertEquals("upper", csv.rowOf("STR_HINT")?.value(1))
+        assertEquals("lower", csv.rowOf("str_hint")?.value(1))
+        assertNull(csv.rowOf("STR_NONE"))
+    }
+
     fun testBlankLinesAreNotRows() {
         val csv = StringTableCsv.parse("\"Language\",\"original\",\n\n\"STR_A\",\"A\",\n\n")
         assertEquals(listOf("STR_A"), csv.dataRows.map { it.key })

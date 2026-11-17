@@ -370,6 +370,13 @@
                 implementation="io.github.lemyst.enfusion.tools.DayZDetectionStartup"/>
 
         <configurationType implementation="io.github.lemyst.enfusion.tools.run.DayZRunConfigurationType"/>
+        <configurationType implementation="io.github.lemyst.enfusion.tools.run.DayZModBuildConfigurationType"/>
+
+        <toolWindow id="DayZ Logs"
+                    anchor="bottom"
+                    secondary="true"
+                    icon="AllIcons.Debugger.Console"
+                    factoryClass="io.github.lemyst.enfusion.tools.logs.DayZLogsToolWindowFactory"/>
 
         <statusBarWidgetFactory
                 id="EnfusionWorkDrive"
@@ -408,6 +415,14 @@
                     class="io.github.lemyst.enfusion.tools.ExtractGameDataAction"
                     text="Extract Game Data…"
                     description="Extract the game's data onto the work drive with DayZ Tools' WorkDrive"/>
+            <action id="Enfusion.CheckScripts"
+                    class="io.github.lemyst.enfusion.tools.check.CheckScriptsAction"
+                    text="Check Scripts (Server)"
+                    description="Compile the project's scripts as a DayZ Diag server does, with SERVER defined, and show the errors"/>
+            <action id="Enfusion.CheckClientScripts"
+                    class="io.github.lemyst.enfusion.tools.check.CheckClientScriptsAction"
+                    text="Check Scripts (Client)"
+                    description="Compile the project's scripts as a DayZ Diag client does, in a game window that closes once they compile"/>
             <separator/>
             <action id="Enfusion.BuildAllPbos"
                     class="io.github.lemyst.enfusion.tools.BuildAllPbosAction"
@@ -446,6 +461,8 @@
                 <reference ref="Enfusion.ExtractGameData"/>
                 <separator/>
                 <reference ref="Enfusion.BuildAllPbos"/>
+                <reference ref="Enfusion.CheckScripts"/>
+                <reference ref="Enfusion.CheckClientScripts"/>
             </group>
         </group>
         <action id="Enfusion.OpenInDayZTool"
@@ -467,7 +484,27 @@
                     class="io.github.lemyst.enfusion.tools.ConfigurePboBuildAction"
                     text="Build PBO with Options…"
                     description="Change this addon's Addon Builder options, then build it"/>
+            <!-- On a folder of pictures: an .edds atlas and its .imageset. -->
+            <action id="Enfusion.PackImageSet"
+                    class="io.github.lemyst.enfusion.texture.PackImageSetAction"
+                    text="Pack into Imageset…"
+                    description="Pack this folder's pictures into an .edds atlas and the .imageset that names them"/>
             <separator/>
+        </group>
+        <!-- File | New and the Project view's New: a mod, and an addon with its config.cpp. -->
+        <group id="Enfusion.NewDayZ">
+            <add-to-group group-id="NewGroup" anchor="last"/>
+            <separator/>
+            <action id="Enfusion.NewDayZMod"
+                    class="io.github.lemyst.enfusion.tools.NewDayZModAction"
+                    icon="io.github.lemyst.enfusion.lang.EnfusionIcons.FILE"
+                    text="DayZ Mod…"
+                    description="Create a mod folder with its mod.cpp, licence, README and .gitignore"/>
+            <action id="Enfusion.NewDayZAddon"
+                    class="io.github.lemyst.enfusion.tools.NewDayZAddonAction"
+                    icon="io.github.lemyst.enfusion.lang.EnfusionIcons.FILE"
+                    text="DayZ Addon…"
+                    description="Create an addon folder with its config.cpp, script modules and $PBOPREFIX$"/>
         </group>
         <!-- Help: the issue tracker, reachable after the startup notice has been dismissed. -->
         <group id="Enfusion.Feedback">

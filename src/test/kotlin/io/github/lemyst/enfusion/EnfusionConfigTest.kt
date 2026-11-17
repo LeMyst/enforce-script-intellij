@@ -163,6 +163,19 @@ class EnfusionConfigTest : BasePlatformTestCase() {
         assertNotNull("stringtable key did not resolve", myFixture.getReferenceAtCaretPosition()?.resolve())
     }
 
+    /** The config form, `$STR_…`, in any case: vanilla writes `$STR_CfgVehicles_…` for `str_cfgvehicles_…` rows. */
+    fun testDollarStringTableKeyResolvesFromAConfig() {
+        myFixture.addFileToProject("stringtable.csv", "\"Language\",\"original\"\n\"str_cfgshoulder0\",\"Shoulder\"\n")
+        myFixture.configureByText(
+            "config.cpp",
+            "class CfgSlots\n{\n\tclass Slot_Melee\n\t{\n\t\tdisplayName=\"\$STR_CfgSh<caret>oulder0\";\n\t};\n};\n",
+        )
+        val reference = myFixture.getReferenceAtCaretPosition()
+        assertNotNull("no reference on a \$STR_ value", reference)
+        assertEquals("STR_CfgShoulder0", reference!!.canonicalText)
+        assertNotNull("stringtable key did not resolve", reference.resolve())
+    }
+
     fun testAssetPathResolvesFromAConfig() {
         myFixture.addFileToProject("Data/Inputs.xml", "<inputs></inputs>\n")
         myFixture.configureByText(

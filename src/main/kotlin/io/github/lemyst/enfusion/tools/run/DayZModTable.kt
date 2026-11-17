@@ -42,6 +42,11 @@ class DayZModTable(
     private val project: Project,
     /** The configuration's *Mods folder*, as typed. */
     private val modsFolder: () -> String?,
+    /**
+     * For a mod's release build: only what goes into the mod, the project's addons and loose PBOs.
+     * Other mods, *Server only* and the `@` folders a rescan finds are for running, not building.
+     */
+    private val forRelease: Boolean = false,
     private val onChange: () -> Unit,
 ) {
     /** A mutable row; [exists] is checked when the row is made, not on every paint. */
@@ -85,10 +90,7 @@ class DayZModTable(
     }
 
     private val model = ListTableModel<Row>(
-        enabledColumn,
-        pathColumn,
-        kindColumn,
-        serverOnlyColumn,
+        *listOfNotNull(enabledColumn, pathColumn, kindColumn, serverOnlyColumn.takeIf { !forRelease }).toTypedArray(),
     )
 
     private val table = TableView(model).apply {
@@ -96,13 +98,21 @@ class DayZModTable(
         visibleRowCount = 8
     }
 
-    val component: JComponent = ToolbarDecorator.createDecorator(table)
-        .setAddAction { addFromModsFolders() }
-        .setAddActionName("Add Mods…")
-        .addExtraAction(action("Add Folder…", "A mod folder anywhere", AllIcons.Nodes.Folder) { addFolder() })
-        .addExtraAction(action("Add PBO Files…", "Loose PBOs, copied into a generated mod folder at launch", AllIcons.FileTypes.Archive) { addPbos() })
-        .addExtraAction(action("Rescan Project Addons", "Add the project's config.cpp folders and @ folders, drop addons that are gone", AllIcons.Actions.Refresh) { rescan() })
-        .createPanel()
+    val component: JComponent = if (forRelease) {
+        ToolbarDecorator.createDecorator(table)
+            .setAddAction { rescan() }
+            .setAddActionName("Rescan Project Addons")
+            .addExtraAction(action("Add PBO Files…", "Third-party PBOs, copied into the mod's addons folder with their signatures", AllIcons.FileTypes.Archive) { addPbos() })
+            .createPanel()
+    } else {
+        ToolbarDecorator.createDecorator(table)
+            .setAddAction { addFromModsFolders() }
+            .setAddActionName("Add Mods…")
+            .addExtraAction(action("Add Folder…", "A mod folder anywhere", AllIcons.Nodes.Folder) { addFolder() })
+            .addExtraAction(action("Add PBO Files…", "Loose PBOs, copied into a generated mod folder at launch", AllIcons.FileTypes.Archive) { addPbos() })
+            .addExtraAction(action("Rescan Project Addons", "Add the project's config.cpp folders and @ folders, drop addons that are gone", AllIcons.Actions.Refresh) { rescan() })
+            .createPanel()
+    }
 
     init {
         model.addTableModelListener { onChange() }
@@ -156,7 +166,7 @@ class DayZModTable(
             project,
         )
         val (addons, rootMods) = found
-        model.items = DayZMods.rescan(mods, addons, rootMods) { File(it).exists() }
+        model.items = DayZMods.rescan(mods, addons, if (forRelease) emptyList() else rootMods) { File(it).exists() }
             .mapTo(ArrayList()) { Row(it.path, it.kind, it.enabled, it.serverOnly) }
     }
 
