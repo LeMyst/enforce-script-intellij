@@ -373,6 +373,37 @@ class EnfusionDayZLaunchTest : TestCase() {
         assertNull(DayZLaunchCleanup.missionFolder(listOf(diagExe)))
     }
 
+    /** The log console follows each process's profile: the server's, then each player's. */
+    fun testLogProfilesNameEachProcess() {
+        val clientDefault = root.resolve("LocalAppData").resolve("DayZ")
+        val withClient = paths.copy(clientProfile = clientDefault)
+        val launch = DayZLaunch(
+            startServer = true,
+            players = listOf(DayZPlayer(name = "Alice"), DayZPlayer(name = "Bob", profile = "D:\\Profiles\\bob"), DayZPlayer()),
+            profiles = "D:\\Profiles",
+        )
+        assertEquals(
+            listOf(
+                "Server" to serverProfile.toString(),
+                "Alice" to "D:\\Profiles\\Alice",
+                "Bob" to "D:\\Profiles\\bob",
+                "Player 3" to "D:\\Profiles\\Player 3",
+            ),
+            DayZLaunchCommand.logProfiles(withClient, launch),
+        )
+        assertEquals(
+            "a single unnamed client on the game's default profile",
+            listOf("Client" to clientDefault.toString()),
+            DayZLaunchCommand.logProfiles(withClient, DayZLaunch()),
+        )
+        assertEquals(
+            "a folder two processes share is listed once",
+            listOf("Server" to serverProfile.toString()),
+            DayZLaunchCommand.logProfiles(withClient, DayZLaunch(startServer = true, profiles = serverProfile.toString())),
+        )
+        assertEmpty(DayZLaunchCommand.logProfiles(DayZPaths(), DayZLaunch()))
+    }
+
     private fun assertEmpty(list: List<*>) = assertTrue(list.toString(), list.isEmpty())
 
     private fun mod(path: String, enabled: Boolean = true, serverOnly: Boolean = false) = DayZMod(path, DayZModKind.MOD, enabled, serverOnly)

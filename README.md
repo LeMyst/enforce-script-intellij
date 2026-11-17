@@ -614,6 +614,32 @@ working in the folder chosen.
   pictures, which are added by hand, editing an existing `config.cpp` through a form, and file
   templates for `.c` classes.
 
+### Game logs
+
+The **DayZ Logs** tool window follows the game's logs: one tab each for `script_*.log`, the `.RPT`
+and `crash_*.log` of every profile folder the game writes to.
+
+- **Which profiles:** those of the selected DayZ run configuration, named after their process
+  (*Server*, then each player, or *Client* for a single unnamed one), as its *Profile* fields and
+  players work them out. The tabs change with the selected configuration. With no DayZ
+  configuration selected, the client profile (`%LOCALAPPDATA%\DayZ` unless set otherwise) and the
+  server profile of the DayZ Installation settings.
+
+- Each tab shows the newest file of its kind and keeps up with it once a second; when the game
+  starts again and writes a new file, the tab switches to it. *Open Older Run…* shows an earlier
+  file instead, and *Follow Newest* goes back. A file over 8 MB opens on its last 8 MB.
+- Errors are red and warnings amber. *Errors and Warnings Only* hides the rest, keeping the report
+  that follows an error (the *Can't compile* summary, a stack trace) with it. *Collapse Repeated
+  Lines* shows a line repeated back to back once, with a count, timestamps aside. The console's own
+  search (`Ctrl+F`) works as usual.
+- The three shapes of source location the game writes — `@"scripts/3_Game/human.c,17"`,
+  `MyMod/Scripts/3_Game/x.c(1):` and the stack-trace `MyMod/Scripts/5_Mission/x.c:276 Function …` —
+  are links. The path is the game's, from a PBO prefix or the work drive, so it is matched from the
+  right against the project and its roots, like an asset path: a mod's own file opens in the
+  project, a vanilla one under `P:\scripts`, and a dependency's in its PBO cache.
+- **Not supported:** a *Problems* list of the last run's errors, and attaching to a running DayZ
+  run configuration's output (the game writes nothing useful to it).
+
 ### Building PBOs
 
 *Build PBO* on an addon folder in the *Project* view (or on any file inside one: the nearest folder
@@ -1048,6 +1074,18 @@ mod called BattleRoyale):
 - *DayZ Addon* again on the same mod → it starts on *Data*. Switch the kind to *Language* → folder
   `LanguageCore`, no module ticked, only `DZ_Data`; *OK* → a `stringtable.csv` with vanilla's
   header and a `config.cpp` with no `CfgMods`. *GUI* → `layouts` and `imagesets` folders.
+
+**Game logs**
+
+- Open *DayZ Logs* → *Script*, *RPT* and *Crash* tabs, each naming its file; start the game → the
+  tabs switch to the new run and follow it.
+- Select a DayZ run configuration with a server and two players → *Server*, *Alice* and *Bob* tabs
+  of each kind, on their profile folders; select another configuration → the tabs follow it.
+- In the *Script* tab, click an `@"scripts/3_Game/….c,17"` link → vanilla opens at
+  that line; a mod's own `…(1):` compile error → the mod's file.
+- *Errors and Warnings Only* → a stack trace stays under its error. *Open Older Run…* → the chosen
+  file; *Follow Newest* → back.
+- With no profile folder → a message pointing to the settings, no error.
 
 **Building PBOs**
 

@@ -161,6 +161,28 @@ object DayZLaunchCommand {
     }
 
     /**
+     * The profile folder each process of [launch] writes its logs to, named for the log console:
+     * the server's, then each client's (the player's name, or *Client* for a single unnamed one).
+     * A process on the game's default profile gets [paths]' profile, and a folder two processes
+     * would share is listed once.
+     */
+    fun logProfiles(paths: DayZPaths, launch: DayZLaunch): List<Pair<String, String>> {
+        val result = ArrayList<Pair<String, String>>()
+        if (launch.startServer) {
+            (launch.serverProfile?.takeIf { it.isNotBlank() } ?: paths.serverProfile?.toString())?.let { result += "Server" to it }
+        }
+        if (launch.startClients) {
+            val players = launch.players.ifEmpty { listOf(DayZPlayer()) }
+            for ((i, player) in players.withIndex()) {
+                val folder = profileOf(paths, launch, player)?.takeIf { it.isNotBlank() } ?: paths.clientProfile?.toString() ?: continue
+                val name = player.name?.trim()?.takeIf { it.isNotEmpty() } ?: if (players.size > 1) "Player ${i + 1}" else "Client"
+                result += name to folder
+            }
+        }
+        return result.distinctBy { DayZMods.key(it.second) }
+    }
+
+    /**
      * Whether a server config lets clients with `-filePatching` join: `allowFilePatching = 1`.
      * Without it the server refuses them ("The server does not accept the client's current
      * filePatching setting"). Comments are skipped; the setting is off when absent.
