@@ -40,5 +40,26 @@ the `@MyMod` folder a mod ships, one configuration per mod:
   changed since the last build, or when its PBO or signature is missing. A copy is skipped when the
   file is the same size and date. PBOs, signatures and keys no longer part of the mod are removed;
   other files in `addons\` are left alone.
-- **Not supported yet:** publishing to the Steam Workshop (planned with SteamCMD), creating a
-  signing key, and generating `mod.cpp`.
+- **Not supported yet:** creating a signing key, and generating `mod.cpp`.
+
+## Publishing to the Steam Workshop
+
+A **DayZ Workshop Publish** run configuration uploads a built `@MyMod` folder to the Steam
+Workshop with SteamCMD, Valve's command-line Steam client (a separate download). DayZ Tools'
+Publisher has no command line, so SteamCMD's `workshop_build_item` is the scriptable way.
+
+- **What it uploads:** the *Mod folder*, as *DayZ Mod Build* writes it. To build first, add that
+  configuration under *Before launch*. Publishing is its own configuration so that it is never one
+  click away from a build: an upload cannot be undone.
+- **The item:** *Workshop item ID*, empty for a new item; after the first upload the new ID is
+  filled in, so the next one updates it. *Visibility*, *Title*, *Description* and *Preview image*
+  are sent only when set, so an update leaves the item's page as it is.
+- **The change note** is one entry of the item's *Change Notes* tab on the Workshop: the *Change
+  note* field, or, when it is empty, the first section of a changelog file (a `CHANGELOG.md`'s
+  newest `## 1.2.0` section, its heading left out).
+- **Before anything runs**, a confirmation names the item, the folder with its file count and
+  size, the visibility and the change note.
+- **The login:** only the *Steam account* name is stored. SteamCMD opens in a console window of its
+  own, where its password and Steam Guard prompts are answered the first time; SteamCMD keeps the
+  login after that. The IDE never asks for, sees or stores them. The *Run* tab says when the window
+  is closed, with the item's link or SteamCMD's exit code.

@@ -371,6 +371,7 @@
 
         <configurationType implementation="io.github.lemyst.enfusion.tools.run.DayZRunConfigurationType"/>
         <configurationType implementation="io.github.lemyst.enfusion.tools.run.DayZModBuildConfigurationType"/>
+        <configurationType implementation="io.github.lemyst.enfusion.tools.run.DayZWorkshopPublishConfigurationType"/>
 
         <toolWindow id="DayZ Logs"
                     anchor="bottom"

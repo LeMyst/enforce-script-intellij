@@ -398,6 +398,19 @@ Opening a real DayZ mod. The examples below use a mod called MyMod.
 - Untick an addon and run → its PBO and signature are removed from `addons\`.
 - Start a server with `verifySignatures = 2` on the built mod → clients with it join.
 
+### Publishing to the Workshop
+
+With SteamCMD installed and a **private test item** (or none, to create one, set to *Private*).
+
+- *DayZ Workshop Publish* with the built mod folder, `steamcmd.exe`, the account name, visibility
+  *Private* and a change note → *Run* → a confirmation with the folder's size and the note.
+  *Cancel* → nothing runs.
+- Confirm → SteamCMD's own window asks for the password and the Steam Guard code; the upload
+  runs. Close the window → the *Run* tab gives the item's link, and the configuration now holds
+  the item ID.
+- Run again with another change note → no password asked; the item's *Change Notes* tab has both.
+- Leave the change note empty and set a `CHANGELOG.md` → its newest section is the note.
+
 ## Layout preview
 
 - Open `P:\gui\layouts\day_z_ingamemenu.layout` → text and preview side by side: the button column
