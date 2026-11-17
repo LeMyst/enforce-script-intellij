@@ -426,6 +426,19 @@ Opening a real DayZ mod. The examples below use a mod called MyMod.
   the pointer; drag → the view pans; a click without dragging still selects. *Fit* → back to the
   whole screen; *100%* → one layout pixel per screen pixel.
 
+## Colour swatches
+
+- Open a vanilla `.layout` → a swatch beside each `color` and `"text color"` line, the colour
+  the preview shows. Click one in a mod layout, pick another colour → the four numbers change
+  (linear, three decimals) and the preview updates.
+- In a script, `ARGB(255, 242, 38, 19)` → a red swatch; pick a colour → the four arguments change.
+  `ARGBF(1, 0, 0.5, 1)` → light blue. `const int COLOR_RED = 0xFFF22613;` → red, and a
+  `const int` flag such as `0x00000400` → no swatch.
+- In a config, `"#(argb,8,8,3)color(0.5,0.5,0.5,1,co)"` → grey.
+- **Open question to settle in game:** is a script `ARGB` colour shown as written (sRGB), as the
+  swatch assumes, or converted like layout colours? `SetColor(ARGB(255, 36, 36, 36))` on a widget
+  beside one with `color 0.141 0.141 0.141 1`: if they match, script colours are linear too.
+
 ## Rename and inspections
 
 - `Shift+F6` on a method in a `modded class` that overrides vanilla → **refused**, with a message

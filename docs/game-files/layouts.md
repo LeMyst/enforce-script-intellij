@@ -56,6 +56,9 @@ tints its style, so it would be a block of colour).
 Every `color` is linear, as the engine's, and is shown in sRGB, so `0.141 0.141 0.141` is the
 mid-grey Workbench shows, not near black.
 
+Each `color` and `"… color"` property has a swatch in the gutter, and clicking it opens the
+colour picker: see [Colour swatches](../scripts/editing.md#colour-swatches).
+
 ### Images
 
 Images show their `image0` (an imageset entry or a texture) or `imageTexture`, through the same

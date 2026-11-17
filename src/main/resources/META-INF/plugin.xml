@@ -111,6 +111,9 @@
         <codeInsight.lineMarkerProvider
                 language="EnfusionConfig"
                 implementationClass="io.github.lemyst.enfusion.texture.EnTextureConfigLineMarkerProvider"/>
+        <!-- Colour swatches and the picker: layouts, .styles, ARGB / ARGBF, colour constants and
+             procedural textures. Not language-bound: the EP has no language attribute. -->
+        <colorProvider implementation="io.github.lemyst.enfusion.colors.EnColorProvider"/>
 
         <lang.parserDefinition
                 language="EnfusionScript"
