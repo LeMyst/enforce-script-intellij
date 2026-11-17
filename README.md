@@ -536,6 +536,33 @@ runs in one *Run* tab, where *Stop* stops it all.
   binarised) and signing the packed addons; for those, build with Addon Builder. Starting Buldozer
   (Object Builder's viewer) is left for later.
 
+### New mods and addons
+
+*File → New* (and *New* in the *Project* view's menu) has **DayZ Mod…** and **DayZ Addon…**, both
+working in the folder chosen.
+
+- **DayZ Mod:** a folder (empty for the chosen folder itself) with a `mod.cpp` (name, author,
+  version, tooltip, overview and action link) and, as ticked, a `LICENSE` (MIT, or GPL-3.0 from the
+  plugin's own licence text), a `README.md` and a `.gitignore` for built PBOs, signatures, private
+  keys, logs and the IDE's folder. *Then create its first addon* opens *DayZ Addon* in the new folder.
+- **DayZ Addon:** an addon folder with a `config.cpp` that is right the first time.
+  - **Prefix:** prefilled with the folder's path on the work drive, through the drive's link to the
+    project as *Rescan Project Addons* finds it (`MyMod\Scripts`). Without a link, the path from the
+    folder holding the project, since a checkout is usually named after its mod.
+  - **`CfgPatches` class:** `<Mod>_<Folder>` (`MyMod_Scripts`); class and prefix follow the folder's
+    name until edited.
+  - **`requiredAddons[]`:** a searchable list of every `CfgPatches` class the project indexes,
+    vanilla's and the dependency mods', with `DZ_Data` ticked, and `DZ_Scripts` when a script module
+    is.
+  - **Script modules:** `1_Core` to `5_Mission`, `3_Game` to `5_Mission` ticked. Each ticked module
+    gets its folder with a first script, and a `CfgMods` entry: `class defs { class
+    gameScriptModule { value = ""; files[] = { "MyMod/Scripts/3_Game" }; }; … }`, with `dir`,
+    `name`, `type = "mod"`, `dependencies[]` from the modules and optional `defines[]`.
+  - A `$PBOPREFIX$` file, ticked by default.
+- **Not supported:** a new IDE project (both work in a folder of the current one), logos and
+  pictures, which are added by hand, editing an existing `config.cpp` through a form, and file
+  templates for `.c` classes.
+
 ### Building PBOs
 
 *Build PBO* on an addon folder in the *Project* view (or on any file inside one: the nearest folder
@@ -936,6 +963,21 @@ mod called BattleRoyale):
 - Two players with the same name → an error in the configuration. Several players without Goldberg
   → a warning. Neither box ticked → an error.
 - *Tools → DayZ* and the toolbar's *DayZ* drop-down have no *Launch Buldozer*.
+
+**New mods and addons**
+
+- Right-click a folder in the *Project* view → *New → DayZ Mod…* → enter a folder and a name, keep
+  the defaults → the folder has `mod.cpp`, `LICENSE`, `README.md` and `.gitignore`, and `mod.cpp`
+  opens. *New DayZ Addon* follows, prefilled: folder `Scripts`, class `<Folder>_Scripts`, prefix
+  from the work drive's link when the project has one.
+- In the addon dialog, type `DZ_` in the search field → only the matching addons stay listed, the
+  ticked ones still ticked. Untick `4_World` and `5_Mission`, *OK* → `config.cpp` opens with only
+  `gameScriptModule`, `files[] = { "<prefix>/3_Game" }`, `dependencies[] = { "Game" }`; the folder
+  has `$PBOPREFIX$` and `3_Game\<Class>.c`.
+- *Run → Edit Configurations → DayZ → Rescan Project Addons* → the new addon is listed with its
+  prefix. *Build PBO* on its folder builds it.
+- Choose a folder that already has a `config.cpp`, or a class name starting with a digit → the
+  dialog says so and *OK* stays disabled.
 
 **Building PBOs**
 
