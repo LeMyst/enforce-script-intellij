@@ -2,6 +2,9 @@ package io.github.lemyst.enfusion.objfmt.preview
 
 import com.intellij.openapi.project.DumbService
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.psi.search.FilenameIndex
+import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiManager
@@ -55,11 +58,30 @@ object LayoutSpecs {
         val byName = FontFiles.sizeInName(value)?.let { FontFiles.Metrics(it, null) }
         if (DumbService.isDumb(project)) return byName
         val path = value.trim().let { if (it.endsWith(".fnt", ignoreCase = true)) it else "$it.fnt" }
-        val file = EnAssetPaths.findBySuffix(project, path).firstOrNull() ?: return byName
+        val file = EnAssetPaths.findBySuffix(project, path).firstOrNull() ?: inOtherCase(project, path) ?: return byName
         fontsRead[file.url]?.takeIf { it.stamp == file.modificationStamp }?.let { return it.metrics }
         val metrics = runCatching { FontFiles.read(file.contentsToByteArray()) }.getOrNull()
         fontsRead[file.url] = FontRead(file.modificationStamp, metrics)
         return metrics
+    }
+
+    /**
+     * The file at [path] when its name differs only in case: layouts write
+     * `gui/fonts/sdf_MetronBook24` and vanilla's file is `sdf_metronbook24.fnt`, which the name
+     * index, matching exact names, misses wherever the fonts are indexed. Only for fonts, a few per
+     * layout: a lookup ignoring case goes through every name the index holds. The engine ignores
+     * case in paths, so the file whose path shares the longest ending with [path] wins.
+     */
+    private fun inOtherCase(project: Project, path: String): VirtualFile? {
+        val wanted = EnAssetPaths.segmentsOf(path).map { it.lowercase() }
+        val name = wanted.lastOrNull() ?: return null
+        fun shared(file: VirtualFile): Int {
+            val have = EnAssetPaths.segmentsOf(file.path).map { it.lowercase() }
+            var n = 0
+            while (n < have.size && n < wanted.size && have[have.size - 1 - n] == wanted[wanted.size - 1 - n]) n++
+            return n
+        }
+        return FilenameIndex.getVirtualFilesByName(name, false, GlobalSearchScope.allScope(project)).maxByOrNull(::shared)
     }
 
     private class FontRead(val stamp: Long, val metrics: FontFiles.Metrics?)

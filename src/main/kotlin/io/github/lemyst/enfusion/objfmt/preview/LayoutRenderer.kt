@@ -45,8 +45,16 @@ object LayoutRenderer {
      */
     private val FILLED_TYPES = setOf("PanelWidgetClass", "ProgressBarWidgetClass", "SliderWidgetClass")
 
-    /** The widgets whose style is drawn as a frame of pictures ([WidgetStyles]). */
-    private val STYLED_TYPES = setOf("PanelWidgetClass", "ButtonWidgetClass", "WindowWidgetClass", "SmartPanelWidgetClass")
+    /**
+     * The widgets whose style is drawn as a frame of pictures ([WidgetStyles]). Spacers too:
+     * `dayzwidgets.styles` gives them styles, and Workbench draws
+     * `day_z_underground_trigger_editor_popup_dialog`'s grid spacer in `DayZDefaultPanel`, darkened
+     * by its `color 0 0 0 0.729`.
+     */
+    private val STYLED_TYPES = setOf(
+        "PanelWidgetClass", "ButtonWidgetClass", "WindowWidgetClass", "SmartPanelWidgetClass",
+        "GridSpacerWidgetClass", "WrapSpacerWidgetClass",
+    )
 
     /** Styles that draw nothing, so a panel wearing one is not filled whatever its colour. */
     private val EMPTY_STYLES = setOf("blank", "empty", "emptyhighlight")

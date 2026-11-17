@@ -1,10 +1,12 @@
 package io.github.lemyst.enfusion
 
+import com.intellij.openapi.application.WriteAction
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import io.github.lemyst.enfusion.objfmt.preview.FontFiles
 import io.github.lemyst.enfusion.objfmt.preview.LayoutGeometry
 import io.github.lemyst.enfusion.objfmt.preview.LayoutRenderer
 import io.github.lemyst.enfusion.objfmt.preview.LayoutSpecs
+import io.github.lemyst.enfusion.objfmt.preview.LayoutStyles
 import io.github.lemyst.enfusion.objfmt.preview.WidgetStyles
 import java.io.File
 
@@ -48,6 +50,49 @@ class EnfusionLayoutPreviewCorpusTest : BasePlatformTestCase() {
         }
         println("[layout-preview] ${files.size} layouts, $widgets widgets, ${(System.nanoTime() - t0) / 1_000_000} ms")
         assertTrue("failed on ${failures.size}: ${failures.take(5)}", failures.isEmpty())
+    }
+
+    /**
+     * The whole chain on one vanilla dialog, `day_z_underground_trigger_editor_popup_dialog`, whose
+     * Workbench drawing the preview was measured against: its files are copied from the vanilla
+     * `gui` folder under the layout roots into the test project (never into the repository), then
+     * read, laid out and styled as the preview does. Its buttons wear `DayZDefaultButton`, framed
+     * from `dayz_gui`, and its message's font gives the 36-pixel line Workbench draws.
+     */
+    fun testVanillaDialogStylesAndFont() {
+        val gui = System.getProperty("enfusion.layout.roots").orEmpty().split(';').map { File(it.trim()) }
+            .firstOrNull { File(it, "looknfeel/dayzwidgets.styles").isFile && File(it, "imagesets/dayz_gui.imageset").isFile }
+        val layout = gui?.let { File(it, "layouts/underground_trigger_editor/day_z_underground_trigger_editor_popup_dialog.layout") }
+        if (layout == null || !layout.isFile) {
+            println("[dialog] no vanilla gui folder under the layout roots, skipping")
+            return
+        }
+        for (text in listOf("looknfeel/dayzwidgets.styles", "imagesets/dayz_gui.imageset")) {
+            myFixture.addFileToProject("gui/$text", File(gui, text).readText().replace("\r\n", "\n"))
+        }
+        for (binary in listOf("imagesets/dayz_gui.edds", "imagesets/dayz_gui@2x.edds", "fonts/sdf_metronbook24.fnt")) {
+            val file = myFixture.tempDirFixture.createFile("gui/$binary")
+            WriteAction.runAndWait<Throwable> { file.setBinaryContent(File(gui, binary).readBytes()) }
+        }
+        val psi = myFixture.addFileToProject("gui/layouts/dialog.layout", layout.readText().replace("\r\n", "\n"))
+        val placed = LayoutGeometry.layout(LayoutSpecs.of(psi), 1920.0, 1080.0)
+        val byName = placed.associateBy { it.spec.name }
+        val frames = LayoutStyles.frames(project, placed.map { it.spec })
+        for (p in placed) println("[dialog] ${p.spec.type} ${p.spec.name} ${p.rect} font=${p.spec.font?.let { "${it.size}/${it.lineHeight}" }} frame=${frames[p.spec]?.pieces?.keys}")
+
+        // ENFUSION_LAYOUT_PNG=<folder> writes the dialog as drawn, to set beside Workbench's.
+        System.getenv("ENFUSION_LAYOUT_PNG")?.let { dir ->
+            val r = byName.getValue("GridSpacerWidget0").rect
+            val picture = LayoutRenderer.render(placed, 1920, 1080, showHidden = false, selected = null, frame = { frames[it] }) { _, _ -> null }
+            javax.imageio.ImageIO.write(picture.getSubimage(r.x.toInt() - 10, r.y.toInt() - 10, r.w.toInt() + 20, r.h.toInt() + 20), "png", File(dir, "dialog.png"))
+        }
+        assertEquals("the message's line, from its font's file", 36.0, byName.getValue("message").rect.h, 1e-6)
+        assertNotNull("the dialog's grid spacer framed by DayZDefaultPanel", frames[byName.getValue("GridSpacerWidget0").spec])
+        for (button in listOf("button_ok", "button_cancel")) {
+            val frame = frames[byName.getValue(button).spec]
+            assertNotNull("$button framed by DayZDefaultButton", frame)
+            assertTrue("$button: ${frame!!.pieces.keys}", WidgetStyles.Piece.CENTER in frame.pieces)
+        }
     }
 
     /**

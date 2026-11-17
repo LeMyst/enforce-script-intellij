@@ -191,7 +191,7 @@ inputs.
   lowest first. With `fixaspect`, a proportional
   `size` gives only a ratio: `outside` covers the parent with a box of that ratio, `inside` fits
   one in it (`size 1.6 0.9` is a full 16:9 screen), and `fixwidth` (`fixheight`) derives the width
-  (height) from the other side. Panels, buttons and windows are drawn in their **`style`**, as the
+  (height) from the other side. Panels, buttons, windows and spacers are drawn in their **`style`**, as the
   game draws them: the style of that name for the widget's class in the `*.styles` files the project
   sees (vanilla's `gui/looknfeel/dayzwidgets.styles`, now a library root, and a mod's own), its
   `Normal` state's nine imageset pictures framing the box (corners at their size, edges and centre

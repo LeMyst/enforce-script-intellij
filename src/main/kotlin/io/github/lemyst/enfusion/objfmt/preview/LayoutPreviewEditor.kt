@@ -15,6 +15,7 @@ import com.intellij.openapi.fileEditor.TextEditor
 import com.intellij.openapi.fileEditor.TextEditorWithPreview
 import com.intellij.openapi.fileEditor.impl.text.TextEditorProvider
 import com.intellij.openapi.project.DumbAware
+import com.intellij.openapi.project.DumbService
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.util.UserDataHolderBase
@@ -154,6 +155,11 @@ class LayoutPreviewEditor(
         textEditor.editor.document.addDocumentListener(object : DocumentListener {
             override fun documentChanged(event: DocumentEvent) = schedule(300)
         }, this)
+        // Built while the project indexes (a layout reopened at startup), the preview has no
+        // styles and takes fonts' sizes from their names; nothing else would build it again.
+        project.messageBus.connect(this).subscribe(DumbService.DUMB_MODE, object : DumbService.DumbModeListener {
+            override fun exitDumbMode() = schedule(0)
+        })
         textEditor.editor.caretModel.addCaretListener(object : CaretListener {
             override fun caretPositionChanged(event: CaretEvent) {
                 val now = LayoutGeometry.at(placed, textEditor.editor.caretModel.offset)?.spec
