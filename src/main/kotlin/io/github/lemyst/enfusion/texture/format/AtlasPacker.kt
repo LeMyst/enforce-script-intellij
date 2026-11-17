@@ -8,14 +8,17 @@ package io.github.lemyst.enfusion.texture.format
  * Deterministic: sprites are placed largest first, ties broken by name, and every choice between
  * equal candidates goes to the first, so the same sprites always land in the same places.
  *
- * [padding] pixels are kept on every side of each sprite, inside the atlas, so that filtering and
- * the smaller mips do not blend neighbours: no sprite's picture touches another's or the edge.
+ * [padding] is the gap between two sprites, not a border along the atlas edge, which sprites may
+ * touch: DayZ atlases are packed tight, vanilla's images mostly 0 or 1 pixel apart (657 and 505
+ * of them) and against the edge, mods' almost all 0. Each sprite is given [padding] more on its
+ * right and bottom, in a bin [padding] larger than the atlas, which leaves exactly that gap
+ * between neighbours and none at the edge.
  */
 object AtlasPacker {
 
     class Sprite(val name: String, val width: Int, val height: Int)
 
-    /** Where [sprite]'s picture goes: its top-left corner, padding excluded. */
+    /** Where [sprite]'s picture goes: its top-left corner. */
     class Placement(val sprite: Sprite, val x: Int, val y: Int)
 
     class Atlas(val width: Int, val height: Int, val placements: List<Placement>)
@@ -31,16 +34,16 @@ object AtlasPacker {
                 .thenByDescending { it.width * it.height }
                 .thenBy { it.name },
         )
-        val widest = order.maxOf { it.width + 2 * padding }
-        val tallest = order.maxOf { it.height + 2 * padding }
+        val widest = order.maxOf { it.width }
+        val tallest = order.maxOf { it.height }
         if (widest > maxSide || tallest > maxSide) {
-            val big = order.first { it.width + 2 * padding > maxSide || it.height + 2 * padding > maxSide }
-            throw DoesNotFit("${big.name} (${big.width} × ${big.height}) is larger than $maxSide pixels with its padding")
+            val big = order.first { it.width > maxSide || it.height > maxSide }
+            throw DoesNotFit("${big.name} (${big.width} × ${big.height}) is larger than $maxSide pixels")
         }
-        val area = order.sumOf { (it.width + 2L * padding) * (it.height + 2L * padding) }
+        val area = order.sumOf { (it.width + padding.toLong()) * (it.height + padding.toLong()) }
         for ((w, h) in sizes(maxSide)) {
-            if (w < widest || h < tallest || w.toLong() * h < area) continue
-            place(order, padding, w, h)?.let { return Atlas(w, h, it) }
+            if (w < widest || h < tallest || (w + padding.toLong()) * (h + padding) < area) continue
+            place(order, padding, w + padding, h + padding)?.let { return Atlas(w, h, it) }
         }
         throw DoesNotFit("the ${sprites.size} images do not fit in $maxSide × $maxSide")
     }
@@ -62,8 +65,8 @@ object AtlasPacker {
         var free = listOf(Free(0, 0, width, height))
         val placed = ArrayList<Placement>(order.size)
         for (sprite in order) {
-            val w = sprite.width + 2 * padding
-            val h = sprite.height + 2 * padding
+            val w = sprite.width + padding
+            val h = sprite.height + padding
             var best: Free? = null
             var bestShort = Int.MAX_VALUE
             var bestLong = Int.MAX_VALUE
@@ -79,7 +82,7 @@ object AtlasPacker {
             }
             val at = best ?: return null
             val used = Free(at.x, at.y, w, h)
-            placed += Placement(sprite, at.x + padding, at.y + padding)
+            placed += Placement(sprite, at.x, at.y)
             free = split(free, used)
         }
         return placed

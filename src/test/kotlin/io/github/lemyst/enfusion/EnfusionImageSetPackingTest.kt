@@ -19,23 +19,31 @@ class EnfusionImageSetPackingTest : BasePlatformTestCase() {
 
     private fun sprites(vararg sizes: Pair<Int, Int>) = sizes.mapIndexed { i, (w, h) -> AtlasPacker.Sprite("s$i", w, h) }
 
-    fun testPackerKeepsPaddingFreeAndStaysInside() {
+    fun testPackerKeepsTheGapBetweenPicturesAndStaysInside() {
         val sprites = sprites(100 to 40, 30 to 30, 64 to 64, 10 to 90, 17 to 5, 50 to 50, 1 to 1)
-        val padding = 2
-        val atlas = AtlasPacker.pack(sprites, padding, 1024)
+        val gap = 2
+        val atlas = AtlasPacker.pack(sprites, gap, 1024)
         assertEquals(sprites.size, atlas.placements.size)
         assertEquals("a power of two", 0, atlas.width and (atlas.width - 1))
         assertEquals(0, atlas.height and (atlas.height - 1))
-        val boxes = atlas.placements.map { p -> intArrayOf(p.x - padding, p.y - padding, p.sprite.width + 2 * padding, p.sprite.height + 2 * padding) }
+        val boxes = atlas.placements.map { p -> intArrayOf(p.x, p.y, p.sprite.width, p.sprite.height) }
         for (b in boxes) {
             assertTrue("inside the atlas", b[0] >= 0 && b[1] >= 0 && b[0] + b[2] <= atlas.width && b[1] + b[3] <= atlas.height)
         }
         for (i in boxes.indices) for (j in i + 1 until boxes.size) {
             val a = boxes[i]
             val b = boxes[j]
-            val overlap = a[0] < b[0] + b[2] && b[0] < a[0] + a[2] && a[1] < b[1] + b[3] && b[1] < a[1] + a[3]
-            assertFalse("${atlas.placements[i].sprite.name} and ${atlas.placements[j].sprite.name} overlap", overlap)
+            val apart = a[0] + a[2] + gap <= b[0] || b[0] + b[2] + gap <= a[0] || a[1] + a[3] + gap <= b[1] || b[1] + b[3] + gap <= a[1]
+            assertTrue("${atlas.placements[i].sprite.name} and ${atlas.placements[j].sprite.name} are closer than $gap", apart)
         }
+    }
+
+    /** No gap asked, none given: sixteen 64² icons fill a 256² atlas exactly, as DayZ's grids do, edges included. */
+    fun testTightPackingFillsTheAtlas() {
+        val atlas = AtlasPacker.pack(sprites(*Array(16) { 64 to 64 }), 0, 4096)
+        assertEquals(256 to 256, atlas.width to atlas.height)
+        assertTrue("a picture against the edge", atlas.placements.any { it.x == 0 && it.y == 0 })
+        assertTrue(atlas.placements.any { it.x + 64 == 256 && it.y + 64 == 256 })
     }
 
     fun testPackerIsDeterministicAndPicksTheSmallestAtlas() {
@@ -116,14 +124,19 @@ class EnfusionImageSetPackingTest : BasePlatformTestCase() {
     fun testImageSetTextParsesAndPlacesEachPicture() {
         val red = ImageSetPacking.Source("red", null, 3, 2, IntArray(6) { 0xFFFF0000.toInt() })
         val blue = ImageSetPacking.Source("blue", "Icons", 2, 2, IntArray(4) { 0xFF0000FF.toInt() })
-        val packed = ImageSetPacking.pack(listOf(red, blue), ImageSetPacking.Options(padding = 1))
+        val options = ImageSetPacking.Options(padding = 2, extrude = true)
+        val packed = ImageSetPacking.pack(listOf(red, blue), options)
         for (p in packed.placements) {
             val colour = p.source.argb[0]
             assertEquals(p.source.name, colour, packed.argb[p.y * packed.width + p.x])
-            assertEquals("extruded into the padding", colour, packed.argb[(p.y - 1) * packed.width + p.x - 1])
+            val right = p.x + p.source.width
+            if (right < packed.width) assertEquals("half the gap repeats the edge", colour, packed.argb[p.y * packed.width + right])
         }
+        val plain = ImageSetPacking.pack(listOf(red, blue), ImageSetPacking.Options(padding = 2))
+        val p = plain.placements.first { it.source.name == "red" }
+        if (p.x + 3 < plain.width) assertEquals("no repeating unless asked: the gap stays transparent", 0, plain.argb[p.y * plain.width + p.x + 3])
         val text = ImageSetPacking.imageSet("my_set", "MyMod/GUI/imagesets/my_set.edds", packed)
-        assertEquals(text, ImageSetPacking.imageSet("my_set", "MyMod/GUI/imagesets/my_set.edds", ImageSetPacking.pack(listOf(blue, red), ImageSetPacking.Options(padding = 1))))
+        assertEquals(text, ImageSetPacking.imageSet("my_set", "MyMod/GUI/imagesets/my_set.edds", ImageSetPacking.pack(listOf(blue, red), options)))
         val psi = myFixture.configureByText("my_set.imageset", text)
         assertNull(text, PsiTreeUtil.findChildOfType(psi, PsiErrorElement::class.java))
         val defs = PsiTreeUtil.findChildrenOfType(psi, EnObjDeclMixin::class.java).filter { it.getClassName() == "ImageSetDefClass" }

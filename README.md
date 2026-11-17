@@ -117,8 +117,12 @@ inputs.
     *Subfolders become groups* puts each first-level subfolder's pictures in its own
     `ImageSetGroupClass`.
   - Pictures are placed largest first with MaxRects, on the smallest power-of-two atlas that holds
-    them (at most *Largest atlas side*). *Padding* pixels stay round each one, filled with its own
-    edge pixels so that filtering and the smaller mips do not blend neighbours.
+    them (at most *Largest atlas side*). *Gap between pictures* is 0 by default, as DayZ's atlases
+    are packed: vanilla's images are mostly 0 or 1 pixel apart and against the atlas edge, mods'
+    almost all 0. The gap is only ever between pictures, never along the edge, so sixteen 64² icons
+    still fill a 256² atlas. A gap of 2 keeps an icon drawn smaller, from a smaller mip, from
+    blending into its neighbour; *Repeat each picture's edge* fills half the gap on each side with
+    the picture's own edge pixels.
   - The atlas is BGRA8, uncompressed, with a full mip chain: the format of most vanilla UI atlases
     (13 of the 23 under `P:\gui\imagesets`), with every mip stored raw as in `dayz_gui.edds`, whose
     header it copies (most others compress their larger mips). The `.imageset` lists the images by name and names the

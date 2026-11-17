@@ -13,10 +13,14 @@ object ImageSetPacking {
     class Source(val name: String, val group: String?, val width: Int, val height: Int, val argb: IntArray)
 
     class Options(
-        val padding: Int = 2,
+        /** The gap between two pictures; none along the atlas edge ([AtlasPacker]). */
+        val padding: Int = 0,
         val maxSide: Int = 4096,
-        /** Repeat each picture's edge pixels into its padding, so filtering at the edge samples the picture, not the transparent gap. */
-        val extrude: Boolean = true,
+        /**
+         * Repeat each picture's edge pixels into half the gap round it, so that a picture drawn
+         * scaled, or from a smaller mip, samples its own edge rather than the transparent gap.
+         */
+        val extrude: Boolean = false,
     )
 
     class Packed(val width: Int, val height: Int, val argb: IntArray, val placements: List<Placed>)
@@ -51,20 +55,29 @@ object ImageSetPacking {
         for (p in placed) {
             val s = p.source
             for (y in 0 until s.height) System.arraycopy(s.argb, y * s.width, pixels, (p.y + y) * atlas.width + p.x, s.width)
-            if (options.extrude) extrude(pixels, atlas.width, p, options.padding)
+            if (options.extrude) extrude(pixels, atlas.width, atlas.height, p, options.padding)
         }
         return Packed(atlas.width, atlas.height, pixels, placed.sortedBy { it.source.name.lowercase() })
     }
 
-    /** Fills the [padding] round a picture with its nearest edge pixel; the padding is the picture's own. */
-    private fun extrude(pixels: IntArray, stride: Int, p: Placed, padding: Int) {
+    /**
+     * Fills half the [padding] round a picture with its nearest edge pixel, inside the atlas. Two
+     * neighbours are at least [padding] apart, so their halves never meet.
+     */
+    private fun extrude(pixels: IntArray, stride: Int, rows: Int, p: Placed, padding: Int) {
         val s = p.source
-        for (dy in -padding until s.height + padding) {
+        val half = padding / 2
+        if (half == 0) return
+        for (dy in -half until s.height + half) {
+            val y = p.y + dy
+            if (y < 0 || y >= rows) continue
             val sy = dy.coerceIn(0, s.height - 1)
-            for (dx in -padding until s.width + padding) {
+            for (dx in -half until s.width + half) {
                 if (dx in 0 until s.width && dy in 0 until s.height) continue
+                val x = p.x + dx
+                if (x < 0 || x >= stride) continue
                 val sx = dx.coerceIn(0, s.width - 1)
-                pixels[(p.y + dy) * stride + p.x + dx] = s.argb[sy * s.width + sx]
+                pixels[y * stride + x] = s.argb[sy * s.width + sx]
             }
         }
     }

@@ -76,10 +76,10 @@ internal object PackImageSet {
         var outputFolder: String,
         var fileName: String,
         var texturePath: String,
-        var padding: Int = 2,
+        var padding: Int = 0,
         var maxSide: Int = 4096,
         var mips: Boolean = true,
-        var extrude: Boolean = true,
+        var extrude: Boolean = false,
         var groups: Boolean = false,
     )
 
@@ -211,12 +211,13 @@ private class PackImageSetDialog(private val project: Project, private val setti
                 textField().columns(COLUMNS_LARGE).align(AlignX.FILL).bindText(settings::texturePath)
                     .comment("The game's path to the .edds, written in the .imageset: the addon's prefix and the path inside it.")
             }
-            row("Padding:") {
-                intTextField(0..64).bindIntText(settings::padding).comment("Pixels kept round each picture.")
+            row("Gap between pictures:") {
+                intTextField(0..64).bindIntText(settings::padding)
+                    .comment("Pixels, none along the atlas edge. DayZ's atlases are packed tight (0 or 1); 2 keeps a picture drawn smaller from blending into its neighbour.")
             }
             row("Largest atlas side:") { intTextField(16..16384).bindIntText(settings::maxSide) }
             row { checkBox("Mipmaps, as vanilla's UI atlases have").bindSelected(settings::mips) }
-            row { checkBox("Repeat each picture's edge into its padding").bindSelected(settings::extrude) }
+            row { checkBox("Repeat each picture's edge into half the gap round it").bindSelected(settings::extrude) }
             row { checkBox("Subfolders become groups").bindSelected(settings::groups) }
             row { comment("BGRA8, uncompressed: the format of most vanilla UI atlases. Packing the same pictures again gives the same files.") }
         }
