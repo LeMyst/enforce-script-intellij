@@ -21,8 +21,9 @@ strings may be renamed.
 
 The product is navigation. The language has no `#include` and no namespaces, so every symbol lives in
 one flat global namespace spread across the mod, the vanilla corpus (`P:\scripts`, about 3,000 files)
-and dependency mods. `README.md` describes user-visible behaviour, including what is
-not supported.
+and dependency mods. The documentation in `docs/`, published at
+<https://lemyst.github.io/enforce-script-intellij/>, describes user-visible behaviour, including
+what is not supported. `README.md` only presents the project and links into it.
 
 ## Toolchain and compatibility
 
@@ -114,6 +115,13 @@ Vanilla DayZ sources are proprietary. Never commit them, nor fixtures copied out
 - `src/main/resources/inspectionDescriptions/<ShortName>.html`: every inspection needs one.
 - `src/main/resources/stubs/cf/`: the bundled Community Framework stub. It holds signatures only,
   declared `proto`, with no bodies.
+- `docs/`: the documentation site, Jekyll with the Just the Docs theme (`docs/_config.yml`),
+  published by `.github/workflows/pages.yml`. One page per feature, grouped in sections
+  (`scripts/`, `game-files/`, `setup/`, `tools/`, `development/`); each page's front matter gives
+  its `title`, `parent` and `nav_order`. Link between pages with relative `.md` links, which work
+  both on the site and on GitHub. A new feature gets a page or a section, and a line in the README's
+  *Features* only if it is a headline feature. The Liquid markers `{{` and `{%` break the build;
+  wrap code that holds them in `{% raw %}` … `{% endraw %}`.
 
 ## Rules that are easy to break
 
@@ -132,7 +140,8 @@ Vanilla DayZ sources are proprietary. Never commit them, nor fixtures copied out
   so that the plugin never competes with C/C++.
 - **No internal API.** Keep the verifier's internal-API count at zero. Experimental API usage
   (currently `AdditionalLibraryRootsListener.fireAdditionalLibraryChanged`, and `TargetPresentation`
-  and `Pointer` in the texture hover) must be load-bearing and documented in the README.
+  and `Pointer` in the texture hover) must be load-bearing and documented in
+  `docs/development/testing.md`.
 - **Resolution must be cached.** Resolve through `ResolveCache`, memoise through
   `CachedValuesManager` keyed on PSI and root modification trackers, and wrap recursive walks in
   `RecursionManager`.
@@ -141,8 +150,8 @@ Vanilla DayZ sources are proprietary. Never commit them, nor fixtures copied out
   default.
 - **Tests cannot exercise library roots or real indexing.** `BasePlatformTestCase` fixtures cover
   PSI, references and inspections. Anything touching roots, auto-detection or cross-root resolution
-  needs a manual `runIde` check (see the checklist in `README.md`). Fixtures use `.es`, because `.c`
-  needs a `config.cpp` ancestor.
+  needs a manual `runIde` check (see the checklist in `docs/development/manual-checks.md`).
+  Fixtures use `.es`, because `.c` needs a `config.cpp` ancestor.
 - **No personal or machine-specific data in tracked files:** no absolute user paths, no local mod
   names. Use `P:\scripts` (the standard DayZ Tools work drive) or a generic mod name in examples.
 
@@ -159,7 +168,9 @@ vanilla DayZ files or anything copied from them.
   write comments that restate the code.
 - Commit subjects are imperative and specific ("Fix `Class` as a type argument swallowing the rest
   of a file"). The body explains the cause and why this fix was chosen.
-- Keep `README.md` in step with user-visible behaviour, including what is *not* supported.
+- Keep the feature's page in `docs/` in step with user-visible behaviour, including what is *not*
+  supported, in the same pull request as the code. A change that needs a manual check adds its
+  steps to `docs/development/manual-checks.md`.
 
 ## Continuous integration
 
@@ -169,6 +180,9 @@ vanilla DayZ files or anything copied from them.
   sources cannot be published, so a green CI run is not the whole picture: run them locally too.
 - `.github/workflows/release.yml` runs when a `v*` tag is pushed and produces a **draft** GitHub
   release with the zip attached (see below).
+- `.github/workflows/pages.yml` builds the documentation site when `docs/` changes. On a pull
+  request it only builds, and uploads the result as the `docs-site` artifact. On `master` it
+  deploys to GitHub Pages (the repository's Pages source is *GitHub Actions*).
 
 ## Releasing
 
@@ -176,7 +190,7 @@ vanilla DayZ files or anything copied from them.
    change notes are also used as the GitHub release text.
 2. Run `./gradlew build verifyPluginProjectConfiguration verifyPlugin` locally with the corpus
    roots set. All three must pass, and the verifier must report *Compatible* for every IDE.
-3. Work through the `runIde` and `runIdeLatest` checklist in the README.
+3. Work through the `runIde` and `runIdeLatest` checklist in `docs/development/manual-checks.md`.
 4. Commit, then tag and push: `git tag v<version> && git push origin v<version>`. The tag must
    equal `v` + `pluginVersion` or the release workflow refuses to run.
 5. The release workflow tests, verifies and builds again, then creates a **draft** GitHub release
