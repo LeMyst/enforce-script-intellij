@@ -320,6 +320,19 @@
         <lang.documentationProvider
                 language="EnfusionScript"
                 implementationClass="io.github.lemyst.enfusion.doc.EnfusionDocumentationProvider"/>
+        <!-- Inlay hints: parameter names before literal arguments, and the type of `auto`. -->
+        <codeInsight.parameterNameHints
+                language="EnfusionScript"
+                implementationClass="io.github.lemyst.enfusion.hints.EnParameterNameHintsProvider"/>
+        <codeInsight.declarativeInlayProvider
+                language="EnfusionScript"
+                implementationClass="io.github.lemyst.enfusion.hints.EnAutoTypeHintsProvider"
+                isEnabledByDefault="true"
+                group="TYPES_GROUP"
+                providerId="enfusion.auto.types"
+                bundle="messages.EnforceScriptBundle"
+                nameKey="inlay.auto.types.name"
+                descriptionKey="inlay.auto.types.description"/>
 
         <gotoClassContributor
                 implementation="io.github.lemyst.enfusion.nav.EnfusionGotoClassContributor"/>
