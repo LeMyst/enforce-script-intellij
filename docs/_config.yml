@@ -1,0 +1,46 @@
+# The documentation site, published to GitHub Pages by .github/workflows/pages.yml.
+#
+# Built by actions/jekyll-build-pages (the `github-pages` gem), so the theme comes in through
+# `remote_theme` and only plugins GitHub Pages allows can be listed. Nothing needs installing
+# locally: a pull request that touches docs/ builds the site, and master deploys it.
+
+title: Enforce Script
+description: IntelliJ IDEA support for Enforce Script, the scripting language of DayZ mods.
+url: https://lemyst.github.io
+baseurl: /enforce-script-intellij
+
+remote_theme: just-the-docs/just-the-docs@v0.12.0
+plugins:
+  - jekyll-remote-theme
+  - jekyll-include-cache
+  - jekyll-seo-tag
+
+search_enabled: true
+search:
+  heading_level: 3
+  previews: 3
+  preview_words_before: 5
+  preview_words_after: 10
+  rel_url: true
+
+heading_anchors: true
+back_to_top: true
+back_to_top_text: "Back to top"
+
+aux_links:
+  "GitHub":
+    - "https://github.com/LeMyst/enforce-script-intellij"
+  "JetBrains Marketplace":
+    - "https://plugins.jetbrains.com/plugin/35712-enforce-script"
+
+gh_edit_link: true
+gh_edit_link_text: "Edit this page on GitHub"
+gh_edit_repository: "https://github.com/LeMyst/enforce-script-intellij"
+gh_edit_branch: "master"
+gh_edit_source: docs
+gh_edit_view_mode: "edit"
+
+footer_content: >-
+  Unofficial community project, not affiliated with or endorsed by Bohemia Interactive. DayZ and
+  Enfusion are trademarks of Bohemia Interactive a.s. The plugin is free software under the
+  <a href="https://github.com/LeMyst/enforce-script-intellij/blob/master/LICENSE">GPL-3.0-or-later</a>.

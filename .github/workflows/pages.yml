@@ -1,0 +1,71 @@
+# Build the documentation site in docs/ and publish it to GitHub Pages.
+#
+# A pull request only builds the site, so a page that breaks the Jekyll build fails the check
+# before it merges; the result is uploaded as the `docs-site` artifact for a look at the HTML.
+# master deploys it. The repository's Pages source must be "GitHub Actions".
+name: Documentation
+
+on:
+  push:
+    branches: [ master ]
+    paths: [ 'docs/**', '.github/workflows/pages.yml' ]
+  pull_request:
+    paths: [ 'docs/**', '.github/workflows/pages.yml' ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One deployment at a time, and never cancel one that is running: a cancelled deployment can leave
+# the site half-published.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    name: Build the site
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch sources
+        uses: actions/checkout@v7
+
+      - name: Set up Pages
+        if: ${{ github.event_name != 'pull_request' }}
+        uses: actions/configure-pages@v6
+
+      # The `github-pages` gem, as GitHub's own Pages build uses: the theme comes in through
+      # `remote_theme` in docs/_config.yml, so the repository needs no Gemfile or Ruby setup.
+      - name: Build with Jekyll
+        uses: actions/jekyll-build-pages@v1
+        with:
+          source: ./docs
+          destination: ./_site
+
+      - name: Upload the site for Pages
+        if: ${{ github.event_name != 'pull_request' }}
+        uses: actions/upload-pages-artifact@v5
+
+      - name: Upload the site for review
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: docs-site
+          path: _site
+          retention-days: 7
+
+  deploy:
+    name: Deploy to GitHub Pages
+    if: ${{ github.event_name != 'pull_request' }}
+    needs: [ build ]
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v5

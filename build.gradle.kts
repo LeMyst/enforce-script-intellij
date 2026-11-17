@@ -83,6 +83,9 @@ intellijPlatform {
                   gutter</li>
             </ul>
             <p>
+            <a href="https://lemyst.github.io/enforce-script-intellij/">Documentation</a>, with
+            what each feature does and what it does not support yet.
+            <p>
             Unofficial community project, not affiliated with or endorsed by Bohemia Interactive.
             DayZ and Enfusion are trademarks of Bohemia Interactive a.s.
         """.trimIndent()
