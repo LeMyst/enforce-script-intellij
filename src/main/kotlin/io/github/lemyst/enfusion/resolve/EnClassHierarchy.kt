@@ -62,7 +62,7 @@ object EnClassHierarchy {
     }
 
     /** Every class whose `extends` clause names [name], found through the inverted index. */
-    private fun extendingClasses(
+    fun extendingClasses(
         name: String,
         project: com.intellij.openapi.project.Project,
     ): List<EnClassDeclMixin> {

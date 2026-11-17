@@ -30,12 +30,23 @@ object EnOverrideResolution {
         val project = method.project
         val found = LinkedHashSet<EnMethodDeclMixin>()
 
-        for (layer in EnTypeInference.classesNamed(owner.name, project)) {
-            if (layer === owner) continue
-            found += directMethodsNamed(layer, name)
+        // Only a layer overrides the other layers. An original declaration comes before all of
+        // them, so they are below it, not above: [EnOverriders] lists them. Counting them here
+        // made `void Do()` in a mod's own `class MyThing` read as redeclaring the `override void
+        // Do()` of its own `modded class MyThing`, and *Redeclared method without 'override'*
+        // reported the original.
+        val layers = if (owner.isModded()) {
+            EnTypeInference.classesNamed(owner.name, project).filter { it !== owner }
+        } else {
+            emptyList()
         }
+        for (layer in layers) found += directMethodsNamed(layer, name)
 
-        owner.getSuperName()?.let { superName ->
+        // A layer rarely repeats `extends`: the superclass is stated on the original. Without
+        // looking there, `modded class PlayerBase { override void EEInit() }` found nothing when
+        // vanilla's `PlayerBase` itself declares no `EEInit` and only a superclass does.
+        val superName = owner.getSuperName() ?: layers.firstNotNullOfOrNull { it.getSuperName() }
+        superName?.let { superName ->
             for (parent in EnTypeInference.classesNamed(superName, project)) {
                 EnTypeInference.findMembers(parent, name, project)
                     .filterIsInstance<EnMethodDeclMixin>()

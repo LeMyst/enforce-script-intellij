@@ -80,6 +80,18 @@ Opening a real DayZ mod.
   **Community Framework Stubs** disappears and both now open the real source, with no second
   candidate. Remove the root again and the stub comes back.
 
+## Layers and overrides below
+
+Opening a real DayZ mod with a dependency mod as a root.
+
+- Open vanilla `PlayerBase.c` → a gutter icon on the class name, *Modded by N layers, extended
+  by M subclasses*; clicking it lists the dependency's and the mod's layers with their files.
+- On vanilla `SetActions` in an item class the mod patches → an icon listing the layers that
+  redeclare it. Typing in that file stays smooth while the icons appear.
+- `Ctrl+Alt+B` on `PlayerBase` in mod code → the same list; on a method call → its overrides.
+- `Ctrl+U` inside an `override` method of a `modded class` → what it overrides; on the class name
+  of an ordinary class → its superclass.
+
 ## Code completion
 
 Opening a real DayZ mod.
