@@ -350,6 +350,18 @@ Opening a real DayZ mod. The examples below use a mod called MyMod.
   `LanguageCore`, no module ticked, only `DZ_Data`; *OK* → a `stringtable.csv` with vanilla's
   header and a `config.cpp` with no `CfgMods`. *GUI* → `layouts` and `imagesets` folders.
 
+## Templates
+
+- At file scope type `modc`, `Tab` → `modded class` with completion on the class name; `Tab`
+  again → the caret in the body. `onrpc` in a class body → the `OnRPC` override; `onrpc` at file
+  scope or inside a method → not offered.
+- Select a few lines, `Ctrl+Alt+T` → *ifs* wraps them in `#ifdef SERVER` … `#endif`.
+- Right-click a script module folder of an addon → *New → Enforce Script File* → *Scripted menu*
+  named `MyMenu` → the file opens with the layout path `<prefix>/GUI/layouts/my_menu.layout`, and
+  parses with no error. Open it in game from a menu id to check it shows its layout.
+- The same action on a folder outside any addon → not offered. In an addon folder outside the
+  script modules → the file is created, with a warning that it is in no script module.
+
 ## Game logs
 
 - Open *DayZ Logs* → *Script*, *RPT* and *Crash* tabs, each naming its file; start the game → the

@@ -1,0 +1,10 @@
+class ${NAME}
+{
+	void ${NAME}()
+	{
+	}
+
+	void ~${NAME}()
+	{
+	}
+}
