@@ -37,6 +37,9 @@ class EnfusionSettingsState : BaseState() {
      */
     var serverProfile by string()
 
+    /** Workbench's `-mod=` for this project; empty takes the project's folder on the work drive. */
+    var workbenchMod by string()
+
     /**
      * Replaces the root list and marks the state modified.
      *
@@ -67,6 +70,12 @@ class EnfusionProjectSettings :
         get() = state.serverProfile
         set(value) {
             state.serverProfile = value?.trim()?.takeIf { it.isNotEmpty() }
+        }
+
+    var workbenchMod: String?
+        get() = state.workbenchMod
+        set(value) {
+            state.workbenchMod = value?.trim()?.takeIf { it.isNotEmpty() }
         }
 
     companion object {

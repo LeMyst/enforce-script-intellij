@@ -1,6 +1,7 @@
 package io.github.lemyst.enfusion.tools
 
 import com.intellij.execution.configurations.GeneralCommandLine
+import com.intellij.notification.NotificationAction
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.actionSystem.ActionGroup
@@ -15,7 +16,11 @@ import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.SystemInfo
 import com.intellij.openapi.util.text.StringUtil
+import io.github.lemyst.enfusion.settings.EnfusionProjectSettings
 import io.github.lemyst.enfusion.tools.detect.DayZToolsCatalog
+import io.github.lemyst.enfusion.tools.detect.WorkDriveLink
+import io.github.lemyst.enfusion.tools.detect.WorkbenchCommand
+import java.nio.file.Files
 import java.nio.file.Path
 
 /** Starting DayZ Tools' desktop tools as separate processes the IDE does not wait for. */
@@ -32,13 +37,29 @@ internal object DayZToolsLauncher {
         return (installation.configured.tools ?: installation.lastDetected?.tools)?.resolve("Bin")
     }
 
-    fun start(project: Project?, toolsBin: Path, tool: DayZToolsCatalog.Tool, file: Path? = null) {
+    /**
+     * Starts [tool] from its own folder, which Workbench needs as its current directory. Workbench,
+     * started on a project rather than a file, gets the project's mod (see [WorkbenchMod]), unless
+     * that mod would make it crash and [anyway] is false: then a notification says why instead.
+     */
+    fun start(project: Project?, toolsBin: Path, tool: DayZToolsCatalog.Tool, file: Path? = null, anyway: Boolean = false) {
         val exe = toolsBin.resolve(tool.exe)
         ApplicationManager.getApplication().executeOnPooledThread {
             try {
-                val command = GeneralCommandLine(exe.toString()).withWorkDirectory(exe.parent.toFile())
-                if (file != null) command.addParameter(file.toString())
-                command.createProcess()
+                val args = when {
+                    file != null -> listOf(exe.toString(), file.toString())
+                    tool == DayZToolsCatalog.WORKBENCH && project != null -> {
+                        val mod = WorkbenchMod.folder(project)
+                        val crashing = mod?.let(WorkbenchCommand::crashingAddon)
+                        if (mod != null && crashing != null && !anyway) {
+                            warnCrashing(project, toolsBin, mod, crashing)
+                            return@executeOnPooledThread
+                        }
+                        WorkbenchCommand.command(exe, mod?.toString())
+                    }
+                    else -> listOf(exe.toString())
+                }
+                GeneralCommandLine(args).withWorkDirectory(exe.parent.toFile()).createProcess()
             } catch (e: Exception) {
                 LOG.info("Could not start ${tool.name}", e)
                 NotificationGroupManager.getInstance().getNotificationGroup("Enforce Script")
@@ -46,6 +67,42 @@ internal object DayZToolsLauncher {
                     .notify(project)
             }
         }
+    }
+}
+
+private fun warnCrashing(project: Project, toolsBin: Path, mod: Path, folder: String) {
+    val text = "$mod has an addon in $folder\\. Workbench mounts the mod at the root of the game's files, so its config.cpp " +
+        "replaces the game's scripts\\config.cpp, and Workbench crashes as it starts. Rename the folder (such as MyMod_Scripts) " +
+        "and its paths in config.cpp."
+    NotificationGroupManager.getInstance().getNotificationGroup("Enforce Script")
+        .createNotification("Workbench would crash on this mod", StringUtil.escapeXmlEntities(text), NotificationType.WARNING)
+        .addAction(
+            NotificationAction.createSimpleExpiring("Start Workbench anyway") {
+                DayZToolsLauncher.start(project, toolsBin, DayZToolsCatalog.WORKBENCH, anyway = true)
+            },
+        )
+        .notify(project)
+}
+
+/** The folder Workbench is given as `-mod=` for a project. Reads the disk: not on the EDT. */
+internal object WorkbenchMod {
+
+    /** The project's setting, or else the project's folder on the work drive, when it has one. */
+    fun folder(project: Project): Path? {
+        EnfusionProjectSettings.getInstance(project).workbenchMod?.let { return runCatching { Path.of(it) }.getOrNull() }
+        return guess(project)
+    }
+
+    fun guess(project: Project): Path? {
+        val base = project.basePath?.let { runCatching { Path.of(it) }.getOrNull() } ?: return null
+        val letter = WorkDrive.getInstance().letter(DayZInstallation.getInstance().paths(project))
+        val drive = Path.of("$letter:\\")
+        if (!Files.isDirectory(drive)) return null
+        val entries = runCatching { Files.list(drive).use { s -> s.filter { Files.isDirectory(it) }.toList() } }.getOrDefault(emptyList())
+        // The project itself when it lies on the drive, else the link at the drive's root to it or
+        // to a folder holding it (P:\MyMod → the checkout), as mod setup scripts create.
+        val link = WorkDriveLink.linkOf(base, drive, entries) { a, b -> runCatching { Files.isSameFile(a, b) }.getOrDefault(false) }
+        return link?.let { WorkDriveLink.onDrive(base, it) }
     }
 }
 

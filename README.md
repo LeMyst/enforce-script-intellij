@@ -394,8 +394,22 @@ On a file, the *Project* view and the editor tab menus offer *Open in TexView 2*
 start the tool with the file. The built-in texture viewer stays the default for textures.
 
 The installs are detected in the background when a project opens, so the menu is ready without
-visiting the settings page. **Not supported:** opening a mod folder in Workbench with its `-mod=`
-set (Workbench's command line is undocumented).
+visiting the settings page.
+
+**Workbench on the project's mod.** Workbench starts from its own folder, which it needs as its
+current directory, as `WorkbenchApp.exe -filePatching "-mod=P:\MyMod\"`: `-filePatching` makes it
+read the mod's unpacked files, and `-mod=` is the mod's folder on the work drive. That folder is
+*Mod folder* under *Workbench* in the DayZ Installation settings, kept per project in
+`.idea/enfusion.xml`. Left empty, it is the project's own folder when the project lies on the work
+drive. Otherwise it is the project's folder through the entry at the drive's root that is that
+folder or holds it: the `P:\MyMod` link to a checkout elsewhere, which mod setup scripts create.
+With neither, Workbench starts with `-filePatching` only.
+
+Workbench mounts that folder at the root of the game's files, as the game does with an unpacked
+mod. An addon in a `Scripts` folder directly at the mod's root therefore puts its `config.cpp` over
+the game's `scripts\config.cpp`, and Workbench crashes as it starts, every time. In that case
+the plugin shows a notification instead of starting it: it names the folder, asks for it to be
+renamed, and offers *Start Workbench anyway*. `Scripts\Client\` is fine.
 
 **Toolbar.** In a project with an addon, the main toolbar (the navigation bar in the classic UI)
 gets four buttons:
@@ -403,8 +417,7 @@ gets four buttons:
 - *Build All PBOs*.
 - The work drive: a toggle, pressed while it is mounted, that mounts or unmounts it. It follows the
   status bar's last check rather than checking at every update.
-- *Start Workbench*: Workbench only, with no project. Workbench does not yet load a mod's `.gproj`
-  reliably from its command line.
+- *Start Workbench*: Workbench on the project's mod (see *DayZ Tools* above).
 - *DayZ*: a drop-down with the installed tools and the rest of *Tools → DayZ*.
 
 They are hidden in projects without an addon and on machines without Windows. *Show the DayZ buttons
@@ -880,6 +893,9 @@ mod called BattleRoyale):
 - *Tools → DayZ Tools* → every installed tool is listed; each one starts.
 - Right-click a `.paa` → *Open in TexView 2* → TexView opens that texture. A `.p3d` → Object Builder.
 - On a machine without DayZ Tools → no *DayZ Tools* menu, no *Open in …* entry, no error.
+- In a mod project linked to the work drive (`P:\MyMod` → the checkout), *DayZ Installation* shows
+  *Mod folder* as *Detected: P:\MyMod*. *Tools → DayZ Tools → Workbench* or the toolbar's
+  *Start Workbench* → Workbench opens with the mod loaded from its unpacked files.
 - In a mod project → the main toolbar's *Build All PBOs*, work-drive, *Start Workbench* and *DayZ*
   buttons. The work-drive button is pressed while the drive is mounted, and clicking it unmounts,
   then mounts. In a project without a `config.cpp` → none of them. Turn off *Show the DayZ buttons in

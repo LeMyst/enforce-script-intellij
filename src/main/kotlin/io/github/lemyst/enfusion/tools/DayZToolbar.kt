@@ -81,10 +81,7 @@ class ToggleWorkDriveAction : ToggleAction(), DumbAware {
     }
 }
 
-/**
- * Starts DayZ Tools' Workbench, with no project: Workbench does not yet load a mod's `.gproj`
- * reliably from its command line, so that is left to its own *Open Project*.
- */
+/** Starts DayZ Tools' Workbench on the project's mod (see [WorkbenchMod]). */
 class StartWorkbenchAction : DumbAwareAction() {
 
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.BGT
