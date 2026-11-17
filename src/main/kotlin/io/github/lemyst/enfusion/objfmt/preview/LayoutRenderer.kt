@@ -23,6 +23,12 @@ import java.awt.image.BufferedImage
  */
 object LayoutRenderer {
 
+    /** A picture of a style's frame, and the size it has in layout pixels (its imageset `Size`). */
+    class Picture(val image: BufferedImage, val width: Double, val height: Double)
+
+    /** The pictures of a style's frame in the state drawn, by piece. */
+    class Frame(val pieces: Map<WidgetStyles.Piece, Picture>)
+
     private val TEXT_TYPES = setOf(
         "TextWidgetClass", "RichTextWidgetClass", "MultilineTextWidgetClass", "ButtonWidgetClass",
         "EditBoxWidgetClass", "MultilineEditBoxWidgetClass", "CheckBoxWidgetClass", "ThreeStateCheckboxWidgetClass",
@@ -39,6 +45,9 @@ object LayoutRenderer {
      */
     private val FILLED_TYPES = setOf("PanelWidgetClass", "ProgressBarWidgetClass", "SliderWidgetClass")
 
+    /** The widgets whose style is drawn as a frame of pictures ([WidgetStyles]). */
+    private val STYLED_TYPES = setOf("PanelWidgetClass", "ButtonWidgetClass", "WindowWidgetClass", "SmartPanelWidgetClass")
+
     /** Styles that draw nothing, so a panel wearing one is not filled whatever its colour. */
     private val EMPTY_STYLES = setOf("blank", "empty", "emptyhighlight")
     private val SCREEN = Color(0x2B, 0x2D, 0x30)
@@ -51,12 +60,13 @@ object LayoutRenderer {
         showHidden: Boolean,
         selected: WidgetSpec?,
         text: (WidgetSpec) -> String? = { it.text },
+        frame: (WidgetSpec) -> Frame? = { null },
         image: (WidgetSpec, Int) -> BufferedImage?,
     ): BufferedImage {
         val out = BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB)
         val g = out.createGraphics()
         try {
-            paint(g, placed, width, height, 1.0, showHidden, selected, text, image)
+            paint(g, placed, width, height, 1.0, showHidden, selected, text, frame, image)
         } finally {
             g.dispose()
         }
@@ -74,6 +84,8 @@ object LayoutRenderer {
         selected: WidgetSpec?,
         /** What a widget's `text` shows: the preview's chosen language turns `#key`s into translations. */
         text: (WidgetSpec) -> String? = { it.text },
+        /** The frame a widget's style draws, already tinted; null keeps the plain colour. */
+        frame: (WidgetSpec) -> Frame? = { null },
         image: (WidgetSpec, Int) -> BufferedImage?,
     ) {
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
@@ -87,7 +99,7 @@ object LayoutRenderer {
         for (p in placed) {
             if (p.hidden && !showHidden) continue
             g.clip(p.clip.shape())
-            draw(g, p, pixel, scale, text, image)
+            draw(g, p, pixel, scale, text, frame, image)
             g.clip = clip
         }
         // The screen's edge, so that it stays visible when zoomed out or panned.
@@ -100,7 +112,15 @@ object LayoutRenderer {
 
     private fun Rect.shape() = Rectangle2D.Double(x, y, w, h)
 
-    private fun draw(g: Graphics2D, p: Placed, pixel: Float, scale: Double, shown: (WidgetSpec) -> String?, image: (WidgetSpec, Int) -> BufferedImage?) {
+    private fun draw(
+        g: Graphics2D,
+        p: Placed,
+        pixel: Float,
+        scale: Double,
+        shown: (WidgetSpec) -> String?,
+        frameOf: (WidgetSpec) -> Frame?,
+        image: (WidgetSpec, Int) -> BufferedImage?,
+    ) {
         val r = p.rect
         val spec = p.spec
         val alpha = if (p.hidden) 0.35f else 1f
@@ -126,6 +146,9 @@ object LayoutRenderer {
                 }
             }
 
+            // The style's frame, where its pictures were found; otherwise the plain colour below.
+            spec.type in STYLED_TYPES && frameOf(spec)?.let { drawFrame(g, it, r) } == true -> Unit
+
             spec.type in FILLED_TYPES && color != null && spec.value("style")?.lowercase() !in EMPTY_STYLES -> fill(g, color, r)
 
             // A window is filled only by a colourable style (`dialog_input_password`'s dialog says
@@ -143,6 +166,24 @@ object LayoutRenderer {
         }
         g.draw(inset(r, pixel / 2.0))
         g.composite = AlphaComposite.SrcOver
+    }
+
+    /**
+     * Draws [frame] into [r], each piece stretched to its place ([WidgetStyles.layout]). False
+     * when no piece has a place, so that the widget falls back to its colour.
+     */
+    private fun drawFrame(g: Graphics2D, frame: Frame, r: Rect): Boolean {
+        val places = WidgetStyles.layout(r, frame.pieces.mapValues { it.value.width to it.value.height })
+        if (places.isEmpty()) return false
+        for ((piece, place) in places) {
+            val picture = frame.pieces.getValue(piece).image
+            val before = g.transform
+            g.translate(place.x, place.y)
+            g.scale(place.w / picture.width, place.h / picture.height)
+            g.drawImage(picture, 0, 0, null)
+            g.transform = before
+        }
+        return true
     }
 
     /** The outline drawn half a line inside the box, so that neighbouring boxes do not overdraw each other. */

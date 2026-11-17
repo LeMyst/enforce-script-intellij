@@ -4,6 +4,7 @@ import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import io.github.lemyst.enfusion.objfmt.preview.LayoutGeometry
 import io.github.lemyst.enfusion.objfmt.preview.LayoutRenderer
 import io.github.lemyst.enfusion.objfmt.preview.LayoutSpecs
+import io.github.lemyst.enfusion.objfmt.preview.WidgetStyles
 import java.io.File
 
 /**
@@ -46,5 +47,40 @@ class EnfusionLayoutPreviewCorpusTest : BasePlatformTestCase() {
         }
         println("[layout-preview] ${files.size} layouts, $widgets widgets, ${(System.nanoTime() - t0) / 1_000_000} ms")
         assertTrue("failed on ${failures.size}: ${failures.take(5)}", failures.isEmpty())
+    }
+
+    /**
+     * Every `.styles` file under the layout roots reads into styles, and each style a layout there
+     * names is found for its widget's class, or is one the game itself lacks (printed, not failed:
+     * Workbench then draws nothing, as the preview does).
+     */
+    fun testEveryStylesFileReads() {
+        val roots = System.getProperty("enfusion.layout.roots").orEmpty()
+            .split(';').map { it.trim() }.filter { it.isNotEmpty() && File(it).isDirectory }
+        val files = roots.flatMap { root -> File(root).walkTopDown().filter { it.isFile && it.extension.equals("styles", ignoreCase = true) }.toList() }
+        if (files.isEmpty()) {
+            println("[styles] no .styles file under the layout roots, skipping")
+            return
+        }
+        val sheet = files.map { WidgetStyles.parse(it.readText()) }.fold(WidgetStyles.Sheet.EMPTY) { a, b -> a.plus(b) }
+        val styles = sheet.widgets.values.sumOf { it.size }
+        val framed = sheet.widgets.values.sumOf { widget -> widget.values.count { it.frame().isNotEmpty() } }
+        println("[styles] ${files.size} files, ${sheet.widgets.size} widget classes, $styles styles, $framed with a Normal frame")
+        assertTrue("no style read from ${files.map { it.name }}", styles > 0)
+
+        // The styles the layouts name, against what the files declare.
+        val used = HashMap<Pair<String, String>, Int>()
+        val styleLine = Regex("""^\s*style\s+"?([A-Za-z0-9_]+)"?""", RegexOption.MULTILINE)
+        val classLine = Regex("""^\s*(\w+WidgetClass)\b""", RegexOption.MULTILINE)
+        for (layout in roots.flatMap { root -> File(root).walkTopDown().filter { it.isFile && it.extension.equals("layout", ignoreCase = true) }.toList() }) {
+            val text = layout.readText()
+            for (match in styleLine.findAll(text)) {
+                val type = classLine.findAll(text.substring(0, match.range.first)).lastOrNull()?.groupValues?.get(1) ?: continue
+                used.merge(type to match.groupValues[1], 1, Int::plus)
+            }
+        }
+        val missing = used.filterKeys { (type, style) -> type.removeSuffix("Class").lowercase() in sheet.widgets && sheet.styleOf(type, style) == null }
+        val found = used.size - missing.size
+        println("[styles] layouts name ${used.size} (class, style) pairs; $found found, ${missing.size} not declared: ${missing.keys.take(10)}")
     }
 }

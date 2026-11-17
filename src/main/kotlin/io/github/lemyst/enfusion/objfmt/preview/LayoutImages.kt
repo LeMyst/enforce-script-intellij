@@ -59,6 +59,27 @@ object LayoutImages {
         return out
     }
 
+    /** [picture] with every pixel, alpha included, multiplied by [argb], as a style's frame is tinted by its widget's `color`. */
+    fun tint(picture: BufferedImage, argb: Int): BufferedImage {
+        val width = picture.width
+        val height = picture.height
+        val pixels = picture.getRGB(0, 0, width, height, null, 0, width)
+        val ta = argb ushr 24 and 0xFF
+        val tr = argb ushr 16 and 0xFF
+        val tg = argb ushr 8 and 0xFF
+        val tb = argb and 0xFF
+        for (i in pixels.indices) {
+            val p = pixels[i]
+            pixels[i] = ((p ushr 24 and 0xFF) * ta / 255 shl 24) or
+                ((p ushr 16 and 0xFF) * tr / 255 shl 16) or
+                ((p ushr 8 and 0xFF) * tg / 255 shl 8) or
+                ((p and 0xFF) * tb / 255)
+        }
+        val out = BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB)
+        out.setRGB(0, 0, width, height, pixels, 0, width)
+        return out
+    }
+
     /** How much of a pixel with mask value [m] shows at [progress]: all or nothing, or a ramp [transition] wide. */
     internal fun shown(m: Double, progress: Double, transition: Double): Double =
         if (transition <= 0.0) {
