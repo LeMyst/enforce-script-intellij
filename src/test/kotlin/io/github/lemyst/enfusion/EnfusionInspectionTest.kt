@@ -213,6 +213,43 @@ class EnfusionInspectionTest : BasePlatformTestCase() {
         )
     }
 
+    fun testStringTableKeyInAnotherCaseIsFine() {
+        assertQuiet(
+            report(
+                EnUnresolvedStringTableKeyInspection(),
+                "a.es" to "class Car\n{\n\tvoid Drive()\n\t{\n\t\tSetText(\"#str_br_win\");\n\t}\n}\n",
+                "stringtable.csv" to "\"Language\",\"original\"\n\"STR_BR_WIN\",\"You win\"\n",
+            ),
+        )
+    }
+
+    /** A `#` literal not starting with `STR_` is most likely a key, but not surely one: no report. */
+    fun testUnknownHashKeyWithoutStrPrefixIsNotReported() {
+        assertQuiet(
+            report(
+                EnUnresolvedStringTableKeyInspection(),
+                "a.es" to "class Car\n{\n\tvoid Drive()\n\t{\n\t\tSetText(\"#menu_nope\");\n\t}\n}\n",
+                "stringtable.csv" to "\"Language\",\"original\"\n\"STR_BR_WIN\",\"You win\"\n",
+            ),
+        )
+    }
+
+    /** A project whose only stringtable is too large to index, as vanilla's is, still gets the inspection. */
+    fun testUnknownKeyWithOnlyAStringTableTooLargeToIndex() {
+        val big = buildString {
+            append("\"Language\",\"original\"\n")
+            var i = 0
+            while (length < 3_000_000) append("\"str_filler_").append(i++).append("\",\"").append("x".repeat(60)).append("\"\n")
+        }
+        val reports = report(
+            EnUnresolvedStringTableKeyInspection(),
+            "a.es" to "class Car\n{\n\tvoid Drive()\n\t{\n\t\tSetText(\"#STR_BR_NOPE\");\n\t\tSetText(\"#STR_FILLER_7\");\n\t}\n}\n",
+            "languagecore/stringtable.csv" to big,
+        )
+        assertEquals(reports.toString(), 1, reports.size)
+        assertTrue(reports[0], reports[0].contains("STR_BR_NOPE"))
+    }
+
     /** With no stringtable anywhere, every key is unresolved and the inspection must say nothing. */
     fun testNoStringTableMeansNoReports() {
         assertQuiet(

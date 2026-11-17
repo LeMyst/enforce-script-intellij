@@ -22,9 +22,9 @@ import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiElementVisitor
 import com.intellij.psi.PsiFile
 import com.intellij.psi.search.FilenameIndex
-import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.search.ProjectScope
 import io.github.lemyst.enfusion.index.StringTableIndex
+import io.github.lemyst.enfusion.index.StringTables
 import io.github.lemyst.enfusion.stringtable.format.StringTableCsv
 
 /**
@@ -157,14 +157,18 @@ class CreateStringTableRowFix(private val key: String) : LocalQuickFix {
         }
     }
 
-    /** The header row of an indexed stringtable outside the project, which is vanilla's. */
+    /**
+     * The header row of a stringtable outside the project, which is vanilla's. Only its first line
+     * is read: vanilla's is 5 MB.
+     */
     private fun vanillaHeader(project: Project): String? {
         if (DumbService.isDumb(project)) return null
-        val all = FilenameIndex.getVirtualFilesByName(StringTableIndex.FILE_NAME, false, GlobalSearchScope.allScope(project))
-        val library = all.firstOrNull { !ProjectScope.getContentScope(project).contains(it) } ?: return null
-        val text = runCatching { VfsUtil.loadText(library) }.getOrNull() ?: return null
-        val header = StringTableCsv.parse(text).header ?: return null
-        return text.substring(header.start, header.end).takeIf { it.isNotBlank() }
+        val content = ProjectScope.getContentScope(project)
+        val library = StringTables.all(project).firstOrNull { !content.contains(it) } ?: return null
+        val line = runCatching { library.inputStream.bufferedReader(library.charset).use { it.readLine() } }.getOrNull()
+            ?.removePrefix("\uFEFF") ?: return null
+        val header = StringTableCsv.parse(line).header ?: return null
+        return line.substring(header.start, header.end).takeIf { it.isNotBlank() }
     }
 
     internal companion object {

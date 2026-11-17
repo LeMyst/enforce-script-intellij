@@ -64,7 +64,9 @@ inputs.
   Ctrl+Click resolves: a widget name in `FindAnyWidget(...)` to its declaration in whichever
   `.layout` the enclosing class loads; a `.layout` / `.imageset` / asset path (including ones built by
   `+` concatenation through `const string` constants) to the file; a stringtable key
-  (`"#STR_BR_..."` or the bare server-side form) to its row in `stringtable.csv`; each half of
+  (`"#STR_BR_..."`, any other `"#key"` such as vanilla's `"#menu_add"`, the bare server-side
+  `"STR_…"`, or a config's `"$STR_…"`) to its row in `stringtable.csv`, ignoring case as the game
+  does, the vanilla stringtable included although it is too large for the platform to index; each half of
   `"set:x image:y"` to the `ImageSetClass` and `ImageSetDefClass` respectively; a dispatch-by-name
   string (`AddRPC`, `SendRPC`, `AddTimer`, `GameScript.Call`, ...) to the target method, inferring the
   receiving class where the call shape carries one; and a keybind action name (`UA...`, always behind
@@ -118,7 +120,7 @@ inputs.
     and a tooltip. Each language's header shows its coverage (`french 412/430`), and *Show* lists
     only the rows missing a translation in one language. A search field filters by key or text.
   - **Add Key…** writes a correctly quoted row from one field per language. The key starts with the
-    prefix most of the file's keys share and must be new in every indexed stringtable. **Add
+    prefix most of the file's keys share and must be new in every stringtable, ignoring case. **Add
     Language…** adds a column to the header and every row, empty or filled from `original`;
     **Remove Language…** takes one out; **Fill from Original…** copies `original` into the empty
     cells of a language for a first pass.
@@ -130,9 +132,12 @@ inputs.
     under the caret.
   - **Malformed rows are errors** in the text: a row with more or fewer cells than the header (which
     shifts every translation after it into the wrong language), an unclosed quote, text after a
-    closing quote, and a duplicate key. The table marks the key of such a row in red.
+    closing quote, and a duplicate key. The table marks the key of such a row in red. Two keys
+    differing only in case are not reported as duplicates, though the game takes them for one key:
+    the vanilla stringtable itself has three such pairs.
   - **From the code:** *Localization key with no stringtable row* offers *Create stringtable row
-    for 'STR_…'*. The row goes into one of the project's own stringtables, never a library's. When
+    for 'STR_…'*. Only `STR_…` keys are reported: most other `"#…"` strings are keys too, but not
+    surely. The row goes into one of the project's own stringtables, never a library's. When
     the file's own addon (the nearest folder with `config.cpp`) has one, that is used directly.
     Otherwise a list offers every stringtable of the project, plus a new `stringtable.csv` in the
     file's addon. It is ranked by the new key's prefix, so for `STR_AUTORUN_…` the table already
@@ -217,8 +222,8 @@ inputs.
   config worth opening: `class X : Y` resolves to Y's declaration in any indexed config,
   `requiredAddons[]` jumps to that addon's `CfgPatches` class — the mod load order, which exists
   nowhere else as a link — and `inputs`, `picture` and `files[]` resolve to the file or folder they
-  name. `displayName="#STR_…"` and `ghostIcon="set:… image:…"` work through the *existing* stringtable
-  and imageset providers, reused unchanged. Vanilla's own configs are opt-in: add the unpacked game
+  name. `displayName="$STR_…"` (or `"#STR_…"`) and `ghostIcon="set:… image:…"` work through the
+  *existing* stringtable and imageset providers. Vanilla's own configs are opt-in: add the unpacked game
   data (`P:\DZ`) to the roots and only its 207 configs are indexed, but they sit inside 24 GB of
   unpacked game that must be walked once, so the settings page warns before adding it.
 - **`#ifdef` completion** over the engine's flags *plus* every flag the project's `config.cpp` files
@@ -758,6 +763,9 @@ mod called BattleRoyale):
   the file. This is the one that proves `EnConstantEvaluator` folds through a `const string`.
 - Ctrl+Click a bare `"STR_BR_..."` (server-side, no `#`) → its row in `LanguageCore/stringtable.csv`;
   and a `"#STR_PARTY_..."` inside a `.layout` → `Party/stringtable.csv`.
+- Ctrl+Click `"#menu_add"` or `"#STR_TextInputDialogRoot_WindowLabel0"` in a vanilla layout
+  (`P:\gui\layouts\…`) → its row in `P:\languagecore\stringtable.csv`, though that row is spelt
+  in lower case and the file is too large for the platform to index.
 - Open the mod's `stringtable.csv` → a *Table* tab next to the text. In it, untranslated cells
   are tinted, and the headers show coverage. Edit a `french` cell → the text tab changes on that
   one line; `Ctrl+Z` undoes it. Change an `original` whose `english` is a copy → `english` follows,
@@ -788,7 +796,9 @@ mod called BattleRoyale):
   own `config.cpp`.
 - Ctrl+Click `"BattleRoyale/Data/Inputs.xml"` → the file; `"…/Mod_Logo.paa"` → the texture.
 - Ctrl+Click `"#STR_…"` and `"set:… image:…"` inside a config → the stringtable row and the imageset
-  entry, resolved by the providers written for script and layouts with no config-specific code.
+  entry, resolved by the providers written for script and layouts.
+- Ctrl+Click `displayName="$STR_CfgVehicles_…"` in a vanilla `P:\DZ` config → its row in the vanilla
+  stringtable.
 - Type `#ifdef ` in any `.c` file → the list offers `DAYZ_BATTLEROYALE` and `BR_PARTY` alongside
   the engine's own flags.
 - Add `P:\DZ` to the roots in the settings → a warning about the first indexing appears; *Cancel*
