@@ -1,6 +1,7 @@
 package io.github.lemyst.enfusion
 
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
+import io.github.lemyst.enfusion.objfmt.preview.FontFiles
 import io.github.lemyst.enfusion.objfmt.preview.LayoutGeometry
 import io.github.lemyst.enfusion.objfmt.preview.LayoutImages
 import io.github.lemyst.enfusion.objfmt.preview.LayoutRenderer
@@ -9,6 +10,8 @@ import io.github.lemyst.enfusion.objfmt.preview.LayoutTranslations
 import io.github.lemyst.enfusion.objfmt.preview.Rect
 import io.github.lemyst.enfusion.objfmt.preview.WidgetSpec
 import java.awt.image.BufferedImage
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 
 /** The layout preview: the maths on hand-written specs, and specs read from a hand-written layout. */
 class EnfusionLayoutPreviewTest : BasePlatformTestCase() {
@@ -407,6 +410,53 @@ class EnfusionLayoutPreviewTest : BasePlatformTestCase() {
         assertRect(Rect(d.x + 10, d.y + 66, button, row), placed[ok])
         assertRect(Rect(d.x + 10 + button + 20, d.y + 66, button, row), placed[cancel])
         assertRect(Rect(d.x + 10, d.y + 66, 2 * button + 20, row), placed[buttons])
+    }
+
+    fun testExactTextWithoutSizeTakesItsFont() {
+        // day_z_underground_trigger_editor_popup_dialog's message: "exact text" 1, no size, in a
+        // font whose file gives 24 pixels and a 36-pixel line; Workbench draws it 36 high.
+        fun message(font: FontFiles.Metrics?) = WidgetSpec(
+            "RichTextWidgetClass", null,
+            mapOf("text" to listOf("test"), "exact text" to listOf("1"), "size to text v" to listOf("1"), "size" to listOf("1", "0.3")),
+            emptyList(), font = font,
+        )
+        val sdf = message(FontFiles.Metrics(24.0, 36.0))
+        assertEquals(24.0, LayoutRenderer.textSize(sdf, screen))
+        assertEquals(36.0, LayoutGeometry.layout(listOf(sdf), 1920.0, 1080.0).single().rect.h, 1e-9)
+        // A bitmap font's file gives only its size.
+        assertEquals(16 * 1.4, LayoutGeometry.layout(listOf(message(FontFiles.Metrics(16.0, null))), 1920.0, 1080.0).single().rect.h, 1e-9)
+        assertEquals("no font", 14.0, LayoutRenderer.textSize(message(null), screen))
+    }
+
+    fun testFontFileMetrics() {
+        fun bigEndian(n: Int) = ByteBuffer.allocate(4).putInt(n).array()
+        fun chunk(tag: String, body: ByteArray) =
+            tag.toByteArray(Charsets.US_ASCII) + bigEndian(body.size) + body + ByteArray(body.size % 2)
+        fun head(name: String, size: Int, line: Int?): ByteArray {
+            val n = (name + "\u0000").toByteArray(Charsets.US_ASCII)
+            val b = ByteBuffer.allocate(64).order(ByteOrder.LITTLE_ENDIAN)
+            b.putInt(n.size).put(n).putInt(size)
+            if (line != null) b.putInt(0).put(2).putShort(line.toShort()).putFloat(size * 0.8f).putFloat(size.toFloat())
+            return b.array().copyOf(b.position())
+        }
+        fun font(version: String, vararg chunks: ByteArray): ByteArray {
+            val body = chunks.fold(version.toByteArray(Charsets.US_ASCII)) { all, c -> all + c }
+            return "FORM".toByteArray(Charsets.US_ASCII) + bigEndian(body.size) + body
+        }
+
+        val sdf = FontFiles.read(font("FNT5", chunk("HEAD", head("Test24", 24, 36)), chunk("GLPS", ByteArray(4))))!!
+        assertEquals(24.0, sdf.size)
+        assertEquals(36.0, sdf.lineHeight)
+        // A bitmap font: its HEAD after its glyphs (an odd length, padded), with no line height.
+        val bitmap = FontFiles.read(font("FNT3", chunk("GLPS", ByteArray(3)), chunk("HEAD", head("Test", 14, null))))!!
+        assertEquals(14.0, bitmap.size)
+        assertNull(bitmap.lineHeight)
+        assertNull(FontFiles.read("not a font at all".toByteArray()))
+        assertNull("cut short", FontFiles.read(font("FNT5", chunk("HEAD", head("Test24", 24, 36)).copyOf(10))))
+
+        assertEquals(24.0, FontFiles.sizeInName("gui/fonts/sdf_MetronBook24"))
+        assertEquals(16.0, FontFiles.sizeInName("gui/fonts/Metron16"))
+        assertNull("a family, sized by the widget", FontFiles.sizeInName("gui/fonts/Metron"))
     }
 
     fun testGridAddsRowsAndTextSizedToItsText() {

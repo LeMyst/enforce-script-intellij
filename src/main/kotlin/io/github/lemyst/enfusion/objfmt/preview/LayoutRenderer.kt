@@ -260,15 +260,26 @@ object LayoutRenderer {
     /**
      * The font size a text widget asks for, in layout pixels: `"exact text size"` when it says
      * `"exact text" 1` (1,262 vanilla widgets do), else its box's height times `text_proportion`
-     * (1 by default: vanilla writes every value from 0 to 0.9, never 1). See [fontSize] for how it
-     * becomes a font. The fonts themselves are not Enfusion's.
+     * (1 by default: vanilla writes every value from 0 to 0.9, never 1). An exact text with no
+     * size is drawn at its font's own size: `day_z_underground_trigger_editor_popup_dialog`'s
+     * message, in `sdf_MetronBook24`, has the 36-pixel line that font's file gives its 24 pixels.
+     * See [fontSize] for how it becomes a font. The fonts themselves are not Enfusion's.
      */
     internal fun textSize(spec: WidgetSpec, r: Rect): Double =
         if (exactText(spec)) {
-            spec.number("exact text size", 0, DEFAULT_EXACT_TEXT_SIZE)
+            spec.number("exact text size", 0, spec.font?.size ?: DEFAULT_EXACT_TEXT_SIZE)
         } else {
             r.h * spec.number("text_proportion", 0, 1.0)
         }
+
+    /**
+     * How tall a line of [spec]'s text is for each pixel of its size: what its font's file gives
+     * (1.5 for `sdf_MetronBook24`, 1.21 to 1.5 across vanilla's distance-field fonts). Else 1.4,
+     * within that range, for a font whose file is not found or gives no line height, as a bitmap
+     * font's does not.
+     */
+    internal fun lineFactor(spec: WidgetSpec): Double =
+        spec.font?.let { f -> f.lineHeight?.let { it / f.size } } ?: 1.4
 
     /**
      * Whether the text size is `"exact text size"` rather than a share of the box: when it says
@@ -280,8 +291,9 @@ object LayoutRenderer {
         spec.flag("exact text", false) || (spec.flag("size to text v", false) && spec.value("exact text size") != null)
 
     /**
-     * Not 22, which vanilla writes 698 times, so is not what Workbench leaves out. 14 is what
-     * `day_z_server_browser_new`'s `ServerCountText` (`"exact text" 1`, no size) looks like there.
+     * For a widget whose font gives no size. Not 22, which vanilla writes 698 times, so is not what
+     * Workbench leaves out. 14 is what `day_z_server_browser_new`'s `ServerCountText`
+     * (`"exact text" 1`, no size, no font) looks like there.
      */
     private const val DEFAULT_EXACT_TEXT_SIZE = 14.0
 

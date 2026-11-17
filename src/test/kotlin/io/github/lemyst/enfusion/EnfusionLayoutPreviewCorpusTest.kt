@@ -1,6 +1,7 @@
 package io.github.lemyst.enfusion
 
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
+import io.github.lemyst.enfusion.objfmt.preview.FontFiles
 import io.github.lemyst.enfusion.objfmt.preview.LayoutGeometry
 import io.github.lemyst.enfusion.objfmt.preview.LayoutRenderer
 import io.github.lemyst.enfusion.objfmt.preview.LayoutSpecs
@@ -47,6 +48,44 @@ class EnfusionLayoutPreviewCorpusTest : BasePlatformTestCase() {
         }
         println("[layout-preview] ${files.size} layouts, $widgets widgets, ${(System.nanoTime() - t0) / 1_000_000} ms")
         assertTrue("failed on ${failures.size}: ${failures.take(5)}", failures.isEmpty())
+    }
+
+    /**
+     * Every `.fnt` font under the layout roots in the two versions [FontFiles] reads (`FNT3`, `FNT5`)
+     * reads, with the size its name ends with when it has one, and a line height no shorter than
+     * that size for each distance-field font (`FNT5`). Other versions are counted, not failed:
+     * vanilla has one, `system.fnt` (`FNT2`), which a widget then sizes as if it named no font.
+     */
+    fun testEveryFontReads() {
+        val roots = System.getProperty("enfusion.layout.roots").orEmpty()
+            .split(';').map { it.trim() }.filter { it.isNotEmpty() && File(it).isDirectory }
+        val files = roots.flatMap { root -> File(root).walkTopDown().filter { it.isFile && it.extension.equals("fnt", ignoreCase = true) }.toList() }
+        if (files.isEmpty()) {
+            println("[fonts] no .fnt file under the layout roots, skipping")
+            return
+        }
+        val problems = ArrayList<String>()
+        var lines = 0
+        var others = 0
+        for (file in files) {
+            val bytes = file.readBytes()
+            val version = if (bytes.size >= 12) String(bytes, 8, 4, Charsets.US_ASCII) else ""
+            if (version != "FNT3" && version != "FNT5") {
+                others++
+                continue
+            }
+            val metrics = FontFiles.read(bytes)
+            if (metrics == null) {
+                problems += "${file.name}: not read"
+                continue
+            }
+            FontFiles.sizeInName(file.nameWithoutExtension)?.let { if (it != metrics.size) problems += "${file.name}: size ${metrics.size}" }
+            val line = metrics.lineHeight
+            if (version == "FNT5" && (line == null || line < metrics.size)) problems += "${file.name}: line $line for size ${metrics.size}"
+            if (line != null) lines++
+        }
+        println("[fonts] ${files.size} fonts, $lines with a line height, $others in another version")
+        assertTrue("${problems.size} problems: ${problems.take(5)}", problems.isEmpty())
     }
 
     /**

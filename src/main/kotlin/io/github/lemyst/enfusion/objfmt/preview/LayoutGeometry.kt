@@ -14,6 +14,8 @@ class WidgetSpec(
     /** Where the widget's declaration starts and ends in the file, to go between preview and text. */
     val offset: Int = -1,
     val endOffset: Int = -1,
+    /** The metrics of the widget's `font`, when it names one whose size is known. */
+    val font: FontFiles.Metrics? = null,
 ) {
     fun values(key: String): List<String> = properties[key.lowercase()].orEmpty()
     fun value(key: String): String? = values(key).firstOrNull()
@@ -416,11 +418,12 @@ object LayoutGeometry {
             if (horizontal) spec.flag("size to text h", false) && !spec.flag("wrap", false) else spec.flag("size to text v", false)
 
     /**
-     * Roughly what a text widget's text measures, for `"size to text"`: lines 1.4 times the widget's
-     * text size (`day_z_respawn_dialogue`'s 16-pixel details text gets a box about 22 high in
-     * Workbench), letters half as wide on average. Layout has no fonts, and the text may yet be translated,
-     * so this only needs to be about right: `day_z_respawn_dialogue`'s tooltip body is declared one
-     * pixel tall and grows to its one line.
+     * Roughly what a text widget's text measures, for `"size to text"`: lines as tall as its font's
+     * file says for the widget's text size ([LayoutRenderer.lineFactor]; one line of
+     * `sdf_MetronBook24` at its own 24 pixels is 36 high in Workbench), letters half as wide on
+     * average. The glyphs are not read, and the text may yet be translated, so the width only needs
+     * to be about right: `day_z_respawn_dialogue`'s tooltip body is declared one pixel tall and
+     * grows to its one line.
      */
     private fun textExtent(spec: WidgetSpec, rect: Rect): Pair<Double, Double> {
         val size = LayoutRenderer.textSize(spec, rect)
@@ -432,7 +435,7 @@ object LayoutGeometry {
         } else {
             text.count { it == '\n' } + 1
         }
-        val h = if (sizedToText(spec, horizontal = false)) lines * size * 1.4 else rect.h
+        val h = if (sizedToText(spec, horizontal = false)) lines * size * LayoutRenderer.lineFactor(spec) else rect.h
         return w to h
     }
 

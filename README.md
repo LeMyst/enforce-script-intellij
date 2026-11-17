@@ -183,8 +183,8 @@ inputs.
   grid spacers in `Rows` × `Columns` cells (more rows when the children need them, sized to their
   content on an axis with *Size To Content*, `Margin` inside the edges and `Padding` between the
   cells, proportional children measured against the room left inside), text
-  sized to its text with `"size to text h"` / `"size to text v"` (estimated: the layout has no
-  fonts), and wrap spacers flowing their children (lines placed by
+  sized to its text with `"size to text h"` / `"size to text v"` (lines as tall as the font's `.fnt`
+  says, the width estimated), and wrap spacers flowing their children (lines placed by
   `content_halign` / `content_valign`, `bottom` stacking them upwards), a `visible 0`
   child taking no slot, a wrap spacer's *Size To Content* fitting it to its children, and children
   cut off at their parent's edges unless it says `clipchildren 0`. Siblings are drawn by `priority`,
@@ -204,7 +204,8 @@ inputs.
   through the same cache as the texture hover, stretched to their box, tinted by their `color`,
   cut by their `Mask` at their `Progress` and mirrored by `flip u` / `flip v`, and turned by their
   `rotation` about their `pivot` (the outline stays upright, as in Workbench). Text widgets show
-  their `text` at `"exact text size"` pixels, or `text_proportion` of their height, wrapped to the
+  their `text` at `"exact text size"` pixels (with `"exact text" 1` and no size, their `font`'s own
+  size: 24 for `sdf_MetronBook24`), or `text_proportion` of their height, wrapped to the
   box with `wrap 1` and placed by `"text halign"` / `"text valign"` (top left by default) and
   `text_offset`. Check boxes get their box, combo boxes their arrows, and scroll widgets and the
   server browser their scroll bars, drawn plainly. A texture path no root holds, such as vanilla's `Gui/textures/…`, is looked up on
