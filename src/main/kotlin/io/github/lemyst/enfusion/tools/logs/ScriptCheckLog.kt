@@ -18,6 +18,27 @@ object ScriptCheckLog {
         class Failed(val module: String, val errors: List<String>) : Verdict()
     }
 
+    /**
+     * The config of the checking server. A server without one quits after ten seconds, possibly
+     * before the scripts are compiled. Its mission names nothing that exists: the server is
+     * stopped once the scripts compile, before it would load a mission, and a real one would have
+     * its storage written to.
+     */
+    val SERVER_CONFIG = """
+        // Written by Enforce Script's Check Scripts, for a server stopped once its scripts compile.
+        hostname = "Enforce Script check";
+        maxPlayers = 1;
+        verifySignatures = 0;
+        allowFilePatching = 1;
+        class Missions
+        {
+        	class DayZ
+        	{
+        		template = "enforce_script_check.none";
+        	};
+        };
+    """.trimIndent() + "\n"
+
     private val CANT_COMPILE = Regex("""Can't compile "(\w+)" script module""")
 
     fun verdict(lines: List<String>): Verdict {

@@ -1,5 +1,6 @@
 package io.github.lemyst.enfusion.tools.check
 
+import com.intellij.execution.ExecutionException
 import com.intellij.execution.RunManager
 import com.intellij.execution.configurations.GeneralCommandLine
 import com.intellij.execution.executors.DefaultRunExecutor
@@ -19,14 +20,11 @@ import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.roots.ProjectRootManager
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.util.SystemInfo
 import com.intellij.openapi.util.text.StringUtil
 import io.github.lemyst.enfusion.tools.DayZInstallation
-import io.github.lemyst.enfusion.tools.detect.DayZLaunch
 import io.github.lemyst.enfusion.tools.detect.DayZLaunchCommand
-import io.github.lemyst.enfusion.tools.detect.DayZLaunchMode
 import io.github.lemyst.enfusion.tools.logs.DayZLogLines
 import io.github.lemyst.enfusion.tools.logs.DayZLogTail
 import io.github.lemyst.enfusion.tools.logs.LocationFilter
@@ -38,17 +36,23 @@ import java.nio.file.Path
 /**
  * *Tools | DayZ | Check Scripts*: lets the engine itself compile the project's scripts.
  *
- * DayZ Diag is started as a server (`DayZDiag_x64.exe -server`, so no game window) with the mods of
- * the selected DayZ run configuration, or the project's `@` folders, and a throwaway profile folder
- * of its own. Its `script_*.log` is read as it is written; as soon as it says the last module
- * compiled, or that one could not be, the server is stopped and the verdict shown, with the errors
- * as links. Compiling takes about as long as a game start, so this is an explicit action, never an
- * on-save check.
+ * DayZ Diag is started as a server (`DayZDiag_x64.exe -server`, so no game window) on the mod list
+ * of a DayZ run configuration, the selected one or else the project's first. The project's addons
+ * are packed as a run packs them: unpacked folders mounted at the root of the game's files would
+ * override vanilla's. The server gets a throwaway profile folder and a config of its own, written
+ * there, naming no real mission: it is stopped before it would load one, so nothing writes to a
+ * mission's storage. Its `script_*.log` is read as it is written; as soon as it says the last
+ * module compiled, or that one could not be, the server is stopped and the verdict shown, with the
+ * errors as links. Compiling takes about as long as a game start, so this is an explicit action,
+ * never an on-save check.
  */
 object CheckScripts {
 
     /** Long enough for a large mod set on a slow disk; the check normally ends within a minute. */
     private const val TIMEOUT_MS = 5 * 60 * 1000L
+
+    /** Away from the 2302 of a test server that may be running. */
+    private const val CHECK_PORT = 2402
 
     /** Called on the EDT, from the action. */
     fun run(project: Project) {
@@ -57,25 +61,62 @@ object CheckScripts {
         val descriptor = RunContentDescriptor(console, null, console.component, "Check Scripts")
         Disposer.register(descriptor, console)
         RunContentManager.getInstance(project).showRunContent(DefaultRunExecutor.getRunExecutorInstance(), descriptor)
-        val mods = modsFor(project)
+        val configuration = configurationFor(project)
+        if (configuration == null) {
+            report(
+                project, console,
+                "Check Scripts starts a server on the mod list of a DayZ run configuration. Create one in Run | Edit Configurations, or select it.",
+                NotificationType.WARNING,
+            )
+            return
+        }
         ProgressManager.getInstance().run(object : Task.Backgroundable(project, "Checking scripts with DayZ Diag", true) {
-            override fun run(indicator: ProgressIndicator) = check(project, mods, console, indicator)
+            override fun run(indicator: ProgressIndicator) = check(project, configuration, console, indicator)
         })
     }
 
-    /** The mods of the selected DayZ run configuration, or else the project's `@` folders. */
-    private fun modsFor(project: Project): List<String> {
-        val selected = RunManager.getInstance(project).selectedConfiguration?.configuration as? DayZRunConfiguration
-        if (selected != null) return selected.options.toLaunch().mods
-        return DayZLaunchCommand.modFolders(ProjectRootManager.getInstance(project).contentRoots.map { it.toNioPath() })
+    /** The selected DayZ run configuration, or else the project's first. */
+    private fun configurationFor(project: Project): DayZRunConfiguration? {
+        val manager = RunManager.getInstance(project)
+        (manager.selectedConfiguration?.configuration as? DayZRunConfiguration)?.let { return it }
+        return manager.allConfigurationsList.filterIsInstance<DayZRunConfiguration>().firstOrNull()
     }
 
-    private fun check(project: Project, mods: List<String>, console: ConsoleView, indicator: ProgressIndicator) {
+    private fun check(project: Project, configuration: DayZRunConfiguration, console: ConsoleView, indicator: ProgressIndicator) {
         val paths = DayZInstallation.getInstance().paths(project)
+        val launch = configuration.options.toLaunch()
+        console.print("Mods of the run configuration '${configuration.name}'.\n", ConsoleViewContentType.SYSTEM_OUTPUT)
         val profile = Files.createTempDirectory(Path.of(PathManager.getTempPath()), "enfusion-check-")
-        val launch = DayZLaunch(mode = DayZLaunchMode.SERVER, diag = true, mods = mods, profiles = profile.toString(), filePatching = true)
+        val config = profile.resolve("serverDZ.cfg")
+        Files.writeString(config, ScriptCheckLog.SERVER_CONFIG)
+        val check = launch.copy(
+            startServer = true,
+            startClients = false,
+            diag = true,
+            serverProfile = profile.toString(),
+            serverConfig = config.toString(),
+            serverMission = null,
+            port = CHECK_PORT,
+        )
+        // Before packing, which reads the addons from the drive: the game would start without the
+        // mods and say nothing.
+        if (SystemInfo.isWindows) {
+            val unmounted = DayZLaunchCommand.drivesUsed(check).filter { !Files.isDirectory(Path.of("$it:\\")) }
+            if (unmounted.isNotEmpty()) {
+                report(project, console, "${unmounted.joinToString(", ") { "$it:" }} is not mounted, and the mod list reads from it.", NotificationType.ERROR)
+                return
+            }
+        }
+        indicator.text2 = "Packing the project's addons"
+        val prepared = try {
+            configuration.prepareMods(launch, paths)
+        } catch (e: ExecutionException) {
+            report(project, console, e.message.orEmpty(), NotificationType.ERROR)
+            return
+        }
+        prepared.lines.forEach { console.print("$it\n", ConsoleViewContentType.SYSTEM_OUTPUT) }
         val command = try {
-            DayZLaunchCommand.build(paths, launch)
+            DayZLaunchCommand.buildServer(paths, check, prepared.pboMod, prepared.addonMod)
         } catch (e: DayZLaunchCommand.Problem) {
             report(project, console, "${e.message} Set it in Settings | Languages & Frameworks | Enforce Script | DayZ Installation.", NotificationType.ERROR)
             return
@@ -106,6 +147,9 @@ object CheckScripts {
             }
         } finally {
             if (!handler.isProcessTerminated) handler.destroyProcess()
+            // The log has been read, and the folder was the server's alone; best effort, once it exits.
+            handler.waitFor(5_000)
+            profile.toFile().deleteRecursively()
         }
         when (val result = verdict) {
             is ScriptCheckLog.Verdict.Compiled ->

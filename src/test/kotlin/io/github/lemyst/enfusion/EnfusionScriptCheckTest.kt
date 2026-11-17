@@ -1,5 +1,6 @@
 package io.github.lemyst.enfusion
 
+import io.github.lemyst.enfusion.tools.detect.DayZLaunchCommand
 import io.github.lemyst.enfusion.tools.logs.ScriptCheckLog
 import junit.framework.TestCase
 
@@ -22,6 +23,13 @@ class EnfusionScriptCheckTest : TestCase() {
             "10:58:43.045 SCRIPT       : Module: Mission; loaded 610x files",
         )
         assertSame(ScriptCheckLog.Verdict.Compiled, ScriptCheckLog.verdict(lines))
+    }
+
+    /** The checking server's own config: file patching allowed, and a mission that does not exist. */
+    fun testServerConfig() {
+        val config = ScriptCheckLog.SERVER_CONFIG
+        assertTrue(config, DayZLaunchCommand.allowsFilePatching(config))
+        assertTrue(config, config.contains("template = \"enforce_script_check.none\";"))
     }
 
     fun testCompileFailure() {
