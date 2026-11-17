@@ -1,0 +1,231 @@
+package io.github.lemyst.enfusion.texture
+
+import com.intellij.notification.NotificationGroupManager
+import com.intellij.notification.NotificationType
+import com.intellij.openapi.actionSystem.ActionUpdateThread
+import com.intellij.openapi.actionSystem.AnActionEvent
+import com.intellij.openapi.actionSystem.CommonDataKeys
+import com.intellij.openapi.command.WriteCommandAction
+import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
+import com.intellij.openapi.fileEditor.OpenFileDescriptor
+import com.intellij.openapi.progress.ProgressManager
+import com.intellij.openapi.project.DumbAwareAction
+import com.intellij.openapi.project.Project
+import com.intellij.openapi.ui.DialogPanel
+import com.intellij.openapi.ui.DialogWrapper
+import com.intellij.openapi.ui.Messages
+import com.intellij.openapi.util.text.StringUtil
+import com.intellij.openapi.vfs.LocalFileSystem
+import com.intellij.openapi.vfs.VfsUtil
+import com.intellij.openapi.vfs.VfsUtilCore
+import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.ui.dsl.builder.AlignX
+import com.intellij.ui.dsl.builder.COLUMNS_LARGE
+import com.intellij.ui.dsl.builder.bindIntText
+import com.intellij.ui.dsl.builder.bindSelected
+import com.intellij.ui.dsl.builder.bindText
+import com.intellij.ui.dsl.builder.columns
+import com.intellij.ui.dsl.builder.panel
+import io.github.lemyst.enfusion.texture.format.EddsWriter
+import io.github.lemyst.enfusion.texture.format.ImageSetPacking
+import io.github.lemyst.enfusion.texture.format.TextureFormatException
+import io.github.lemyst.enfusion.texture.format.TgaReader
+import java.io.ByteArrayInputStream
+import javax.imageio.ImageIO
+import javax.swing.JComponent
+
+/**
+ * *Pack into Imageset…* on a folder of pictures: one `.edds` atlas and its `.imageset`, the
+ * pictures placed by [ImageSetPacking] and the atlas written by [EddsWriter].
+ */
+class PackImageSetAction : DumbAwareAction() {
+
+    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.BGT
+
+    override fun update(e: AnActionEvent) {
+        val dir = e.getData(CommonDataKeys.VIRTUAL_FILE)
+        e.presentation.isEnabledAndVisible = e.project != null && dir != null && dir.isDirectory && dir.isInLocalFileSystem
+    }
+
+    override fun actionPerformed(e: AnActionEvent) {
+        val project = e.project ?: return
+        val dir = e.getData(CommonDataKeys.VIRTUAL_FILE)?.takeIf { it.isDirectory } ?: return
+        val sources = PackImageSet.sourcesIn(dir)
+        if (sources.isEmpty()) {
+            Messages.showInfoMessage(project, "${dir.name} holds no ${PackImageSet.EXTENSIONS.joinToString(", ") { ".$it" }} picture.", "Pack into Imageset")
+            return
+        }
+        val parent = dir.parent ?: dir
+        val options = PackImageSet.Settings(
+            name = dir.name,
+            outputFolder = parent.path,
+            fileName = dir.name,
+            texturePath = PackImageSet.texturePath(project, parent, dir.name + ".edds"),
+        )
+        if (!PackImageSetDialog(project, options, sources.size).showAndGet()) return
+        PackImageSet.run(project, dir, sources, options)
+    }
+}
+
+internal object PackImageSet {
+
+    val EXTENSIONS = listOf("png", "tga", "bmp", "gif", "jpg", "jpeg", "tif", "tiff")
+
+    class Settings(
+        var name: String,
+        var outputFolder: String,
+        var fileName: String,
+        var texturePath: String,
+        var padding: Int = 0,
+        var maxSide: Int = 4096,
+        var mips: Boolean = true,
+        var extrude: Boolean = false,
+        var groups: Boolean = false,
+    )
+
+    /** The pictures under [dir], any depth, in path order. */
+    fun sourcesIn(dir: VirtualFile): List<VirtualFile> {
+        val found = ArrayList<VirtualFile>()
+        VfsUtilCore.iterateChildrenRecursively(dir, null) { file ->
+            if (!file.isDirectory && file.extension?.lowercase() in EXTENSIONS) found += file
+            true
+        }
+        return found.sortedBy { it.path.lowercase() }
+    }
+
+    /**
+     * The game's path to a file [fileName] in [folder]: the prefix of the addon holding it (its
+     * `$PBOPREFIX$`, or its path on the work drive, or its folder's name) and the path inside the
+     * addon, with forward slashes. Without an addon, the path from the folder holding the project.
+     */
+    fun texturePath(project: Project, folder: VirtualFile, fileName: String): String {
+        var addon: VirtualFile? = folder
+        while (addon != null && addon.findChild("config.cpp") == null && addon.findChild("\$PBOPREFIX\$") == null) addon = addon.parent
+        if (addon != null) {
+            val prefix = declaredPrefix(addon) ?: onDrive(addon) ?: addon.name
+            val inside = VfsUtilCore.getRelativePath(folder, addon, '/').orEmpty()
+            return listOf(prefix.replace('\\', '/').trim('/'), inside, fileName).filter { it.isNotEmpty() }.joinToString("/")
+        }
+        val base = project.basePath?.let { LocalFileSystem.getInstance().findFileByPath(it) }
+        val holder = base?.parent
+        val inside = holder?.let { VfsUtilCore.getRelativePath(folder, it, '/') }
+        return listOfNotNull(inside?.takeIf { it.isNotEmpty() }, fileName).joinToString("/")
+    }
+
+    private fun declaredPrefix(addon: VirtualFile): String? {
+        val file = addon.children.firstOrNull { it.name.startsWith("\$PBOPREFIX\$", ignoreCase = true) } ?: return null
+        val line = runCatching { VfsUtilCore.loadText(file) }.getOrNull()?.lines()?.firstOrNull { it.isNotBlank() } ?: return null
+        return line.trim().removePrefix("prefix=").trim().trim('\\', '/').takeIf { it.isNotEmpty() }
+    }
+
+    /** The path after the drive, for a folder on the work drive (`P:\MyMod\GUI` → `MyMod/GUI`). */
+    private fun onDrive(addon: VirtualFile): String? {
+        val path = addon.path
+        return if (path.length > 3 && path[1] == ':' && path[2] == '/') path.substring(3).takeIf { it.isNotEmpty() } else null
+    }
+
+    fun run(project: Project, dir: VirtualFile, files: List<VirtualFile>, settings: Settings) {
+        val result = try {
+            ProgressManager.getInstance().runProcessWithProgressSynchronously<Pair<ByteArray, String>, Exception>(
+                {
+                    val sources = files.map { read(dir, it, settings.groups) }
+                    val packed = ImageSetPacking.pack(sources, ImageSetPacking.Options(settings.padding, settings.maxSide, settings.extrude))
+                    val edds = EddsWriter.bgra8(packed.argb, packed.width, packed.height, settings.mips)
+                    edds to ImageSetPacking.imageSet(settings.name, settings.texturePath, packed)
+                },
+                "Packing ${files.size} Pictures",
+                true,
+                project,
+            )
+        } catch (e: ImageSetPacking.Problem) {
+            Messages.showErrorDialog(project, e.message, "Pack into Imageset")
+            return
+        } catch (e: TextureFormatException) {
+            Messages.showErrorDialog(project, e.message, "Pack into Imageset")
+            return
+        }
+        val (edds, imageSet) = result
+        val written = WriteCommandAction.writeCommandAction(project).withName("Pack into Imageset").compute<VirtualFile, Exception> {
+            val out = VfsUtil.createDirectoryIfMissing(settings.outputFolder) ?: error("Cannot create ${settings.outputFolder}")
+            val texture = out.findChild(settings.fileName + ".edds") ?: out.createChildData(this, settings.fileName + ".edds")
+            texture.setBinaryContent(edds)
+            val descriptor = out.findChild(settings.fileName + ".imageset") ?: out.createChildData(this, settings.fileName + ".imageset")
+            VfsUtil.saveText(descriptor, imageSet)
+            descriptor
+        }
+        OpenFileDescriptor(project, written).navigate(true)
+        NotificationGroupManager.getInstance().getNotificationGroup("Enforce Script")
+            .createNotification(
+                "Pack into Imageset",
+                StringUtil.escapeXmlEntities("Packed ${files.size} pictures into ${settings.fileName}.edds (${edds.size / 1024} KB) and ${settings.fileName}.imageset."),
+                NotificationType.INFORMATION,
+            )
+            .notify(project)
+    }
+
+    /** One picture: its image name, its group (its first folder under [dir], when asked), its pixels. */
+    private fun read(dir: VirtualFile, file: VirtualFile, groups: Boolean): ImageSetPacking.Source {
+        ProgressManager.checkCanceled()
+        val bytes = file.contentsToByteArray()
+        val name = ImageSetPacking.imageName(file.name)
+        val relative = VfsUtilCore.getRelativePath(file, dir, '/').orEmpty()
+        val group = if (groups && relative.contains('/')) relative.substringBefore('/') else null
+        if (file.extension.equals("tga", ignoreCase = true)) {
+            val tga = TgaReader.read(bytes)
+            return ImageSetPacking.Source(name, group, tga.width, tga.height, tga.argb)
+        }
+        val image = ImageIO.read(ByteArrayInputStream(bytes)) ?: throw TextureFormatException("${file.name} is not a picture ImageIO can read")
+        val argb = image.getRGB(0, 0, image.width, image.height, null, 0, image.width)
+        return ImageSetPacking.Source(name, group, image.width, image.height, argb)
+    }
+}
+
+/** The options of a pack: names, where it goes, and how the atlas is built. */
+private class PackImageSetDialog(private val project: Project, private val settings: PackImageSet.Settings, count: Int) : DialogWrapper(project) {
+
+    private lateinit var form: DialogPanel
+
+    init {
+        title = "Pack $count Pictures into an Imageset"
+        setOKButtonText("Pack")
+        init()
+    }
+
+    override fun createCenterPanel(): JComponent {
+        form = panel {
+            row("Imageset name:") {
+                textField().columns(COLUMNS_LARGE).align(AlignX.FILL).bindText(settings::name)
+                    .comment("What \"set:<name> image:…\" names.")
+                    .validationOnApply { if (it.text.isBlank()) error("Enter a name") else null }
+            }
+            row("Output folder:") {
+                textFieldWithBrowseButton(FileChooserDescriptorFactory.singleDir().withTitle("Output Folder"), project)
+                    .columns(COLUMNS_LARGE).align(AlignX.FILL).bindText(settings::outputFolder)
+            }
+            row("File name:") {
+                textField().columns(COLUMNS_LARGE).align(AlignX.FILL).bindText(settings::fileName)
+                    .comment("Without extension: the .edds and the .imageset are both written, replacing any already there.")
+                    .validationOnApply { if (it.text.isBlank() || it.text.any { c -> c in "\\/:*?\"<>|" }) error("Enter a file name") else null }
+            }
+            row("Texture path:") {
+                textField().columns(COLUMNS_LARGE).align(AlignX.FILL).bindText(settings::texturePath)
+                    .comment("The game's path to the .edds, written in the .imageset: the addon's prefix and the path inside it.")
+            }
+            row("Gap between pictures:") {
+                intTextField(0..64).bindIntText(settings::padding)
+                    .comment("Pixels, none along the atlas edge. DayZ's atlases are packed tight (0 or 1); 2 keeps a picture drawn smaller from blending into its neighbour.")
+            }
+            row("Largest atlas side:") { intTextField(16..16384).bindIntText(settings::maxSide) }
+            row { checkBox("Mipmaps, as vanilla's UI atlases have").bindSelected(settings::mips) }
+            row { checkBox("Repeat each picture's edge into half the gap round it").bindSelected(settings::extrude) }
+            row { checkBox("Subfolders become groups").bindSelected(settings::groups) }
+            row { comment("BGRA8, uncompressed: the format of most vanilla UI atlases. Packing the same pictures again gives the same files.") }
+        }
+        return form
+    }
+
+    override fun doOKAction() {
+        form.apply()
+        super.doOKAction()
+    }
+}
