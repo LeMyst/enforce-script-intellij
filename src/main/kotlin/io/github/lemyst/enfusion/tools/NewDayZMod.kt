@@ -6,7 +6,7 @@ import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.LangDataKeys
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.command.WriteCommandAction
-import com.intellij.openapi.fileEditor.FileEditorManager
+import com.intellij.openapi.fileEditor.OpenFileDescriptor
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.project.DumbService
@@ -182,7 +182,7 @@ class NewDayZAddonAction : DumbAwareAction() {
             if (!dialog.showAndGet()) return
             val config = NewDayZFiles.createAddon(project, dir, dialog.spec())
             PsiManager.getInstance(project).findFile(config)?.let { view?.selectElement(it) }
-            FileEditorManager.getInstance(project).openFile(config, true)
+            OpenFileDescriptor(project, config).navigate(true)
         }
     }
 }
@@ -205,7 +205,7 @@ class NewDayZModAction : DumbAwareAction() {
         val mod = NewDayZFiles.createMod(project, dir, spec)
         mod.findChild("mod.cpp")?.let { file ->
             PsiManager.getInstance(project).findFile(file)?.let { view.selectElement(it) }
-            FileEditorManager.getInstance(project).openFile(file, true)
+            OpenFileDescriptor(project, file).navigate(true)
         }
         if (dialog.firstAddon) NewDayZAddonAction.newAddon(project, mod, view, spec.info.name)
     }

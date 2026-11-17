@@ -8,7 +8,6 @@ import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.ui.CheckBoxList
 import com.intellij.ui.DocumentAdapter
 import com.intellij.ui.SearchTextField
-import com.intellij.ui.SimpleListCellRenderer
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.JBTextArea
@@ -190,9 +189,7 @@ internal class NewDayZModDialog(project: Project, private val parent: VirtualFil
     private val overviewField = JBTextArea(3, 40).apply { lineWrap = true; wrapStyleWord = true }
     private val actionField = JBTextField()
     private val licenses = DayZModTemplates.License.entries.filter { it != DayZModTemplates.License.GPL3 || NewDayZFiles.gplText() != null }
-    private val licenseBox = ComboBox(licenses.toTypedArray()).apply {
-        renderer = SimpleListCellRenderer.create("") { it.label }
-    }
+    private val licenseBox = ComboBox(licenses.toTypedArray())
     private val readme = JBCheckBox("README.md", true)
     private val gitignore = JBCheckBox(".gitignore, for built PBOs, private keys, logs and the IDE's folder", true)
     private val firstAddonBox = JBCheckBox("Then create its first addon", true)

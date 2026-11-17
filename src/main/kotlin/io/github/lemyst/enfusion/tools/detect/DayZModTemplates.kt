@@ -54,11 +54,14 @@ object DayZModTemplates {
         val dir: String get() = path.substringBeforeLast('/', path)
     }
 
-    /** A licence offered for a new mod. */
+    /** A licence offered for a new mod; [toString] is what the dialog's list shows. */
     enum class License(val label: String) {
         NONE("None"),
         MIT("MIT"),
         GPL3("GPL-3.0"),
+        ;
+
+        override fun toString(): String = label
     }
 
     fun modCpp(info: ModInfo): String = buildString {
