@@ -77,6 +77,7 @@ class DayZModBuildOptions : RunConfigurationOptions() {
     var signKey by string()
     var modCpp by string()
     var extras by list<DayZExtraState>()
+    var lowerCaseNames by property(false)
 
     /**
      * The release, with each addon's prefix as the run configuration works it out: its
@@ -97,6 +98,7 @@ class DayZModBuildOptions : RunConfigurationOptions() {
                 val source = path(e.source) ?: return@mapNotNull null
                 DayZModRelease.Extra(source, e.target?.trim()?.ifEmpty { null } ?: source.fileName.toString())
             },
+            lowerCaseNames = lowerCaseNames,
         )
     }
 

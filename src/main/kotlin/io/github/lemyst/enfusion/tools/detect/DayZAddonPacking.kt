@@ -21,7 +21,7 @@ object DayZAddonPacking {
 
     /** An addon to pack: its folder, and the prefix the game mounts it under. */
     data class Addon(val folder: Path, val prefix: String) {
-        /** `Vigrid\Scripts\Client` → `Scripts_Client.pbo`, as mod build scripts name them. */
+        /** `MyMod\Scripts\Client` → `Scripts_Client.pbo`, as mod build scripts name them. */
         val pboName: String
             get() {
                 val parts = prefix.split('\\', '/').filter { it.isNotEmpty() }

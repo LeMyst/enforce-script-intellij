@@ -79,12 +79,12 @@ class DayZModBuildHandler(
         say("Building ${release.output}")
 
         val current = release.addons.associateWith { addon ->
-            DayZModReleasePlan.manifestOf(addon, DayZAddonPacking.manifest(DayZAddonPacking.files(addon.folder)), release.signKey)
+            DayZModReleasePlan.manifestOf(addon, DayZAddonPacking.manifest(DayZAddonPacking.files(addon.folder)), release.signKey, release.pboNameOf(addon))
         }
         val plan = DayZModReleasePlan.plan(
             release,
             manifest = { current.getValue(it) },
-            previous = { runCatching { Files.readString(manifests.resolve(it.pboName + ".manifest")) }.getOrNull() },
+            previous = { runCatching { Files.readString(manifests.resolve(release.pboNameOf(it) + ".manifest")) }.getOrNull() },
             exists = { Files.exists(it) },
             inAddons = list(addonsDir),
             inKeys = list(keysDir),
@@ -96,9 +96,9 @@ class DayZModBuildHandler(
         for (addon in plan.build) {
             if (stopping) return false
             if (buildAddon(addon, addonsDir)) {
-                Files.writeString(manifests.resolve(addon.pboName + ".manifest"), current.getValue(addon))
+                Files.writeString(manifests.resolve(release.pboNameOf(addon) + ".manifest"), current.getValue(addon))
             } else {
-                failed += addon.pboName
+                failed += release.pboNameOf(addon)
             }
         }
         if (stopping) return false
@@ -132,7 +132,7 @@ class DayZModBuildHandler(
 
     /** Builds one addon, moves its PBO into `addons\` under its release name, and signs it. */
     private fun buildAddon(addon: DayZAddonPacking.Addon, addonsDir: Path): Boolean {
-        val staging = work.resolve("staging").resolve(addon.pboName.removeSuffix(".pbo"))
+        val staging = work.resolve("staging").resolve(release.pboNameOf(addon).removeSuffix(".pbo"))
         staging.toFile().deleteRecursively()
         Files.createDirectories(staging)
         val saved = savedOptions(addon.folder)
@@ -146,20 +146,20 @@ class DayZModBuildHandler(
             include = saved?.include,
             exclude = saved?.exclude,
         )
-        say("Building ${addon.pboName} from ${addon.folder}")
+        say("Building ${release.pboNameOf(addon)} from ${addon.folder}")
         val output = runTool(AddonBuilderCommand.commandLine(toolsBin, build), addon.folder)
         if (AddonBuilderCommand.result(output) != AddonBuilderCommand.Result.SUCCEEDED || !Files.isRegularFile(build.pbo)) {
-            error("${addon.pboName} failed.")
+            error("${release.pboNameOf(addon)} failed.")
             return false
         }
-        val target = addonsDir.resolve(addon.pboName)
+        val target = addonsDir.resolve(release.pboNameOf(addon))
         Files.move(build.pbo, target, StandardCopyOption.REPLACE_EXISTING)
         val key = release.signKey ?: return true
-        val signature = addonsDir.resolve(DayZModReleasePlan.signatureName(addon.pboName, key))
+        val signature = addonsDir.resolve(DayZModReleasePlan.signatureName(release.pboNameOf(addon), key))
         Files.deleteIfExists(signature)
         runTool(DsUtilsCommand.sign(toolsBin, key, target), toolsBin)
         if (!Files.isRegularFile(signature)) {
-            error("${addon.pboName} was built but not signed: no ${signature.fileName}.")
+            error("${release.pboNameOf(addon)} was built but not signed: no ${signature.fileName}.")
             return false
         }
         return true

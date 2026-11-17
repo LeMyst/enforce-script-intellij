@@ -8,6 +8,7 @@ import com.intellij.openapi.roots.ProjectRootManager
 import com.intellij.openapi.ui.TextFieldWithBrowseButton
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.ui.ToolbarDecorator
+import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBList
 import com.intellij.ui.dsl.builder.Align
 import com.intellij.ui.dsl.builder.AlignX
@@ -71,7 +72,16 @@ class DayZModBuildEditor(private val project: Project) : SettingsEditor<DayZModB
         .disableUpDownActions()
         .createPanel()
 
-    private fun extrasComponent(): JComponent = ToolbarDecorator.createDecorator(TableView(extrasModel).apply { visibleRowCount = 4 })
+    /**
+     * An edit in progress is committed when the table loses focus: pressing *Run* or *OK* while a
+     * cell is still being edited would otherwise apply the value from before the edit.
+     */
+    private val extrasTable = TableView(extrasModel).apply {
+        visibleRowCount = 4
+        putClientProperty("terminateEditOnFocusLost", true)
+    }
+
+    private fun extrasComponent(): JComponent = ToolbarDecorator.createDecorator(extrasTable)
         .setAddAction {
             val descriptor = FileChooserDescriptorFactory.multiFiles().withTitle("Files to Copy into the Mod")
             for (file in FileChooser.chooseFiles(descriptor, project, null)) {
@@ -79,8 +89,16 @@ class DayZModBuildEditor(private val project: Project) : SettingsEditor<DayZModB
             }
             fireEditorStateChanged()
         }
+        .setRemoveAction {
+            extrasTable.selectedRows.sortedDescending().forEach { extrasModel.removeRow(it) }
+            fireEditorStateChanged()
+        }
         .disableUpDownActions()
         .createPanel()
+
+    private val lowerCase = JBCheckBox("Lower-case PBO names (scripts_client.pbo)").apply {
+        addItemListener { fireEditorStateChanged() }
+    }
 
     override fun createEditor(): JComponent = panel {
         row("Mod folder:") {
@@ -93,6 +111,9 @@ class DayZModBuildEditor(private val project: Project) : SettingsEditor<DayZModB
                         "only those that changed since the last build; and third-party PBOs, copied with their signatures.",
                 )
         }.resizableRow()
+        row {
+            cell(lowerCase).comment("The project's PBOs and their signatures only; third-party PBOs keep their names.")
+        }
         row("Signing key:") {
             cell(signKey).align(AlignX.FILL)
                 .comment("A .biprivatekey; the .bikey of the same name next to it goes into keys\\. Each PBO is signed with DSSignFile.")
@@ -117,9 +138,11 @@ class DayZModBuildEditor(private val project: Project) : SettingsEditor<DayZModB
         keysModel.clear()
         o.keys.forEach { keysModel.addElement(it) }
         extrasModel.items = o.extras.mapTo(ArrayList()) { Extra(it.source.orEmpty(), it.target.orEmpty()) }
+        lowerCase.isSelected = o.lowerCaseNames
     }
 
     override fun applyEditorTo(configuration: DayZModBuildConfiguration) {
+        if (extrasTable.isEditing) extrasTable.cellEditor?.stopCellEditing()
         val o = configuration.options
         o.output = output.text.trim().ifEmpty { null }
         o.modList.clear()
@@ -137,6 +160,7 @@ class DayZModBuildEditor(private val project: Project) : SettingsEditor<DayZModB
                 }
             },
         )
+        o.lowerCaseNames = lowerCase.isSelected
     }
 
     /** A new configuration starts with the `mod.cpp` at the project's root, when there is one. */

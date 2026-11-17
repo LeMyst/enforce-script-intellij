@@ -27,9 +27,14 @@ data class DayZModRelease(
     val signKey: Path? = null,
     val modCpp: Path? = null,
     val extras: List<Extra> = emptyList(),
+    /** Name the built PBOs, and so their signatures, in lower case: `scripts_client.pbo`. */
+    val lowerCaseNames: Boolean = false,
 ) {
     /** A file copied into the mod: [target] is relative to the mod's folder, such as `LICENSE`. */
     data class Extra(val source: Path, val target: String)
+
+    /** The name [addon]'s PBO ships under in `addons\`. */
+    fun pboNameOf(addon: DayZAddonPacking.Addon): String = if (lowerCaseNames) addon.pboName.lowercase() else addon.pboName
 }
 
 /**
@@ -64,11 +69,12 @@ object DayZModReleasePlan {
     fun signatureName(pboName: String, signKey: Path): String = "$pboName.${keyName(signKey)}.bisign"
 
     /**
-     * What goes into an addon's manifest besides its files: a change of prefix or of signing key
-     * changes the PBO too, so it is rebuilt.
+     * What goes into an addon's manifest besides its files: a change of prefix, of signing key or
+     * of the name it ships under changes the PBO too, so it is rebuilt. The name is there because a
+     * case-insensitive disk finds the old manifest under the new case.
      */
-    fun manifestOf(addon: DayZAddonPacking.Addon, files: String, signKey: Path?): String =
-        "prefix=${addon.prefix}\nkey=${signKey?.let(::keyName).orEmpty()}\n$files"
+    fun manifestOf(addon: DayZAddonPacking.Addon, files: String, signKey: Path?, pboName: String = addon.pboName): String =
+        "prefix=${addon.prefix}\nkey=${signKey?.let(::keyName).orEmpty()}\nname=$pboName\n$files"
 
     /**
      * The plan for [release]. [manifest] is an addon's manifest now, [previous] the one recorded by
@@ -85,9 +91,9 @@ object DayZModReleasePlan {
         inKeys: List<Path>,
         signaturesOf: (Path) -> List<Path>,
     ): Plan {
-        val twins = release.addons.groupBy { it.pboName.lowercase() }.values.firstOrNull { it.size > 1 }
+        val twins = release.addons.groupBy { release.pboNameOf(it).lowercase() }.values.firstOrNull { it.size > 1 }
         if (twins != null) {
-            throw DayZLaunchCommand.Problem("Two addons would both be built as ${twins[0].pboName}: ${twins[0].folder} and ${twins[1].folder}.")
+            throw DayZLaunchCommand.Problem("Two addons would both be built as ${release.pboNameOf(twins[0])}: ${twins[0].folder} and ${twins[1].folder}.")
         }
         val addonsDir = release.output.resolve(ADDONS)
         val keysDir = release.output.resolve(KEYS)
@@ -95,8 +101,8 @@ object DayZModReleasePlan {
         val build = ArrayList<DayZAddonPacking.Addon>()
         val upToDate = ArrayList<DayZAddonPacking.Addon>()
         for (addon in release.addons) {
-            val pbo = addonsDir.resolve(addon.pboName)
-            val signed = release.signKey?.let { addonsDir.resolve(signatureName(addon.pboName, it)) }
+            val pbo = addonsDir.resolve(release.pboNameOf(addon))
+            val signed = release.signKey?.let { addonsDir.resolve(signatureName(release.pboNameOf(addon), it)) }
             val stale = previous(addon) != manifest(addon) || !exists(pbo) || (signed != null && !exists(signed))
             if (stale) build += addon else upToDate += addon
         }
@@ -113,7 +119,7 @@ object DayZModReleasePlan {
         val clash = copies.groupBy { it.second.toString().lowercase() }.filterValues { it.size > 1 }.keys.firstOrNull()
         if (clash != null) throw DayZLaunchCommand.Problem("Two files of the mod would both be copied to $clash.")
         val builtNames = release.addons.flatMap { addon ->
-            listOfNotNull(addon.pboName, release.signKey?.let { signatureName(addon.pboName, it) })
+            listOfNotNull(release.pboNameOf(addon), release.signKey?.let { signatureName(release.pboNameOf(addon), it) })
         }
         val wantedInAddons = (builtNames + copies.filter { it.second.parent == addonsDir }.map { it.second.name })
             .mapTo(HashSet()) { it.lowercase() }
