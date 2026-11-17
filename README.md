@@ -199,10 +199,26 @@ inputs.
   already a real `PsiReference` and the platform's default search runs on top of that.
 - **Formatter** (`Ctrl+Alt+L`) — **indentation only**, deliberately. It adds no spacing or wrapping
   rules, so Allman braces and however you spaced a line survive untouched; it defaults to tabs
-  because vanilla is tab-indented without exception. A test formats 150 vanilla files and asserts no
-  token ever moves between lines. `#ifdef` / `#else` / `#endif` are pinned to the first column, which
-  is the one formatting choice the corpus does *not* settle — vanilla writes it both ways — so it is
-  a checkbox under *Code Style | Enforce Script | Wrapping and Braces*, not a rule.
+  because vanilla is tab-indented without exception. One level deeper, each as vanilla writes it
+  in the large majority of cases:
+  - the contents of `{ }` (class and method bodies, blocks, enums, `switch`, array literals);
+  - the body of an `if`, `else`, `for`, `foreach` or `while` without braces, while an `else if`
+    chain stays flat;
+  - the statements under a `case` label, while a `{` right after a label stays at its level;
+  - a line continuing a statement (arguments, conditions, long expressions), while a lone closing
+    `)` goes back to the statement's level.
+
+  Enter follows the same rules: after `if (x)` without a brace, or after `case 1:`, the caret goes
+  one level deeper.
+
+  Two tests format vanilla code. One checks that no token ever moves between lines (150 files). The
+  other checks that at least 98% of lines keep their indentation (400 files). The lines that do
+  move are vanilla's minority styles, such as `break;` at its `case` label's level or parameters
+  aligned to a column.
+
+  `#ifdef` / `#else` / `#endif` are pinned to the first column, which is the one formatting choice
+  the corpus does *not* settle — vanilla writes it both ways — so it is a checkbox under
+  *Code Style | Enforce Script | Wrapping and Braces*, not a rule.
 - **A bundled Community Framework stub** — `GetRPCManager()`, `CallType` and `RPCManager`'s five
   methods resolve without a real `@CF` checkout, which most machines never have (it is a Steam
   Workshop dependency, not a plain checkout like Expansion or COT). Deliberately narrow: it stubs
