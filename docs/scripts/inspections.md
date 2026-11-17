@@ -15,13 +15,14 @@ under *Settings → Editor → Inspections → Enforce Script*:
 | *'override' with no base declaration* | the reverse: an `override` that overrides nothing |
 | *Variable already declared in this method* | a name declared twice in one method — an error here even across disjoint `if` branches |
 | *'modded class' patching nothing* | a `modded class` that patches nothing |
+| *Override in a modded class does not call super* | an `override` in a `modded class` that never calls `super` with its own name, which drops vanilla's and every other mod's layer; see [Modded overrides](#modded-overrides) below |
 | *Variable named after a type* | a variable named after a type |
 | *Dispatch string naming no method* | an `AddTimer` / `AddRPC` string naming no method on its target |
 | *Localization key with no stringtable row* | a `STR_…` key with no stringtable row; see [Stringtables](../game-files/stringtables.md#from-the-code) |
 | *Name from a later script module* | see [Script modules](#script-modules) below |
 | *Malformed stringtable row* | see [Stringtables](../game-files/stringtables.md#malformed-rows) |
 
-The two `override` ones carry quick fixes. Each is gated so that a class whose parent the plugin
+The two `override` ones and the `super` one carry quick fixes. Each is gated so that a class whose parent the plugin
 never indexed produces no report at all, and the duplicate-local rule is measured against 120
 vanilla files to prove it stays silent on code that compiles.
 
@@ -48,6 +49,22 @@ vanilla files of `1_Core` to `4_World` and on 632 files of three large mods.
 
 **Not supported:** a file in no known module (outside the five folders and not listed in any
 `files[]`) is not checked, and completion still offers everything, visible or not.
+
+## Modded overrides
+
+In a `modded class`, `super.Method()` calls the previous layer: other mods' layers and, at the end,
+vanilla. *Override in a modded class does not call super* reports an `override` whose body never
+calls it, which compiles and works alone but breaks next to other mods: `SetActions` without
+`super.SetActions()` removes every other action from the item, and `OnStoreLoad` without it
+desynchronises the persistence stream. One call anywhere in the body is enough, in any branch.
+
+- Reported by default: `void` methods, and `OnStoreSave`, `OnStoreLoad`, `SetActions`, `EEInit`,
+  `EEDelete`, `OnRPC`, `OnVariablesSynchronized` and `OnInit` whatever they return. An option
+  reports every value-returning override too; it is off, since `return false;` is usually meant.
+- A weak warning. *Add super call* inserts `super.Method(args);` as the first statement, or, in a
+  `bool` method, `if (!super.OnStoreLoad(ctx, version)) return false;`. Suppress it on a method
+  that replaces vanilla's behaviour on purpose.
+- An ordinary subclass is never reported, and nor is an override whose base the plugin cannot see.
 
 ## Checking with the engine
 

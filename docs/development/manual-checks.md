@@ -442,3 +442,6 @@ Opening a real DayZ mod. The examples below use a mod called MyMod.
 - Break something on purpose — misspell the handler in `AddTimer(…, this, "OnTikc")`, or drop the
   `override` from a method in a `modded class` — and confirm each is flagged, then that `Alt+Enter`
   repairs it.
+- In a `modded class PlayerBase`, write `override void SetActions() {}` → a weak warning on the
+  name, and `Alt+Enter` → *Add super call* inserts `super.SetActions();`. The same override in an
+  ordinary subclass is not reported.

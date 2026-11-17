@@ -170,6 +170,14 @@
                 implementationClass="io.github.lemyst.enfusion.inspections.EnRedundantOverrideInspection"/>
         <localInspection
                 language="EnfusionScript"
+                shortName="EnModdedOverrideWithoutSuper"
+                displayName="Override in a modded class does not call super"
+                groupName="Enforce Script"
+                enabledByDefault="true"
+                level="WEAK WARNING"
+                implementationClass="io.github.lemyst.enfusion.inspections.EnModdedOverrideWithoutSuperInspection"/>
+        <localInspection
+                language="EnfusionScript"
                 shortName="EnDuplicateLocal"
                 displayName="Variable already declared in this method"
                 groupName="Enforce Script"
