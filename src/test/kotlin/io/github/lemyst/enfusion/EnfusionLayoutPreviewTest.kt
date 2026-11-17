@@ -1,6 +1,7 @@
 package io.github.lemyst.enfusion
 
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
+import io.github.lemyst.enfusion.objfmt.preview.FontFiles
 import io.github.lemyst.enfusion.objfmt.preview.LayoutGeometry
 import io.github.lemyst.enfusion.objfmt.preview.LayoutImages
 import io.github.lemyst.enfusion.objfmt.preview.LayoutRenderer
@@ -9,6 +10,8 @@ import io.github.lemyst.enfusion.objfmt.preview.LayoutTranslations
 import io.github.lemyst.enfusion.objfmt.preview.Rect
 import io.github.lemyst.enfusion.objfmt.preview.WidgetSpec
 import java.awt.image.BufferedImage
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 
 /** The layout preview: the maths on hand-written specs, and specs read from a hand-written layout. */
 class EnfusionLayoutPreviewTest : BasePlatformTestCase() {
@@ -172,7 +175,49 @@ class EnfusionLayoutPreviewTest : BasePlatformTestCase() {
         }
         assertEquals(Rect(0.0, 0.0, 40.0, 20.0), first())
         assertEquals("80 wide line centred in 100", Rect(10.0, 30.0, 40.0, 20.0), first("content_halign" to "center", "content_valign" to "center"))
-        assertEquals(Rect(20.0, 0.0, 40.0, 20.0), first("content_halign" to "right"))
+        assertEquals("the first child at the right end of its line", Rect(60.0, 0.0, 40.0, 20.0), first("content_halign" to "right"))
+    }
+
+    fun testContentHalignRightFillsLinesFromTheRight() {
+        // day_z_hud's BadgesPanel: content_halign right, the first badge declared drawn rightmost in
+        // Workbench. Its VoiceLevelsPanel: no content_halign, its levels left to right, although
+        // they say right_ref too.
+        fun badge(w: Int) = widget("ImageWidgetClass", "size" to "$w 35", "hexactsize" to "1", "vexactsize" to "1", "halign" to "right_ref")
+        val wetness = badge(35)
+        val fracture = badge(35)
+        val stomach = badge(52)
+        val panel = widget(
+            "WrapSpacerWidgetClass", "size" to "300 79", "hexactsize" to "1", "vexactsize" to "1", "content_halign" to "right",
+            children = listOf(wetness, fracture, stomach),
+        )
+        val placed = LayoutGeometry.layout(listOf(panel), 1000.0, 500.0).associate { it.spec to it.rect }
+        assertEquals(Rect(265.0, 0.0, 35.0, 35.0), placed[wetness])
+        assertEquals(Rect(230.0, 0.0, 35.0, 35.0), placed[fracture])
+        assertEquals(Rect(178.0, 0.0, 52.0, 35.0), placed[stomach])
+
+        val whisper = badge(9)
+        val talk = badge(9)
+        val levels = widget("WrapSpacerWidgetClass", "size" to "40 31", "hexactsize" to "1", "vexactsize" to "1", children = listOf(whisper, talk))
+        val voice = LayoutGeometry.layout(listOf(levels), 1000.0, 500.0).associate { it.spec to it.rect }
+        assertEquals(0.0, voice.getValue(whisper).x)
+        assertEquals(9.0, voice.getValue(talk).x)
+    }
+
+    fun testRotationTurnsAboutTheCentreByDefault() {
+        // day_z_hud's voice levels: turned by 180 with no pivot, still in their boxes in Workbench.
+        val picture = BufferedImage(2, 1, BufferedImage.TYPE_INT_ARGB)
+        picture.setRGB(0, 0, 0xFFFF0000.toInt())
+        picture.setRGB(1, 0, 0xFF0000FF.toInt())
+        fun drawn(vararg more: Pair<String, String>): BufferedImage {
+            val turned = widget("ImageWidgetClass", "size" to "20 10", "position" to "10 10", "hexactsize" to "1", "vexactsize" to "1",
+                "hexactpos" to "1", "vexactpos" to "1", "rotation" to "0 0 180", *more)
+            return LayoutRenderer.render(LayoutGeometry.layout(listOf(turned), 40.0, 30.0), 40, 30, showHidden = false, selected = null) { _, _ -> picture }
+        }
+        val centred = drawn()
+        assertEquals("the blue half now on the left", 0xFF0000FF.toInt(), centred.getRGB(13, 15))
+        assertEquals(0xFFFF0000.toInt(), centred.getRGB(26, 15))
+        // About its top left corner, it lands above and left of its box.
+        assertEquals(0xFFFF0000.toInt(), drawn("pivot" to "0 0").getRGB(8, 5))
     }
 
     fun testHiddenChildNeverMovesTheOthers() {
@@ -194,6 +239,8 @@ class EnfusionLayoutPreviewTest : BasePlatformTestCase() {
     fun testColor() {
         assertEquals(0x80FF0000.toInt(), widget("PanelWidgetClass", "color" to "1 0 0 0.502").color)
         assertNull(widget("PanelWidgetClass").color)
+        // Linear, shown in sRGB: the colour Workbench gives a dialog button with these values.
+        assertEquals(0xFF696969.toInt(), widget("ButtonWidgetClass", "color" to "0.141 0.141 0.141 1").color)
     }
 
     fun testSpecsFromALayoutFile() {
@@ -365,10 +412,93 @@ class EnfusionLayoutPreviewTest : BasePlatformTestCase() {
             "Padding" to "5", "Margin" to "4", children = listOf(compass, column),
         )
         val placed = LayoutGeometry.layout(listOf(grid), 1920.0, 1080.0).associate { it.spec to it.rect }
-        // Padding inside the edges, a margin round every cell.
-        assertEquals(Rect(0.0, 0.0, 5 + 4 + 145 + 4 + 256 + 4 + 5.0, 5 + 4 + 142 + 4 + 5.0), placed[grid])
-        assertEquals(Rect(9.0, 9.0, 145.0, 142.0), placed[compass])
-        assertEquals(Rect(158.0, 9.0, 256.0, 40.0), placed[column])
+        // The margin inside the edges, the padding between the cells.
+        assertEquals(Rect(0.0, 0.0, 4 + 145 + 5 + 256 + 4.0, 4 + 142 + 4.0), placed[grid])
+        assertEquals(Rect(4.0, 4.0, 145.0, 142.0), placed[compass])
+        assertEquals(Rect(154.0, 4.0, 256.0, 40.0), placed[column])
+    }
+
+    fun testGridMarginAtTheEdgesPaddingBetweenCells() {
+        // day_z_underground_trigger_editor_popup_dialog, reduced, as Workbench draws it at
+        // 1920 x 1080: a dialog half the screen wide with Margin 10 and Padding 20, sized to its
+        // content, holding a message line and a spacer of two buttons sized to its width, with
+        // Margin 0 and Padding 20.
+        val message = widget("PanelWidgetClass", "size" to "1 36", "vexactsize" to "1")
+        val ok = widget("ButtonWidgetClass", "size" to "0.3 1")
+        val cancel = widget("ButtonWidgetClass", "size" to "0.3 1")
+        val buttons = widget(
+            "GridSpacerWidgetClass", "size" to "0.8 0.1", "Padding" to "20", "Margin" to "0",
+            "Size To Content H" to "1", "Columns" to "2", "Rows" to "1", children = listOf(ok, cancel),
+        )
+        val dialog = widget(
+            "GridSpacerWidgetClass", "size" to "0.5 0.3", "halign" to "center_ref", "valign" to "center_ref",
+            "Padding" to "20", "Margin" to "10", "Size To Content H" to "1", "Size To Content V" to "1",
+            "Columns" to "1", "Rows" to "2", children = listOf(message, buttons),
+        )
+        val placed = LayoutGeometry.layout(listOf(dialog), 1920.0, 1080.0).associate { it.spec to it.rect }
+        fun assertRect(expected: Rect, actual: Rect?) {
+            val a = actual!!
+            for ((e, v) in listOf(expected.x to a.x, expected.y to a.y, expected.w to a.w, expected.h to a.h)) assertEquals("$expected vs $a", e, v, 1e-9)
+        }
+        val d = placed.getValue(dialog)
+        // The room inside the dialog: 960 less two margins wide, 324 less two margins and the
+        // padding between its rows high. Workbench: the dialog 960 wide, the message 940.
+        val row = 0.1 * (324 - 2 * 10 - 20)
+        assertRect(Rect(480.0, (1080 - (10 + 36 + 20 + row + 10)) / 2, 960.0, 10 + 36 + 20 + row + 10), d)
+        assertRect(Rect(d.x + 10, d.y + 10, 940.0, 36.0), placed[message])
+        // 0.3 of the buttons' room, 0.8 x 940 less the 20 between them: 220 in Workbench, 20 apart,
+        // the first against the spacer's edge.
+        val button = 0.3 * (0.8 * 940 - 20)
+        assertRect(Rect(d.x + 10, d.y + 66, button, row), placed[ok])
+        assertRect(Rect(d.x + 10 + button + 20, d.y + 66, button, row), placed[cancel])
+        assertRect(Rect(d.x + 10, d.y + 66, 2 * button + 20, row), placed[buttons])
+    }
+
+    fun testExactTextWithoutSizeTakesItsFont() {
+        // day_z_underground_trigger_editor_popup_dialog's message: "exact text" 1, no size, in a
+        // font whose file gives 24 pixels and a 36-pixel line; Workbench draws it 36 high.
+        fun message(font: FontFiles.Metrics?) = WidgetSpec(
+            "RichTextWidgetClass", null,
+            mapOf("text" to listOf("test"), "exact text" to listOf("1"), "size to text v" to listOf("1"), "size" to listOf("1", "0.3")),
+            emptyList(), font = font,
+        )
+        val sdf = message(FontFiles.Metrics(24.0, 36.0))
+        assertEquals(24.0, LayoutRenderer.textSize(sdf, screen))
+        assertEquals(36.0, LayoutGeometry.layout(listOf(sdf), 1920.0, 1080.0).single().rect.h, 1e-9)
+        // A bitmap font's file gives only its size.
+        assertEquals(16 * 1.4, LayoutGeometry.layout(listOf(message(FontFiles.Metrics(16.0, null))), 1920.0, 1080.0).single().rect.h, 1e-9)
+        assertEquals("no font", 14.0, LayoutRenderer.textSize(message(null), screen))
+    }
+
+    fun testFontFileMetrics() {
+        fun bigEndian(n: Int) = ByteBuffer.allocate(4).putInt(n).array()
+        fun chunk(tag: String, body: ByteArray) =
+            tag.toByteArray(Charsets.US_ASCII) + bigEndian(body.size) + body + ByteArray(body.size % 2)
+        fun head(name: String, size: Int, line: Int?): ByteArray {
+            val n = (name + "\u0000").toByteArray(Charsets.US_ASCII)
+            val b = ByteBuffer.allocate(64).order(ByteOrder.LITTLE_ENDIAN)
+            b.putInt(n.size).put(n).putInt(size)
+            if (line != null) b.putInt(0).put(2).putShort(line.toShort()).putFloat(size * 0.8f).putFloat(size.toFloat())
+            return b.array().copyOf(b.position())
+        }
+        fun font(version: String, vararg chunks: ByteArray): ByteArray {
+            val body = chunks.fold(version.toByteArray(Charsets.US_ASCII)) { all, c -> all + c }
+            return "FORM".toByteArray(Charsets.US_ASCII) + bigEndian(body.size) + body
+        }
+
+        val sdf = FontFiles.read(font("FNT5", chunk("HEAD", head("Test24", 24, 36)), chunk("GLPS", ByteArray(4))))!!
+        assertEquals(24.0, sdf.size)
+        assertEquals(36.0, sdf.lineHeight)
+        // A bitmap font: its HEAD after its glyphs (an odd length, padded), with no line height.
+        val bitmap = FontFiles.read(font("FNT3", chunk("GLPS", ByteArray(3)), chunk("HEAD", head("Test", 14, null))))!!
+        assertEquals(14.0, bitmap.size)
+        assertNull(bitmap.lineHeight)
+        assertNull(FontFiles.read("not a font at all".toByteArray()))
+        assertNull("cut short", FontFiles.read(font("FNT5", chunk("HEAD", head("Test24", 24, 36)).copyOf(10))))
+
+        assertEquals(24.0, FontFiles.sizeInName("gui/fonts/sdf_MetronBook24"))
+        assertEquals(16.0, FontFiles.sizeInName("gui/fonts/Metron16"))
+        assertNull("a family, sized by the widget", FontFiles.sizeInName("gui/fonts/Metron"))
     }
 
     fun testGridAddsRowsAndTextSizedToItsText() {

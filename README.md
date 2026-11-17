@@ -181,21 +181,31 @@ inputs.
   properties: `size` / `position` in pixels or as fractions of the parent (`hexactsize`,
   `vexactsize`, `hexactpos`, `vexactpos`), `halign` / `valign` with offsets from the matching edge,
   grid spacers in `Rows` × `Columns` cells (more rows when the children need them, sized to their
-  content on an axis with *Size To Content*, `Padding` inside and `Margin` round each cell), text
-  sized to its text with `"size to text h"` / `"size to text v"` (estimated: the layout has no
-  fonts), and wrap spacers flowing their children (lines placed by
+  content on an axis with *Size To Content*, `Margin` inside the edges and `Padding` between the
+  cells, proportional children measured against the room left inside), text
+  sized to its text with `"size to text h"` / `"size to text v"` (lines as tall as the font's `.fnt`
+  says, the width estimated), and wrap spacers flowing their children (lines placed by
   `content_halign` / `content_valign`, `bottom` stacking them upwards), a `visible 0`
   child taking no slot, a wrap spacer's *Size To Content* fitting it to its children, and children
   cut off at their parent's edges unless it says `clipchildren 0`. Siblings are drawn by `priority`,
   lowest first. With `fixaspect`, a proportional
   `size` gives only a ratio: `outside` covers the parent with a box of that ratio, `inside` fits
   one in it (`size 1.6 0.9` is a full 16:9 screen), and `fixwidth` (`fixheight`) derives the width
-  (height) from the other side. Panels are filled with their
-  `color` (not `blank` ones; a button's colour tints its style, so buttons are not), images show their `image0` (an imageset entry or a texture) or `imageTexture`,
+  (height) from the other side. Panels, buttons, windows and spacers are drawn in their **`style`**, as the
+  game draws them: the style of that name for the widget's class in the `*.styles` files the project
+  sees (vanilla's `gui/looknfeel/dayzwidgets.styles`, now a library root, and a mod's own), its
+  `Normal` state's nine imageset pictures framing the box (corners at their size, edges and centre
+  stretched), tinted by the widget's `color`. A widget with no `style` wears its class's `Default`.
+  Every `color` is linear, as the engine's, and is shown in sRGB, so `0.141 0.141 0.141` is the
+  mid-grey Workbench shows, not near black.
+  Where the style or its pictures are not found, or the style draws nothing (`blank`,
+  `ColorablePanel`), a panel is filled with its plain `color` as before, and a button is left empty
+  (its colour tints its style, so it would be a block of colour). Images show their `image0` (an imageset entry or a texture) or `imageTexture`,
   through the same cache as the texture hover, stretched to their box, tinted by their `color`,
   cut by their `Mask` at their `Progress` and mirrored by `flip u` / `flip v`, and turned by their
-  `rotation` about their `pivot` (the outline stays upright, as in Workbench). Text widgets show
-  their `text` at `"exact text size"` pixels, or `text_proportion` of their height, wrapped to the
+  `rotation` about their `pivot`, the centre by default (the outline stays upright, as in Workbench). Text widgets show
+  their `text` at `"exact text size"` pixels (with `"exact text" 1` and no size, their `font`'s own
+  size: 24 for `sdf_MetronBook24`), or `text_proportion` of their height, wrapped to the
   box with `wrap 1` and placed by `"text halign"` / `"text valign"` (top left by default) and
   `text_offset`. Check boxes get their box, combo boxes their arrows, and scroll widgets and the
   server browser their scroll bars, drawn plainly. A texture path no root holds, such as vanilla's `Gui/textures/…`, is looked up on
@@ -208,7 +218,8 @@ inputs.
   pans, *Fit* fits the screen to the pane again and *100%* shows it at one layout pixel per screen
   pixel; outlines stay one pixel wide at any zoom. The preview updates a moment after the text
   changes. **Approximate, not pixel-exact:** the typeface is the IDE's, not the layout's `font`;
-  panel `style`s (the imageset frames of `dayzwidgets.styles`) are drawn as their plain `color`;
+  styles are drawn in their `Normal` state only (no focus or hover), and their fonts and text
+  colours are not used;
   `Padding` / `Margin` on wrap spacers, *Size To Content* outside spacers, scaling, the
   rotation of children and blend modes (`mode additive`) are not modelled, and script classes do
   not run. Editing in the preview (moving, resizing, a properties panel) is not
@@ -221,8 +232,8 @@ inputs.
 - **Go to Class** (`Ctrl+N`) over classes, enums and typedefs; **Go to Symbol**
   (`Ctrl+Shift+Alt+N`) over methods, fields, globals and enum constants.
 - **Structure view** (`Ctrl+F12`) with icons for static, const and override members.
-- **Library roots** — the vanilla DayZ script tree, its `gui/layouts`, `gui/imagesets` and
-  `languagecore` data directories, and any dependency mod sources are indexed, so navigation reaches
+- **Library roots** — the vanilla DayZ script tree, its `gui/layouts`, `gui/imagesets`,
+  `gui/looknfeel` and `languagecore` data directories, and any dependency mod sources are indexed, so navigation reaches
   `PlayerBase`, `Widget`, `array`, vanilla layouts and the stringtable. Without them fewer than half
   of all type references in a typical mod can resolve.
 - **Find Usages** (`Alt+F7`) on any declaration — needs no resolver of its own, since every usage is
@@ -1203,6 +1214,11 @@ mod called BattleRoyale):
   `vignette`) is the screen, nudged by under a pixel.
 - Pick *french* in the language list → *Continue* reads *Continuer*; *Keys* → `#main_menu_continue`.
   A mod layout using its own `STR_…` keys shows the mod's stringtable text.
+- Open `P:\gui\layouts\day_z_map.layout` → `BackPanelWidget` (`style rover_sim_black`) is dark,
+  framed as in Workbench, not light grey; the `toolbar_bg` band (`style ToolbarWidget`) matches
+  Workbench too. *External Libraries* lists `P:\gui\looknfeel`.
+- Open a layout with `DayZDefaultButton` or `MenuDefault` buttons → each button has its frame. A
+  `style` no `.styles` file declares → a panel keeps its plain colour.
 - Open `P:\gui\layouts\day_z_hud_cars.layout` → the dials are grey arcs, not filled boxes; the RPM
   dial's last fifth is red, as are the low ends of the fuel and temperature dials.
 - In `day_z_ingamemenu`, the modded-version warning wraps over three lines at the size Workbench

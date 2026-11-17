@@ -37,7 +37,8 @@ object EnfusionRoots {
 
     /**
      * Vanilla data directories, relative to the work drive (the parent of the script tree). Small
-     * and specific: ~330 layouts and imagesets plus one 7,300-row stringtable, about 12 MB in total.
+     * and specific: ~330 layouts and imagesets, one 7,300-row stringtable and the widget styles the
+     * layout preview draws frames from (`looknfeel`, one 240 KB file), about 12 MB in total.
      *
      * Named individually rather than as their common parent, and that is not fussiness. `P:\gui`
      * holds 4.6 MB of layouts and 7.9 MB of imagesets next to 78 MB of textures and 53 MB of fonts;
@@ -46,6 +47,7 @@ object EnfusionRoots {
     private val DATA_CANDIDATES = listOf(
         "gui/layouts",
         "gui/imagesets",
+        "gui/looknfeel",
         "languagecore",
     )
 

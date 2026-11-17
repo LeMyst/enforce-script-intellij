@@ -49,6 +49,7 @@ class EnfusionWorkDriveRootsTest : BasePlatformTestCase() {
         "$letter:/scripts",
         "$letter:/gui/layouts",
         "$letter:/gui/imagesets",
+        "$letter:/gui/looknfeel",
         "$letter:/languagecore",
         "$letter:/DZ",
     )

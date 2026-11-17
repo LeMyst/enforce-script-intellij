@@ -14,6 +14,8 @@ class WidgetSpec(
     /** Where the widget's declaration starts and ends in the file, to go between preview and text. */
     val offset: Int = -1,
     val endOffset: Int = -1,
+    /** The metrics of the widget's `font`, when it names one whose size is known. */
+    val font: FontFiles.Metrics? = null,
 ) {
     fun values(key: String): List<String> = properties[key.lowercase()].orEmpty()
     fun value(key: String): String? = values(key).firstOrNull()
@@ -25,14 +27,23 @@ class WidgetSpec(
     /** The text a text-like widget shows, if any. */
     val text: String? get() = value("text")
 
-    /** `color r g b a`, each 0 to 1, as ARGB; null when not set. */
+    /**
+     * `color r g b a` as the ARGB the screen shows; null when not set. The channels are linear,
+     * 0 to 1, and shown in sRGB: `day_z_underground_trigger_editor_popup_dialog`'s buttons say
+     * `color 0.141 0.141 0.141 1` and are #696969 in Workbench, which is 0.141 in sRGB, not
+     * #242424. Alpha is a coverage, so it is left as it is.
+     */
     val color: Int?
         get() {
             val c = values("color")
             if (c.size < 3) return null
-            fun channel(i: Int, default: Double) = ((c.getOrNull(i)?.toDoubleOrNull() ?: default).coerceIn(0.0, 1.0) * 255 + 0.5).toInt()
-            return (channel(3, 1.0) shl 24) or (channel(0, 1.0) shl 16) or (channel(1, 1.0) shl 8) or channel(2, 1.0)
+            fun value(i: Int) = (c.getOrNull(i)?.toDoubleOrNull() ?: 1.0).coerceIn(0.0, 1.0)
+            fun byte(v: Double) = (v * 255 + 0.5).toInt()
+            return (byte(value(3)) shl 24) or (byte(srgb(value(0))) shl 16) or (byte(srgb(value(1))) shl 8) or byte(srgb(value(2)))
         }
+
+    private fun srgb(linear: Double): Double =
+        if (linear <= 0.0031308) 12.92 * linear else 1.055 * Math.pow(linear, 1 / 2.4) - 0.055
 }
 
 data class Rect(val x: Double, val y: Double, val w: Double, val h: Double) {
@@ -198,39 +209,63 @@ object LayoutGeometry {
         byPriority(out, children, depth + 1)
     }
 
-    /** [declared] is the spacer's size before *Size To Content*, which its proportional children are measured against. */
+    /** [declared] is the spacer's size before *Size To Content*, whose room its proportional children are measured against. */
     private fun grid(spec: WidgetSpec, rect: Rect, declared: Rect, depth: Int, hidden: Boolean, clip: Rect, out: MutableList<Placed>) {
         val g = Grid.of(spec, declared)
         var i = 0
         for (child in spec.children) {
             val cell = g.cell(rect, i % g.columns.size, i / g.columns.size)
-            place(child, cell, cell, depth + 1, hidden, clip, out)
+            place(child, g.room, inCell(child, cell, g.room), depth + 1, hidden, clip, out)
             if (child.visible) i++
         }
     }
 
     /**
+     * The box a grid gives [child] in [cell]: the cell, except along an axis on which the child is a
+     * spacer sized to its content. There it starts from its own size in the grid's [room], which
+     * its own proportional children are measured against, as [Grid.of] measured it:
+     * `day_z_underground_trigger_editor_popup_dialog`'s `buttons` spacer, `0.8` of a 940-pixel
+     * room, gives its `0.3` buttons 220 pixels each in Workbench, not 0.3 of its 940-pixel cell.
+     */
+    private fun inCell(child: WidgetSpec, cell: Rect, room: Rect): Rect {
+        if (child.type != "WrapSpacerWidgetClass" && child.type != "GridSpacerWidgetClass") return cell
+        val fitW = child.flag("Size To Content H", false)
+        val fitH = child.flag("Size To Content V", false)
+        if (!fitW && !fitH) return cell
+        val own = rectOf(child, room)
+        return Rect(cell.x, cell.y, if (fitW) own.w else cell.w, if (fitH) own.h else cell.h)
+    }
+
+    /**
      * A grid spacer's column widths and row heights. `Columns` x `Rows` cells, with more rows when
      * the visible children need them (`day_z_respawn_dialogue`'s tooltip declares `Rows 2` and
-     * stacks three), `Padding` inside the spacer's edges and `Margin` round every cell, the outer
-     * edges included: the tooltip body's `Margin 15` insets its text by 15 pixels in Workbench. An axis with `Size To Content` takes each column (row) as wide (tall) as its widest
-     * (tallest) child, as Workbench draws `day_z_map`'s legend: a 145-pixel compass beside the
-     * coordinates, not each in half of the 600 pixels the legend declares. A proportional child
-     * counts with its share of the size the spacer declares: `day_z_connection_dialogue`'s red
-     * separator, `0.015` high, is a few pixels in Workbench, not nothing. Without the flag, the room
-     * is shared equally.
+     * stacks three).
+     *
+     * `Margin` is kept clear inside the spacer's edges and `Padding` between neighbouring cells, as
+     * Workbench draws `day_z_underground_trigger_editor_popup_dialog`: `Margin 10` and `Padding 20`
+     * put its message 10 pixels inside the dialog's edge and 20 above the row of buttons, whose
+     * own spacer, `Margin 0` and `Padding 20`, has its first button against its edge and 20 pixels
+     * between the two. The tooltip body's `Margin 15` likewise insets its text by 15 pixels.
+     *
+     * The cells share the [room] left inside, and a proportional child is measured against that
+     * room: the dialog, declared 960 pixels wide, is still 960 wide sized to its content, its
+     * `size 1` message being 940. An axis with `Size To Content` takes each column (row) as wide
+     * (tall) as its widest (tallest) child, as Workbench draws `day_z_map`'s legend: a 145-pixel
+     * compass beside the coordinates, not each in half of the 600 pixels the legend declares.
+     * `day_z_connection_dialogue`'s red separator, `0.015` high, is a few pixels there, not
+     * nothing. Without the flag, the room is shared equally.
      */
-    private class Grid(val columns: DoubleArray, val rows: DoubleArray, val padding: Double, val margin: Double) {
-        val width: Double get() = columns.sum() + margin * (columns.size + 1) + 2 * padding
-        val height: Double get() = rows.sum() + margin * (rows.size + 1) + 2 * padding
+    private class Grid(val columns: DoubleArray, val rows: DoubleArray, val padding: Double, val margin: Double, val room: Rect) {
+        val width: Double get() = columns.sum() + padding * (columns.size - 1) + 2 * margin
+        val height: Double get() = rows.sum() + padding * (rows.size - 1) + 2 * margin
 
         fun cell(rect: Rect, column: Int, row: Int): Rect {
             val c = column.coerceAtMost(columns.size - 1)
             val r = row.coerceAtMost(rows.size - 1)
-            var x = rect.x + padding + margin
-            for (k in 0 until c) x += columns[k] + margin
-            var y = rect.y + padding + margin
-            for (k in 0 until r) y += rows[k] + margin
+            var x = rect.x + margin
+            for (k in 0 until c) x += columns[k] + padding
+            var y = rect.y + margin
+            for (k in 0 until r) y += rows[k] + padding
             return Rect(x, y, columns[c], if (row < rows.size) rows[r] else 0.0)
         }
 
@@ -249,9 +284,14 @@ object LayoutGeometry {
                 }
                 val needed = Math.ceil(shown.size / columnCount.toDouble()).toInt()
                 val rowCount = maxOf(spec.number("Rows", 0, needed.toDouble()).toInt(), needed, 1)
-                val shared = { length: Double, count: Int -> DoubleArray(count) { ((length - 2 * padding - margin * (count + 1)) / count).coerceAtLeast(0.0) } }
-                val columns = shared(rect.w, columnCount)
-                val rows = shared(rect.h, rowCount)
+                val room = Rect(
+                    rect.x + margin,
+                    rect.y + margin,
+                    maxOf(0.0, rect.w - 2 * margin - padding * (columnCount - 1)),
+                    maxOf(0.0, rect.h - 2 * margin - padding * (rowCount - 1)),
+                )
+                val columns = DoubleArray(columnCount) { room.w / columnCount }
+                val rows = DoubleArray(rowCount) { room.h / rowCount }
                 val fitW = spec.flag("Size To Content H", false)
                 val fitH = spec.flag("Size To Content V", false)
                 if (fitW || fitH) {
@@ -260,12 +300,12 @@ object LayoutGeometry {
                     shown.forEachIndexed { i, child ->
                         val c = i % columnCount
                         val r = i / columnCount
-                        val size = sizedToContent(child, rect, rectOf(child, rect), inSlot = true)
+                        val size = sizedToContent(child, room, rectOf(child, room), inSlot = true)
                         if (fitW && c < columnCount) columns[c] = maxOf(columns[c], size.w)
                         if (fitH && r < rowCount) rows[r] = maxOf(rows[r], size.h)
                     }
                 }
-                return Grid(columns, rows, padding, margin)
+                return Grid(columns, rows, padding, margin, room)
             }
 
         }
@@ -318,6 +358,12 @@ object LayoutGeometry {
      * line lowest. That last one is how Workbench draws `day_z_ingamemenu`: its `play_panel_root`
      * holds `bottom` (Continue, Respawn), the red separator, then `top` (Exit, Feedback, Options),
      * and shows `top` above the separator above `bottom`.
+     *
+     * `content_halign right` also fills each line from its right end, in declaration order:
+     * `day_z_hud`'s `BadgesPanel` declares `Wetness` first and Workbench draws it rightmost, the
+     * other badges leftwards in turn. The children's own `halign` plays no part, like the rest of
+     * their position: `VoiceLevelsPanel`, with no `content_halign` and only `right_ref` children,
+     * shows them left to right in Workbench, `Whisper`, `Talk` then `Shout`.
      */
     private fun flow(spec: WidgetSpec, rect: Rect): List<Pair<WidgetSpec, Rect>> {
         val lines = lines(spec, rect)
@@ -337,7 +383,10 @@ object LayoutGeometry {
         for (line in lines) {
             if (valign == "bottom") y -= line.h
             val x = rect.x + (rect.w - line.w) * across
-            for ((child, r) in line.items) out += child to Rect(x + r.x, y, r.w, r.h)
+            for ((child, r) in line.items) {
+                val from = if (across == 1.0) line.w - r.x - r.w else r.x
+                out += child to Rect(x + from, y, r.w, r.h)
+            }
             if (valign != "bottom") y += line.h
         }
         return out
@@ -378,11 +427,12 @@ object LayoutGeometry {
             if (horizontal) spec.flag("size to text h", false) && !spec.flag("wrap", false) else spec.flag("size to text v", false)
 
     /**
-     * Roughly what a text widget's text measures, for `"size to text"`: lines 1.4 times the widget's
-     * text size (`day_z_respawn_dialogue`'s 16-pixel details text gets a box about 22 high in
-     * Workbench), letters half as wide on average. Layout has no fonts, and the text may yet be translated,
-     * so this only needs to be about right: `day_z_respawn_dialogue`'s tooltip body is declared one
-     * pixel tall and grows to its one line.
+     * Roughly what a text widget's text measures, for `"size to text"`: lines as tall as its font's
+     * file says for the widget's text size ([LayoutRenderer.lineFactor]; one line of
+     * `sdf_MetronBook24` at its own 24 pixels is 36 high in Workbench), letters half as wide on
+     * average. The glyphs are not read, and the text may yet be translated, so the width only needs
+     * to be about right: `day_z_respawn_dialogue`'s tooltip body is declared one pixel tall and
+     * grows to its one line.
      */
     private fun textExtent(spec: WidgetSpec, rect: Rect): Pair<Double, Double> {
         val size = LayoutRenderer.textSize(spec, rect)
@@ -394,7 +444,7 @@ object LayoutGeometry {
         } else {
             text.count { it == '\n' } + 1
         }
-        val h = if (sizedToText(spec, horizontal = false)) lines * size * 1.4 else rect.h
+        val h = if (sizedToText(spec, horizontal = false)) lines * size * LayoutRenderer.lineFactor(spec) else rect.h
         return w to h
     }
 

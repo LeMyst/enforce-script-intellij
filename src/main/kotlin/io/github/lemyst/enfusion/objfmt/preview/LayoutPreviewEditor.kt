@@ -15,6 +15,7 @@ import com.intellij.openapi.fileEditor.TextEditor
 import com.intellij.openapi.fileEditor.TextEditorWithPreview
 import com.intellij.openapi.fileEditor.impl.text.TextEditorProvider
 import com.intellij.openapi.project.DumbAware
+import com.intellij.openapi.project.DumbService
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.util.UserDataHolderBase
@@ -104,6 +105,7 @@ class LayoutPreviewEditor(
         toolTipText = "The language #key texts are shown in"
     }
     private var translations = LayoutTranslations.Table.EMPTY
+    private var frames: Map<WidgetSpec, LayoutRenderer.Frame> = emptyMap()
     private val status = JBLabel()
     private val zoomLabel = JBLabel()
     private val fitButton = JButton("Fit")
@@ -153,6 +155,11 @@ class LayoutPreviewEditor(
         textEditor.editor.document.addDocumentListener(object : DocumentListener {
             override fun documentChanged(event: DocumentEvent) = schedule(300)
         }, this)
+        // Built while the project indexes (a layout reopened at startup), the preview has no
+        // styles and takes fonts' sizes from their names; nothing else would build it again.
+        project.messageBus.connect(this).subscribe(DumbService.DUMB_MODE, object : DumbService.DumbModeListener {
+            override fun exitDumbMode() = schedule(0)
+        })
         textEditor.editor.caretModel.addCaretListener(object : CaretListener {
             override fun caretPositionChanged(event: CaretEvent) {
                 val now = LayoutGeometry.at(placed, textEditor.editor.caretModel.offset)?.spec
@@ -226,7 +233,8 @@ class LayoutPreviewEditor(
         }
         val res = resolution
         ReadAction.nonBlocking<Built> {
-            val psi = PsiManager.getInstance(project).findFile(file) ?: return@nonBlocking Built(emptyList(), emptyMap(), LayoutTranslations.Table.EMPTY)
+            val psi = PsiManager.getInstance(project).findFile(file)
+                ?: return@nonBlocking Built(emptyList(), emptyMap(), LayoutTranslations.Table.EMPTY, emptyMap())
             val roots = LayoutSpecs.of(psi)
             val laid = LayoutGeometry.layout(roots, res.width.toDouble(), res.height.toDouble())
             val pictures = HashMap<WidgetSpec, BufferedImage?>()
@@ -236,14 +244,15 @@ class LayoutPreviewEditor(
                 }
             }
             val keys = laid.mapNotNullTo(HashSet()) { p -> p.spec.text?.takeIf { it.startsWith('#') }?.substring(1) }
-            Built(laid, pictures, LayoutTranslations.of(project, keys))
+            Built(laid, pictures, LayoutTranslations.of(project, keys), LayoutStyles.frames(project, laid.map { it.spec }))
         }
             .withDocumentsCommitted(project)
             .expireWith(this)
-            .finishOnUiThread(ModalityState.any()) { (laid, pictures, table) ->
+            .finishOnUiThread(ModalityState.any()) { (laid, pictures, table, styled) ->
                 placed = laid
                 images = pictures
                 translations = table
+                frames = styled
                 fillLanguages(table.languages)
                 selected = LayoutGeometry.at(placed, textEditor.editor.caretModel.offset)?.spec
                 val hidden = laid.count { it.hidden }
@@ -253,10 +262,16 @@ class LayoutPreviewEditor(
             .submit(AppExecutorUtil.getAppExecutorService())
     }
 
-    private class Built(val placed: List<Placed>, val images: Map<WidgetSpec, BufferedImage?>, val translations: LayoutTranslations.Table) {
+    private class Built(
+        val placed: List<Placed>,
+        val images: Map<WidgetSpec, BufferedImage?>,
+        val translations: LayoutTranslations.Table,
+        val frames: Map<WidgetSpec, LayoutRenderer.Frame>,
+    ) {
         operator fun component1() = placed
         operator fun component2() = images
         operator fun component3() = translations
+        operator fun component4() = frames
     }
 
     private var fillingLanguages = false
@@ -351,6 +366,7 @@ class LayoutPreviewEditor(
                 LayoutRenderer.paint(
                     g2, placed, res.width, res.height, v.scale, showHidden.isSelected, selected,
                     text = { spec -> spec.text?.let { translations.show(it, lang) } },
+                    frame = { spec -> frames[spec] },
                 ) { spec, _ -> images[spec] }
             } finally {
                 g2.dispose()

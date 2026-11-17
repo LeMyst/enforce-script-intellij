@@ -1,9 +1,13 @@
 package io.github.lemyst.enfusion
 
+import com.intellij.openapi.application.WriteAction
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
+import io.github.lemyst.enfusion.objfmt.preview.FontFiles
 import io.github.lemyst.enfusion.objfmt.preview.LayoutGeometry
 import io.github.lemyst.enfusion.objfmt.preview.LayoutRenderer
 import io.github.lemyst.enfusion.objfmt.preview.LayoutSpecs
+import io.github.lemyst.enfusion.objfmt.preview.LayoutStyles
+import io.github.lemyst.enfusion.objfmt.preview.WidgetStyles
 import java.io.File
 
 /**
@@ -46,5 +50,146 @@ class EnfusionLayoutPreviewCorpusTest : BasePlatformTestCase() {
         }
         println("[layout-preview] ${files.size} layouts, $widgets widgets, ${(System.nanoTime() - t0) / 1_000_000} ms")
         assertTrue("failed on ${failures.size}: ${failures.take(5)}", failures.isEmpty())
+    }
+
+    /**
+     * The whole chain on one vanilla dialog, `day_z_underground_trigger_editor_popup_dialog`, whose
+     * Workbench drawing the preview was measured against: its files are copied from the vanilla
+     * `gui` folder under the layout roots into the test project (never into the repository), then
+     * read, laid out and styled as the preview does. Its buttons wear `DayZDefaultButton`, framed
+     * from `dayz_gui`, and its message's font gives the 36-pixel line Workbench draws.
+     */
+    fun testVanillaDialogStylesAndFont() {
+        val gui = System.getProperty("enfusion.layout.roots").orEmpty().split(';').map { File(it.trim()) }
+            .firstOrNull { File(it, "looknfeel/dayzwidgets.styles").isFile && File(it, "imagesets/dayz_gui.imageset").isFile }
+        val layout = gui?.let { File(it, "layouts/underground_trigger_editor/day_z_underground_trigger_editor_popup_dialog.layout") }
+        if (layout == null || !layout.isFile) {
+            println("[dialog] no vanilla gui folder under the layout roots, skipping")
+            return
+        }
+        for (text in listOf("looknfeel/dayzwidgets.styles", "imagesets/dayz_gui.imageset")) {
+            myFixture.addFileToProject("gui/$text", File(gui, text).readText().replace("\r\n", "\n"))
+        }
+        for (binary in listOf("imagesets/dayz_gui.edds", "imagesets/dayz_gui@2x.edds", "fonts/sdf_metronbook24.fnt")) {
+            val file = myFixture.tempDirFixture.createFile("gui/$binary")
+            WriteAction.runAndWait<Throwable> { file.setBinaryContent(File(gui, binary).readBytes()) }
+        }
+        val psi = myFixture.addFileToProject("gui/layouts/dialog.layout", layout.readText().replace("\r\n", "\n"))
+        val placed = LayoutGeometry.layout(LayoutSpecs.of(psi), 1920.0, 1080.0)
+        val byName = placed.associateBy { it.spec.name }
+        val frames = LayoutStyles.frames(project, placed.map { it.spec })
+        for (p in placed) println("[dialog] ${p.spec.type} ${p.spec.name} ${p.rect} font=${p.spec.font?.let { "${it.size}/${it.lineHeight}" }} frame=${frames[p.spec]?.pieces?.keys}")
+
+        // ENFUSION_LAYOUT_PNG=<folder> writes the dialog as drawn, to set beside Workbench's.
+        System.getenv("ENFUSION_LAYOUT_PNG")?.let { dir ->
+            val r = byName.getValue("GridSpacerWidget0").rect
+            val picture = LayoutRenderer.render(placed, 1920, 1080, showHidden = false, selected = null, frame = { frames[it] }) { _, _ -> null }
+            javax.imageio.ImageIO.write(picture.getSubimage(r.x.toInt() - 10, r.y.toInt() - 10, r.w.toInt() + 20, r.h.toInt() + 20), "png", File(dir, "dialog.png"))
+        }
+        assertEquals("the message's line, from its font's file", 36.0, byName.getValue("message").rect.h, 1e-6)
+        assertNotNull("the dialog's grid spacer framed by DayZDefaultPanel", frames[byName.getValue("GridSpacerWidget0").spec])
+        for (button in listOf("button_ok", "button_cancel")) {
+            val frame = frames[byName.getValue(button).spec]
+            assertNotNull("$button framed by DayZDefaultButton", frame)
+            assertTrue("$button: ${frame!!.pieces.keys}", WidgetStyles.Piece.CENTER in frame.pieces)
+        }
+    }
+
+    /**
+     * `day_z_hud`, against the author's Workbench screenshots: its badges are drawn right to left
+     * (`Wetness`, declared first, rightmost), its voice levels left to right (`Whisper` first), and
+     * its `QuickbarGrid`, wearing `Colorable` with no
+     * colour of its own, draws nothing, where the preview had drawn a white bar across the screen.
+     */
+    fun testVanillaHudBadgesAndQuickbar() {
+        val gui = System.getProperty("enfusion.layout.roots").orEmpty().split(';').map { File(it.trim()) }
+            .firstOrNull { File(it, "looknfeel/dayzwidgets.styles").isFile && File(it, "layouts/day_z_hud.layout").isFile }
+        if (gui == null) {
+            println("[hud] no vanilla gui folder under the layout roots, skipping")
+            return
+        }
+        myFixture.addFileToProject("gui/looknfeel/dayzwidgets.styles", File(gui, "looknfeel/dayzwidgets.styles").readText().replace("\r\n", "\n"))
+        val psi = myFixture.addFileToProject("gui/layouts/hud.layout", File(gui, "layouts/day_z_hud.layout").readText().replace("\r\n", "\n"))
+        val placed = LayoutGeometry.layout(LayoutSpecs.of(psi), 1920.0, 1080.0)
+        val byName = placed.associateBy { it.spec.name }
+        val badges = listOf("Wetness", "Fracture", "Stomach", "Sick", "Pills", "Poisoned", "Bleeding", "Shock", "InjuredLegs").map { byName.getValue(it).rect.x }
+        assertEquals("right to left in declaration order: $badges", badges.sortedDescending(), badges)
+        val levels = listOf("Whisper", "Talk", "Shout").map { byName.getValue(it).rect.x }
+        assertEquals("the voice levels left to right: $levels", levels.sorted(), levels)
+        val frames = LayoutStyles.frames(project, placed.map { it.spec })
+        assertNull("Colorable with no colour draws nothing", frames[byName.getValue("QuickbarGrid").spec])
+    }
+
+    /**
+     * Every `.fnt` font under the layout roots in the two versions [FontFiles] reads (`FNT3`, `FNT5`)
+     * reads, with the size its name ends with when it has one, and a line height no shorter than
+     * that size for each distance-field font (`FNT5`). Other versions are counted, not failed:
+     * vanilla has one, `system.fnt` (`FNT2`), which a widget then sizes as if it named no font.
+     */
+    fun testEveryFontReads() {
+        val roots = System.getProperty("enfusion.layout.roots").orEmpty()
+            .split(';').map { it.trim() }.filter { it.isNotEmpty() && File(it).isDirectory }
+        val files = roots.flatMap { root -> File(root).walkTopDown().filter { it.isFile && it.extension.equals("fnt", ignoreCase = true) }.toList() }
+        if (files.isEmpty()) {
+            println("[fonts] no .fnt file under the layout roots, skipping")
+            return
+        }
+        val problems = ArrayList<String>()
+        var lines = 0
+        var others = 0
+        for (file in files) {
+            val bytes = file.readBytes()
+            val version = if (bytes.size >= 12) String(bytes, 8, 4, Charsets.US_ASCII) else ""
+            if (version != "FNT3" && version != "FNT5") {
+                others++
+                continue
+            }
+            val metrics = FontFiles.read(bytes)
+            if (metrics == null) {
+                problems += "${file.name}: not read"
+                continue
+            }
+            FontFiles.sizeInName(file.nameWithoutExtension)?.let { if (it != metrics.size) problems += "${file.name}: size ${metrics.size}" }
+            val line = metrics.lineHeight
+            if (version == "FNT5" && (line == null || line < metrics.size)) problems += "${file.name}: line $line for size ${metrics.size}"
+            if (line != null) lines++
+        }
+        println("[fonts] ${files.size} fonts, $lines with a line height, $others in another version")
+        assertTrue("${problems.size} problems: ${problems.take(5)}", problems.isEmpty())
+    }
+
+    /**
+     * Every `.styles` file under the layout roots reads into styles, and each style a layout there
+     * names is found for its widget's class, or is one the game itself lacks (printed, not failed:
+     * Workbench then draws nothing, as the preview does).
+     */
+    fun testEveryStylesFileReads() {
+        val roots = System.getProperty("enfusion.layout.roots").orEmpty()
+            .split(';').map { it.trim() }.filter { it.isNotEmpty() && File(it).isDirectory }
+        val files = roots.flatMap { root -> File(root).walkTopDown().filter { it.isFile && it.extension.equals("styles", ignoreCase = true) }.toList() }
+        if (files.isEmpty()) {
+            println("[styles] no .styles file under the layout roots, skipping")
+            return
+        }
+        val sheet = files.map { WidgetStyles.parse(it.readText()) }.fold(WidgetStyles.Sheet.EMPTY) { a, b -> a.plus(b) }
+        val styles = sheet.widgets.values.sumOf { it.size }
+        val framed = sheet.widgets.values.sumOf { widget -> widget.values.count { it.frame().isNotEmpty() } }
+        println("[styles] ${files.size} files, ${sheet.widgets.size} widget classes, $styles styles, $framed with a Normal frame")
+        assertTrue("no style read from ${files.map { it.name }}", styles > 0)
+
+        // The styles the layouts name, against what the files declare.
+        val used = HashMap<Pair<String, String>, Int>()
+        val styleLine = Regex("""^\s*style\s+"?([A-Za-z0-9_]+)"?""", RegexOption.MULTILINE)
+        val classLine = Regex("""^\s*(\w+WidgetClass)\b""", RegexOption.MULTILINE)
+        for (layout in roots.flatMap { root -> File(root).walkTopDown().filter { it.isFile && it.extension.equals("layout", ignoreCase = true) }.toList() }) {
+            val text = layout.readText()
+            for (match in styleLine.findAll(text)) {
+                val type = classLine.findAll(text.substring(0, match.range.first)).lastOrNull()?.groupValues?.get(1) ?: continue
+                used.merge(type to match.groupValues[1], 1, Int::plus)
+            }
+        }
+        val missing = used.filterKeys { (type, style) -> type.removeSuffix("Class").lowercase() in sheet.widgets && sheet.styleOf(type, style) == null }
+        val found = used.size - missing.size
+        println("[styles] layouts name ${used.size} (class, style) pairs; $found found, ${missing.size} not declared: ${missing.keys.take(10)}")
     }
 }

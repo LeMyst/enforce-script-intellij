@@ -23,6 +23,12 @@ import java.awt.image.BufferedImage
  */
 object LayoutRenderer {
 
+    /** A picture of a style's frame, and the size it has in layout pixels (its imageset `Size`). */
+    class Picture(val image: BufferedImage, val width: Double, val height: Double)
+
+    /** The pictures of a style's frame in the state drawn, by piece. */
+    class Frame(val pieces: Map<WidgetStyles.Piece, Picture>)
+
     private val TEXT_TYPES = setOf(
         "TextWidgetClass", "RichTextWidgetClass", "MultilineTextWidgetClass", "ButtonWidgetClass",
         "EditBoxWidgetClass", "MultilineEditBoxWidgetClass", "CheckBoxWidgetClass", "ThreeStateCheckboxWidgetClass",
@@ -39,6 +45,17 @@ object LayoutRenderer {
      */
     private val FILLED_TYPES = setOf("PanelWidgetClass", "ProgressBarWidgetClass", "SliderWidgetClass")
 
+    /**
+     * The widgets whose style is drawn as a frame of pictures ([WidgetStyles]). Spacers too:
+     * `dayzwidgets.styles` gives them styles, and Workbench draws
+     * `day_z_underground_trigger_editor_popup_dialog`'s grid spacer in `DayZDefaultPanel`, darkened
+     * by its `color 0 0 0 0.729`.
+     */
+    private val STYLED_TYPES = setOf(
+        "PanelWidgetClass", "ButtonWidgetClass", "WindowWidgetClass", "SmartPanelWidgetClass",
+        "GridSpacerWidgetClass", "WrapSpacerWidgetClass",
+    )
+
     /** Styles that draw nothing, so a panel wearing one is not filled whatever its colour. */
     private val EMPTY_STYLES = setOf("blank", "empty", "emptyhighlight")
     private val SCREEN = Color(0x2B, 0x2D, 0x30)
@@ -51,12 +68,13 @@ object LayoutRenderer {
         showHidden: Boolean,
         selected: WidgetSpec?,
         text: (WidgetSpec) -> String? = { it.text },
+        frame: (WidgetSpec) -> Frame? = { null },
         image: (WidgetSpec, Int) -> BufferedImage?,
     ): BufferedImage {
         val out = BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB)
         val g = out.createGraphics()
         try {
-            paint(g, placed, width, height, 1.0, showHidden, selected, text, image)
+            paint(g, placed, width, height, 1.0, showHidden, selected, text, frame, image)
         } finally {
             g.dispose()
         }
@@ -74,6 +92,8 @@ object LayoutRenderer {
         selected: WidgetSpec?,
         /** What a widget's `text` shows: the preview's chosen language turns `#key`s into translations. */
         text: (WidgetSpec) -> String? = { it.text },
+        /** The frame a widget's style draws, already tinted; null keeps the plain colour. */
+        frame: (WidgetSpec) -> Frame? = { null },
         image: (WidgetSpec, Int) -> BufferedImage?,
     ) {
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
@@ -87,7 +107,7 @@ object LayoutRenderer {
         for (p in placed) {
             if (p.hidden && !showHidden) continue
             g.clip(p.clip.shape())
-            draw(g, p, pixel, scale, text, image)
+            draw(g, p, pixel, scale, text, frame, image)
             g.clip = clip
         }
         // The screen's edge, so that it stays visible when zoomed out or panned.
@@ -100,7 +120,15 @@ object LayoutRenderer {
 
     private fun Rect.shape() = Rectangle2D.Double(x, y, w, h)
 
-    private fun draw(g: Graphics2D, p: Placed, pixel: Float, scale: Double, shown: (WidgetSpec) -> String?, image: (WidgetSpec, Int) -> BufferedImage?) {
+    private fun draw(
+        g: Graphics2D,
+        p: Placed,
+        pixel: Float,
+        scale: Double,
+        shown: (WidgetSpec) -> String?,
+        frameOf: (WidgetSpec) -> Frame?,
+        image: (WidgetSpec, Int) -> BufferedImage?,
+    ) {
         val r = p.rect
         val spec = p.spec
         val alpha = if (p.hidden) 0.35f else 1f
@@ -126,6 +154,9 @@ object LayoutRenderer {
                 }
             }
 
+            // The style's frame, where its pictures were found; otherwise the plain colour below.
+            spec.type in STYLED_TYPES && frameOf(spec)?.let { drawFrame(g, it, r) } == true -> Unit
+
             spec.type in FILLED_TYPES && color != null && spec.value("style")?.lowercase() !in EMPTY_STYLES -> fill(g, color, r)
 
             // A window is filled only by a colourable style (`dialog_input_password`'s dialog says
@@ -143,6 +174,24 @@ object LayoutRenderer {
         }
         g.draw(inset(r, pixel / 2.0))
         g.composite = AlphaComposite.SrcOver
+    }
+
+    /**
+     * Draws [frame] into [r], each piece stretched to its place ([WidgetStyles.layout]). False
+     * when no piece has a place, so that the widget falls back to its colour.
+     */
+    private fun drawFrame(g: Graphics2D, frame: Frame, r: Rect): Boolean {
+        val places = WidgetStyles.layout(r, frame.pieces.mapValues { it.value.width to it.value.height })
+        if (places.isEmpty()) return false
+        for ((piece, place) in places) {
+            val picture = frame.pieces.getValue(piece).image
+            val before = g.transform
+            g.translate(place.x, place.y)
+            g.scale(place.w / picture.width, place.h / picture.height)
+            g.drawImage(picture, 0, 0, null)
+            g.transform = before
+        }
+        return true
     }
 
     /** The outline drawn half a line inside the box, so that neighbouring boxes do not overdraw each other. */
@@ -206,28 +255,41 @@ object LayoutRenderer {
 
     /**
      * `rotation x y z` turns the widget's picture and text by `z` degrees about its `pivot` (fractions
-     * of its box, 0 0 by default), negative being anticlockwise: the car HUD's needles are drawn
-     * upright and turned, `RPMPointer` by -90 to point left. The outline stays upright, as in
-     * Workbench, and children are not turned.
+     * of its box), negative being anticlockwise: the car HUD's needles are drawn upright and turned,
+     * `RPMPointer` by -90 to point left about its `pivot 0.5 0.77`. With no `pivot`, about the box's
+     * centre: `day_z_hud`'s voice levels, turned by 180, stay in their boxes in Workbench, and
+     * vanilla writes `pivot 0 0` where it wants the corner, which Workbench would not save were it
+     * the default. The outline stays upright, as in Workbench, and children are not turned.
      */
     private fun rotate(g: Graphics2D, spec: WidgetSpec, r: Rect) {
         val degrees = spec.number("rotation", 2, 0.0)
         if (degrees == 0.0) return
-        g.rotate(Math.toRadians(degrees), r.x + spec.number("pivot", 0, 0.0) * r.w, r.y + spec.number("pivot", 1, 0.0) * r.h)
+        g.rotate(Math.toRadians(degrees), r.x + spec.number("pivot", 0, 0.5) * r.w, r.y + spec.number("pivot", 1, 0.5) * r.h)
     }
 
     /**
      * The font size a text widget asks for, in layout pixels: `"exact text size"` when it says
      * `"exact text" 1` (1,262 vanilla widgets do), else its box's height times `text_proportion`
-     * (1 by default: vanilla writes every value from 0 to 0.9, never 1). See [fontSize] for how it
-     * becomes a font. The fonts themselves are not Enfusion's.
+     * (1 by default: vanilla writes every value from 0 to 0.9, never 1). An exact text with no
+     * size is drawn at its font's own size: `day_z_underground_trigger_editor_popup_dialog`'s
+     * message, in `sdf_MetronBook24`, has the 36-pixel line that font's file gives its 24 pixels.
+     * See [fontSize] for how it becomes a font. The fonts themselves are not Enfusion's.
      */
     internal fun textSize(spec: WidgetSpec, r: Rect): Double =
         if (exactText(spec)) {
-            spec.number("exact text size", 0, DEFAULT_EXACT_TEXT_SIZE)
+            spec.number("exact text size", 0, spec.font?.size ?: DEFAULT_EXACT_TEXT_SIZE)
         } else {
             r.h * spec.number("text_proportion", 0, 1.0)
         }
+
+    /**
+     * How tall a line of [spec]'s text is for each pixel of its size: what its font's file gives
+     * (1.5 for `sdf_MetronBook24`, 1.21 to 1.5 across vanilla's distance-field fonts). Else 1.4,
+     * within that range, for a font whose file is not found or gives no line height, as a bitmap
+     * font's does not.
+     */
+    internal fun lineFactor(spec: WidgetSpec): Double =
+        spec.font?.let { f -> f.lineHeight?.let { it / f.size } } ?: 1.4
 
     /**
      * Whether the text size is `"exact text size"` rather than a share of the box: when it says
@@ -239,8 +301,9 @@ object LayoutRenderer {
         spec.flag("exact text", false) || (spec.flag("size to text v", false) && spec.value("exact text size") != null)
 
     /**
-     * Not 22, which vanilla writes 698 times, so is not what Workbench leaves out. 14 is what
-     * `day_z_server_browser_new`'s `ServerCountText` (`"exact text" 1`, no size) looks like there.
+     * For a widget whose font gives no size. Not 22, which vanilla writes 698 times, so is not what
+     * Workbench leaves out. 14 is what `day_z_server_browser_new`'s `ServerCountText`
+     * (`"exact text" 1`, no size, no font) looks like there.
      */
     private const val DEFAULT_EXACT_TEXT_SIZE = 14.0
 
