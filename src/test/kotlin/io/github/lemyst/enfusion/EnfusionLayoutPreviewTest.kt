@@ -194,6 +194,8 @@ class EnfusionLayoutPreviewTest : BasePlatformTestCase() {
     fun testColor() {
         assertEquals(0x80FF0000.toInt(), widget("PanelWidgetClass", "color" to "1 0 0 0.502").color)
         assertNull(widget("PanelWidgetClass").color)
+        // Linear, shown in sRGB: the colour Workbench gives a dialog button with these values.
+        assertEquals(0xFF696969.toInt(), widget("ButtonWidgetClass", "color" to "0.141 0.141 0.141 1").color)
     }
 
     fun testSpecsFromALayoutFile() {
@@ -365,10 +367,46 @@ class EnfusionLayoutPreviewTest : BasePlatformTestCase() {
             "Padding" to "5", "Margin" to "4", children = listOf(compass, column),
         )
         val placed = LayoutGeometry.layout(listOf(grid), 1920.0, 1080.0).associate { it.spec to it.rect }
-        // Padding inside the edges, a margin round every cell.
-        assertEquals(Rect(0.0, 0.0, 5 + 4 + 145 + 4 + 256 + 4 + 5.0, 5 + 4 + 142 + 4 + 5.0), placed[grid])
-        assertEquals(Rect(9.0, 9.0, 145.0, 142.0), placed[compass])
-        assertEquals(Rect(158.0, 9.0, 256.0, 40.0), placed[column])
+        // The margin inside the edges, the padding between the cells.
+        assertEquals(Rect(0.0, 0.0, 4 + 145 + 5 + 256 + 4.0, 4 + 142 + 4.0), placed[grid])
+        assertEquals(Rect(4.0, 4.0, 145.0, 142.0), placed[compass])
+        assertEquals(Rect(154.0, 4.0, 256.0, 40.0), placed[column])
+    }
+
+    fun testGridMarginAtTheEdgesPaddingBetweenCells() {
+        // day_z_underground_trigger_editor_popup_dialog, reduced, as Workbench draws it at
+        // 1920 x 1080: a dialog half the screen wide with Margin 10 and Padding 20, sized to its
+        // content, holding a message line and a spacer of two buttons sized to its width, with
+        // Margin 0 and Padding 20.
+        val message = widget("PanelWidgetClass", "size" to "1 36", "vexactsize" to "1")
+        val ok = widget("ButtonWidgetClass", "size" to "0.3 1")
+        val cancel = widget("ButtonWidgetClass", "size" to "0.3 1")
+        val buttons = widget(
+            "GridSpacerWidgetClass", "size" to "0.8 0.1", "Padding" to "20", "Margin" to "0",
+            "Size To Content H" to "1", "Columns" to "2", "Rows" to "1", children = listOf(ok, cancel),
+        )
+        val dialog = widget(
+            "GridSpacerWidgetClass", "size" to "0.5 0.3", "halign" to "center_ref", "valign" to "center_ref",
+            "Padding" to "20", "Margin" to "10", "Size To Content H" to "1", "Size To Content V" to "1",
+            "Columns" to "1", "Rows" to "2", children = listOf(message, buttons),
+        )
+        val placed = LayoutGeometry.layout(listOf(dialog), 1920.0, 1080.0).associate { it.spec to it.rect }
+        fun assertRect(expected: Rect, actual: Rect?) {
+            val a = actual!!
+            for ((e, v) in listOf(expected.x to a.x, expected.y to a.y, expected.w to a.w, expected.h to a.h)) assertEquals("$expected vs $a", e, v, 1e-9)
+        }
+        val d = placed.getValue(dialog)
+        // The room inside the dialog: 960 less two margins wide, 324 less two margins and the
+        // padding between its rows high. Workbench: the dialog 960 wide, the message 940.
+        val row = 0.1 * (324 - 2 * 10 - 20)
+        assertRect(Rect(480.0, (1080 - (10 + 36 + 20 + row + 10)) / 2, 960.0, 10 + 36 + 20 + row + 10), d)
+        assertRect(Rect(d.x + 10, d.y + 10, 940.0, 36.0), placed[message])
+        // 0.3 of the buttons' room, 0.8 x 940 less the 20 between them: 220 in Workbench, 20 apart,
+        // the first against the spacer's edge.
+        val button = 0.3 * (0.8 * 940 - 20)
+        assertRect(Rect(d.x + 10, d.y + 66, button, row), placed[ok])
+        assertRect(Rect(d.x + 10 + button + 20, d.y + 66, button, row), placed[cancel])
+        assertRect(Rect(d.x + 10, d.y + 66, 2 * button + 20, row), placed[buttons])
     }
 
     fun testGridAddsRowsAndTextSizedToItsText() {

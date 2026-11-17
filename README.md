@@ -181,7 +181,8 @@ inputs.
   properties: `size` / `position` in pixels or as fractions of the parent (`hexactsize`,
   `vexactsize`, `hexactpos`, `vexactpos`), `halign` / `valign` with offsets from the matching edge,
   grid spacers in `Rows` × `Columns` cells (more rows when the children need them, sized to their
-  content on an axis with *Size To Content*, `Padding` inside and `Margin` round each cell), text
+  content on an axis with *Size To Content*, `Margin` inside the edges and `Padding` between the
+  cells, proportional children measured against the room left inside), text
   sized to its text with `"size to text h"` / `"size to text v"` (estimated: the layout has no
   fonts), and wrap spacers flowing their children (lines placed by
   `content_halign` / `content_valign`, `bottom` stacking them upwards), a `visible 0`
@@ -195,6 +196,8 @@ inputs.
   sees (vanilla's `gui/looknfeel/dayzwidgets.styles`, now a library root, and a mod's own), its
   `Normal` state's nine imageset pictures framing the box (corners at their size, edges and centre
   stretched), tinted by the widget's `color`. A widget with no `style` wears its class's `Default`.
+  Every `color` is linear, as the engine's, and is shown in sRGB, so `0.141 0.141 0.141` is the
+  mid-grey Workbench shows, not near black.
   Where the style or its pictures are not found, or the style draws nothing (`blank`,
   `ColorablePanel`), a panel is filled with its plain `color` as before, and a button is left empty
   (its colour tints its style, so it would be a block of colour). Images show their `image0` (an imageset entry or a texture) or `imageTexture`,
