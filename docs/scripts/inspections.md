@@ -20,6 +20,7 @@ under *Settings → Editor → Inspections → Enforce Script*:
 | *Localization key with no stringtable row* | a `STR_…` key with no stringtable row; see [Stringtables](../game-files/stringtables.md#from-the-code) |
 | *Name from a later script module* | see [Script modules](#script-modules) below |
 | *Malformed stringtable row* | see [Stringtables](../game-files/stringtables.md#malformed-rows) |
+| *Base class not declared in this scope* | a `config.cpp` class whose base Addon Builder would not find; see [Config files](config-files.md#undeclared-base-classes) |
 
 The two `override` ones carry quick fixes. Each is gated so that a class whose parent the plugin
 never indexed produces no report at all, and the duplicate-local rule is measured against 120
