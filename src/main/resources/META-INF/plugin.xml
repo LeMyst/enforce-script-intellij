@@ -316,6 +316,10 @@
         <codeInsight.parameterInfo
                 language="EnfusionScript"
                 implementationClass="io.github.lemyst.enfusion.nav.EnfusionParameterInfoHandler"/>
+        <!-- Ctrl+O: signatures of the superclass chain and the other modded layers, with super calls. -->
+        <codeInsight.overrideMethod
+                language="EnfusionScript"
+                implementationClass="io.github.lemyst.enfusion.nav.EnOverrideMethodsHandler"/>
 
         <gotoClassContributor
                 implementation="io.github.lemyst.enfusion.nav.EnfusionGotoClassContributor"/>
