@@ -115,4 +115,32 @@ class EnfusionDayZLogsTest : TestCase() {
             folder.toFile().deleteRecursively()
         }
     }
+
+    /** A crash log is shown only for the current run: an old one does not say the new run crashed. */
+    fun testCrashLogOnlyForTheCurrentRun() {
+        val folder = Files.createTempDirectory("dayz-logs")
+        try {
+            fun write(name: String, minutes: Long) = folder.resolve(name).also {
+                Files.writeString(it, "$name\n")
+                Files.setLastModifiedTime(it, FileTime.fromMillis(1_700_000_000_000 + minutes * 60_000))
+            }
+            write("script_2026-01-01_10-00-00.log", 0)
+            val oldCrash = write("crash_2026-01-01_10-00-00.log", 1)
+            val tail = DayZLogTail(folder, DayZLogLines.Kind.CRASH)
+            assertEquals("the current run's crash", oldCrash, tail.poll()!!.file)
+
+            write("script_2026-01-01_11-00-00.log", 60)
+            val moved = tail.poll()!!
+            assertNull("a new run without a crash clears the tab", moved.file)
+            assertTrue(moved.restarted)
+            assertNull(tail.poll())
+            assertEquals("an older run can still be opened", listOf(oldCrash), tail.runs())
+
+            val newCrash = write("crash_2026-01-01_11-00-00.log", 61)
+            assertEquals(newCrash, tail.poll()!!.file)
+            assertEquals("2026-01-01_11-00-00", DayZLogLines.runStamp("DayZDiag_x64_2026-01-01_11-00-00.RPT"))
+        } finally {
+            folder.toFile().deleteRecursively()
+        }
+    }
 }

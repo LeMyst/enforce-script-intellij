@@ -104,7 +104,7 @@ object DayZLogsContent {
 }
 
 /** One followed log: a read-only console fed by a [DayZLogTail] polled once a second. */
-private class LogPanel(private val project: Project, folder: Path, kind: DayZLogLines.Kind) :
+private class LogPanel(private val project: Project, private val folder: Path, private val kind: DayZLogLines.Kind) :
     JPanel(BorderLayout()), com.intellij.openapi.Disposable {
 
     private val tail = DayZLogTail(folder, kind)
@@ -153,7 +153,7 @@ private class LogPanel(private val project: Project, folder: Path, kind: DayZLog
         add(header, BorderLayout.NORTH)
         add(toolbar.component, BorderLayout.WEST)
         add(console.component, BorderLayout.CENTER)
-        header.text = "Waiting for ${kind.prefix}*${kind.extension} in $folder"
+        header.text = idle(kind, folder)
 
         val future = AppExecutorUtil.getAppScheduledExecutorService().scheduleWithFixedDelay({ poll() }, 0, 1, TimeUnit.SECONDS)
         Disposer.register(this) { future.cancel(false) }
@@ -165,13 +165,18 @@ private class LogPanel(private val project: Project, folder: Path, kind: DayZLog
             if (chunk.restarted) {
                 lines.clear()
                 console.clear()
-                header.text = chunk.file.toString()
+                header.text = chunk.file?.toString() ?: idle(kind, folder)
             }
             val start = lines.size
             lines += chunk.lines
             print(start)
         }, { project.isDisposed })
     }
+
+    /** What the header says with no file to show. */
+    private fun idle(kind: DayZLogLines.Kind, folder: Path): String =
+        if (kind.everyRun) "Waiting for ${kind.prefix}*${kind.extension} in $folder"
+        else "No ${kind.title.lowercase()} log for the current run in $folder. Open Older Run… shows earlier ones."
 
     private fun reprint() {
         console.clear()

@@ -13,11 +13,17 @@ import java.nio.file.Path
  * when a newer file appeared, that file from its start with [Chunk.restarted] set. Lines are
  * returned whole; a line still being written stays buffered until its end arrives.
  *
+ * A kind not written by every run (a crash log) is followed only when it belongs to the newest
+ * run, the one of the newest script log: otherwise the newest crash log is a past run's, and
+ * showing it would say the server crashed when it has not. When a new run leaves the file shown
+ * behind, [poll] says so once with a chunk with no file.
+ *
  * This class uses no IntelliJ API, so it is tested on temporary files.
  */
 class DayZLogTail(private val folder: Path, private val kind: DayZLogLines.Kind) {
 
-    class Chunk(val file: Path, val lines: List<String>, val restarted: Boolean)
+    /** New lines of [file]; a null [file] means the run moved on and nothing of this kind is current. */
+    class Chunk(val file: Path?, val lines: List<String>, val restarted: Boolean)
 
     private var current: Path? = null
     private var offset = 0L
@@ -31,7 +37,14 @@ class DayZLogTail(private val folder: Path, private val kind: DayZLogLines.Kind)
         }
 
     fun poll(): Chunk? {
-        val file = pinned ?: newest() ?: return null
+        val file = pinned ?: newest()
+        if (file == null) {
+            if (current == null) return null
+            current = null
+            offset = 0
+            pending = ""
+            return Chunk(null, emptyList(), true)
+        }
         var restarted = false
         if (file != current) {
             current = file
@@ -71,8 +84,18 @@ class DayZLogTail(private val folder: Path, private val kind: DayZLogLines.Kind)
         return Chunk(file, lines, restarted)
     }
 
-    /** The newest file of [kind] in [folder], by last modification. */
-    fun newest(): Path? = runs().firstOrNull()
+    /**
+     * The newest file of [kind] in [folder], by last modification; for a kind not written by every
+     * run, only when it is no older than the newest run.
+     */
+    fun newest(): Path? {
+        val newest = runs().firstOrNull() ?: return null
+        if (kind.everyRun) return newest
+        val stamp = DayZLogLines.runStamp(newest.fileName.toString()) ?: return newest
+        val run = DayZLogTail(folder, DayZLogLines.Kind.SCRIPT).runs().firstOrNull()
+            ?.let { DayZLogLines.runStamp(it.fileName.toString()) } ?: return newest
+        return newest.takeIf { stamp >= run }
+    }
 
     /** Every file of [kind] in [folder], newest first. */
     fun runs(): List<Path> = runCatching {

@@ -63,14 +63,26 @@ object DayZLogLines {
         return Severity.OTHER
     }
 
-    /** The file kinds the console follows, by the prefix of their names. */
-    enum class Kind(val prefix: String, val extension: String, val title: String) {
-        SCRIPT("script_", ".log", "Script"),
-        RPT("DayZ", ".RPT", "RPT"),
-        CRASH("crash_", ".log", "Crash"),
-        ERROR("error_", ".log", "Error");
+    /**
+     * The file kinds the console follows, by the prefix of their names. [everyRun] kinds are
+     * written by every run; the others only when something goes wrong, so the newest of them may
+     * belong to a run long gone.
+     */
+    enum class Kind(val prefix: String, val extension: String, val title: String, val everyRun: Boolean) {
+        SCRIPT("script_", ".log", "Script", true),
+        RPT("DayZ", ".RPT", "RPT", true),
+        CRASH("crash_", ".log", "Crash", false),
+        ERROR("error_", ".log", "Error", false);
 
         fun matches(fileName: String): Boolean =
             fileName.startsWith(prefix, ignoreCase = true) && fileName.endsWith(extension, ignoreCase = true)
     }
+
+    private val STAMP = Regex("""(\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2})""")
+
+    /**
+     * The start of the run a log belongs to, from its name: every log of a run carries it
+     * (`script_2026-11-15_23-38-35.log`, `error_2026-11-15_23-38-35.log`). Sortable as text.
+     */
+    fun runStamp(fileName: String): String? = STAMP.find(fileName)?.value
 }
