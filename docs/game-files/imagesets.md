@@ -38,8 +38,20 @@ a `{GUID}`, as vanilla's `dayz_inventory.imageset` does.
 **Repeatable:** the same pictures and options give byte-identical files, so packing again with
 no change is no diff.
 
+## Extracting the images
+
+*Extract Images…* on an `.imageset` in the *Project* view cuts every image out of its atlas into a
+PNG picture, in a folder named after the imageset inside the folder chosen. An image listed in an
+`ImageSetGroupClass` goes into a subfolder named after the group, so packing the folder again
+with *Subfolders become groups* gives back the same names and groups. An old atlas whose sources
+were lost gets a source folder this way.
+
+The images are cut from the sharpest texture the set names (the 2x one when there is one), at that
+texture's own resolution, alpha kept. Images with the same name in one file get `_2`, `_3`, ...;
+existing pictures are replaced after a confirmation.
+
 ## Not supported yet
 
 Block compression (DXT1, DXT5, BC7) and LZ4-compressed mips, which make smaller files (a 1024² atlas
-is 5.6 MB uncompressed); updating an existing imageset while keeping its images in place; cutting an
-atlas back into pictures; remembering the options per folder.
+is 5.6 MB uncompressed); updating an existing imageset while keeping its images in place;
+remembering the options per folder.
