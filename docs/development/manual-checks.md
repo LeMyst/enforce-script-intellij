@@ -435,6 +435,8 @@ Opening a real DayZ mod. The examples below use a mod called MyMod.
   `ARGBF(1, 0, 0.5, 1)` → light blue. `const int COLOR_RED = 0xFFF22613;` → red, and a
   `const int` flag such as `0x00000400` → no swatch.
 - In a config, `"#(argb,8,8,3)color(0.5,0.5,0.5,1,co)"` → grey.
+- Open vanilla `gui/looknfeel/dayzwidgets.styles` → it opens as XML, with a swatch beside each
+  `Color="…"`.
 - **Open question to settle in game:** is a script `ARGB` colour shown as written (sRGB), as the
   swatch assumes, or converted like layout colours? `SetColor(ARGB(255, 36, 36, 36))` on a widget
   beside one with `color 0.141 0.141 0.141 1`: if they match, script colours are linear too.

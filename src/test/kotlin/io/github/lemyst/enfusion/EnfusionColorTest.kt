@@ -1,10 +1,9 @@
 package io.github.lemyst.enfusion
 
-import com.intellij.lang.xml.XMLLanguage
+import com.intellij.ide.highlighter.XmlFileType
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
-import com.intellij.psi.PsiFileFactory
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import io.github.lemyst.enfusion.colors.EnColorMath
@@ -86,12 +85,13 @@ class EnfusionColorTest : BasePlatformTestCase() {
         assertEquals(listOf(Color(0, 255, 0, 255)), colors(script).map { it.second })
     }
 
+    /** Opened by file name, as a user opens it: `*.styles` is registered as XML. */
     fun testStylesColour() {
-        val file = PsiFileFactory.getInstance(project).createFileFromText(
+        val file = myFixture.configureByText(
             "dayz.styles",
-            XMLLanguage.INSTANCE,
             "<WidgetStyles><Widget Name=\"TextWidget\"><Style Name=\"Normal\" Font=\"\" Color=\"4294967295\" /></Widget></WidgetStyles>",
         )
+        assertEquals(XmlFileType.INSTANCE, file.fileType)
         assertEquals(listOf(Color(255, 255, 255, 255)), colors(file).map { it.second })
     }
 }

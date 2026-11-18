@@ -15,7 +15,8 @@ import javax.swing.Icon
  * folding and highlighting come along at no extra cost.
  *
  * `.styles` is deliberately **not** included. Despite living beside the layouts it is XML
- * (`<WidgetStyles><Widget Name="…"><Style … /></Widget>`), and the platform already handles it.
+ * (`<WidgetStyles><Widget Name="…"><Style … /></Widget>`), and `plugin.xml` adds `*.styles` to the
+ * platform's XML file type.
  */
 object EnfusionObjectLanguage : Language("EnfusionObject") {
     override fun getDisplayName(): String = "Enforce Layout"

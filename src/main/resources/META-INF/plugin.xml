@@ -17,13 +17,18 @@
                 implementation="io.github.lemyst.enfusion.lang.EnfusionFileTypeOverrider"/>
 
         <!-- `.layout` and `.imageset` are the same Enfusion object format. `.styles` is NOT: it
-             lives beside them but is XML, which the platform already handles. -->
+             lives beside them but is XML. -->
         <fileType
                 name="EnfusionObject"
                 implementationClass="io.github.lemyst.enfusion.objfmt.EnfusionObjectFileType"
                 fieldName="INSTANCE"
                 language="EnfusionObject"
                 extensions="layout;imageset"/>
+        <!-- No implementation class: this adds `*.styles` to the platform's XML type. The IDE
+             otherwise opens `.styles` as plain text, which gets no colour swatches or XML editing. -->
+        <fileType
+                name="XML"
+                extensions="styles"/>
 
         <lang.parserDefinition
                 language="EnfusionObject"

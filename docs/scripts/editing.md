@@ -28,9 +28,9 @@ clicked, writing the picked colour back in the notation it was read from:
 Layout channels are linear: `0.141` is the mid-grey `#696969` Workbench shows, not near black. The
 swatch shows them in sRGB with the conversion the layout preview uses, and the picker writes them
 back linear. **Not covered:** a hex literal that is not a `const int` named for a colour, since a
-flag or a mask would get a swatch too; `color[]` arrays in configs, whose light and particle
-values can exceed 1; and a `.styles` file the IDE does not open as XML (*Settings → Editor → File
-Types → XML*, add `*.styles`).
+flag or a mask would get a swatch too; and `color[]` arrays in configs, whose light and particle
+values can exceed 1. The plugin opens `*.styles` files as XML, so they get the IDE's XML editing as
+well.
 
 ## Code folding
 
