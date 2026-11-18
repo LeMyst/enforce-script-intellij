@@ -126,6 +126,19 @@ Opening a real DayZ mod.
 - `Widget.Cast(` and `ButtonWidget.Cast(` → `Class from`: `Cast` lives on vanilla's root `Class`,
   which `Widget` reaches only implicitly.
 
+## Override Methods
+
+Opening a real DayZ mod, with vanilla indexed.
+
+- In a `modded class PlayerBase`, `Ctrl+O` → the chooser lists vanilla's `PlayerBase` methods, each
+  other layer as its own group with its file, then `ManBase`, `DayZPlayer` and the rest of the
+  chain. Methods the layer already overrides are not listed.
+- Pick `EEInit` and `OnStoreLoad` with *Call super* ticked → `override void EEInit()` with
+  `super.EEInit();`, and `override bool OnStoreLoad(ParamsReadContext ctx, int version)` with
+  `return super.OnStoreLoad(ctx, version);`, after the member at the caret, tab-indented.
+- The generated code compiles: *Tools → DayZ → Check Scripts (Server)*.
+- `Ctrl+O` again → *Call super* is remembered.
+
 ## Quick Documentation
 
 Opening a real DayZ mod, with vanilla indexed.
