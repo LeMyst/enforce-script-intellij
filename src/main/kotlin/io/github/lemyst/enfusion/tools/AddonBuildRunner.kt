@@ -14,6 +14,7 @@ import com.intellij.execution.ui.RunContentDescriptor
 import com.intellij.execution.ui.RunContentManager
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
+import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
@@ -68,7 +69,8 @@ object AddonBuildRunner {
             indicator.text = "Building ${build.pboName}"
             indicator.fraction = index.toDouble() / builds.size
             Files.createDirectories(build.destination)
-            val command = AddonBuilderCommand.commandLine(toolsBin, build)
+            val listFolder = Path.of(PathManager.getSystemPath(), "enfusion", "addon-builder")
+            val command = AddonBuilderCommand.commandLine(toolsBin, AddonBuilderCommand.withDefaultInclude(build, listFolder))
             console.print("> ${command.joinToString(" ") { if (it.contains(' ')) "\"$it\"" else it }}\n", ConsoleViewContentType.SYSTEM_OUTPUT)
             val output = StringBuilder()
             val handler = OSProcessHandler(GeneralCommandLine(command).withWorkDirectory(build.source.toFile()))

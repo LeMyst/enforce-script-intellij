@@ -63,6 +63,34 @@ object AddonBuilderCommand {
         return args
     }
 
+    /**
+     * What a binarised PBO gets as it is when no include list is set. Addon Builder's command line
+     * copies nothing but what it binarises without `-include`, so a PBO held `config.bin` alone:
+     * no scripts, layouts or stringtable. Its window does copy, from its own `WhiteList` setting:
+     * `*.emat;*.edds;*.ptc;*.c;*.imageset;*.layout;*.ogg`. That list loses `stringtable.csv` too,
+     * and so the one here adds what the PBOs of 20 Workshop mods ship: stringtables, XML and JSON,
+     * styles, fonts, sounds, textures and materials. Checked on a scratch addon: `.paa` and
+     * `.rvmat` reached the PBO only when listed. Models are left to binarisation.
+     */
+    val DEFAULT_INCLUDE = listOf(
+        "*.c", "*.layout", "*.imageset", "*.styles", "*.edds", "*.emat", "*.ptc",
+        "*.paa", "*.rvmat", "*.ogg", "*.wss", "*.fnt", "*.fxy", "*.jpg",
+        "*.csv", "*.xml", "*.json", "*.txt", "*.html", "*.cfg",
+    )
+
+    /**
+     * [build] with [DEFAULT_INCLUDE] written into [folder] as its include list, when it sets none
+     * and is binarised. A pack-only build stores every file anyway.
+     */
+    fun withDefaultInclude(build: AddonBuild, folder: Path): AddonBuild {
+        if (build.include != null || build.packOnly) return build
+        Files.createDirectories(folder)
+        val file = folder.resolve("include.lst")
+        // Addon Builder's help: "separator is ';' and ','".
+        Files.writeString(file, DEFAULT_INCLUDE.joinToString(";"))
+        return build.copy(include = file)
+    }
+
     /** The build's outcome from its output, the last verdict line winning. */
     fun result(output: String): Result {
         var result = Result.UNKNOWN

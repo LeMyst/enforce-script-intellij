@@ -396,6 +396,9 @@ Opening a real DayZ mod. The examples below use a mod called MyMod.
 - Right-click a mod's addon folder → *Build PBO* → the options dialog, prefilled; *Build* → a *Run*
   tab with Addon Builder's log and *Build Successful*, the PBO in the output folder, and a
   notification. *Build PBO* again → no dialog.
+- Open the built PBO in the IDE, with no include list set → its scripts, layouts, imagesets,
+  `stringtable.csv`, textures and data files are there beside `config.bin`. The command line in
+  the *Run* tab ends with `-include=…include.lst`.
 - Break `config.cpp` (delete a `}`) and build without *Pack only* → *Build failed*, an error
   notification, and the `File …, line N` line is a link to the config.
 - Build with a signing key → the `.bisign` appears; with no `.bikey` in `@Mod\Keys` → a warning.

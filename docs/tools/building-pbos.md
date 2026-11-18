@@ -16,6 +16,13 @@ the options first, and *Tools → DayZ → Build All PBOs* builds every addon of
   Options* the temp folder and exclude/include lists. They are saved per addon in
   `.idea/enfusion-builds.xml` and reused; the signing key is stored as a path only. While the project
   is untrusted, saved options are not used and the dialog asks again.
+- **What goes into the PBO:** when binarising, Addon Builder's command line packs only what it
+  binarises, such as `config.bin`, plus the files the include list names. With no include list
+  set, the plugin passes its own: scripts (`*.c`), layouts, imagesets, styles, textures (`*.edds`,
+  `*.paa`), materials (`*.rvmat`, `*.emat`), particles, sounds, fonts, and data files (`*.csv`,
+  `*.xml`, `*.json`, `*.txt`, `*.html`, `*.cfg`, `*.jpg`). Addon Builder's own window has a
+  shorter default, without stringtables. An include list you set replaces the plugin's; *pack
+  only* stores every file and needs none.
 - The build runs in the background, with Addon Builder's output in a *Run* tab and `File …, line N`
   config errors as links. Cancelling the task stops it.
 - Addon Builder exits with code 0 even when a build fails, so the result is read from its own last

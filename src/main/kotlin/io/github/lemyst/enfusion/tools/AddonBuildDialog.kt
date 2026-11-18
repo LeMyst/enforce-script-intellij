@@ -80,7 +80,7 @@ class AddonBuildDialog(
                     textFieldWithBrowseButton(FileChooserDescriptorFactory.singleFile().withTitle("Include List"), project)
                         .columns(COLUMNS_LARGE).align(AlignX.FILL)
                         .bindText({ entry.include ?: "" }, { entry.include = it.trim().ifEmpty { null } })
-                        .comment("A file of patterns copied into the PBO as they are.")
+                        .comment("A file of patterns copied into the PBO as they are. Empty: scripts, layouts, imagesets, textures, materials, sounds and data files.")
                 }
             }
         }

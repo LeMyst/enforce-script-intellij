@@ -147,7 +147,7 @@ class DayZModBuildHandler(
             exclude = saved?.exclude,
         )
         say("Building ${release.pboNameOf(addon)} from ${addon.folder}")
-        val output = runTool(AddonBuilderCommand.commandLine(toolsBin, build), addon.folder)
+        val output = runTool(AddonBuilderCommand.commandLine(toolsBin, AddonBuilderCommand.withDefaultInclude(build, work)), addon.folder)
         if (AddonBuilderCommand.result(output) != AddonBuilderCommand.Result.SUCCEEDED || !Files.isRegularFile(build.pbo)) {
             error("${release.pboNameOf(addon)} failed.")
             return false

@@ -19,6 +19,32 @@ class EnfusionAddonBuilderTest : TestCase() {
     private val tools = path("Tools", "DayZ Tools")
     private val bin = tools.resolve("Bin")
 
+    /**
+     * Without `-include`, Addon Builder's command line packed `config.bin` alone: no scripts,
+     * layouts or stringtable. A build that sets no list gets the plugin's.
+     */
+    fun testDefaultIncludeList() {
+        val folder = Files.createTempDirectory("addon-include")
+        try {
+            val build = AddonBuild(path("Work", "MyMod", "Scripts"), path("Work", "@MyMod", "Addons"))
+            val withList = AddonBuilderCommand.withDefaultInclude(build, folder)
+            val list = withList.include!!
+            assertEquals(folder.resolve("include.lst"), list)
+            val patterns = Files.readString(list).split(';')
+            for (needed in listOf("*.c", "*.layout", "*.imageset", "*.csv", "*.edds", "*.paa", "*.rvmat")) {
+                assertTrue(needed, needed in patterns)
+            }
+            assertTrue("-include=$list" in AddonBuilderCommand.commandLine(bin, withList))
+
+            val own = build.copy(include = path("Work", "mine.lst"))
+            assertSame("a list the user set is kept", own, AddonBuilderCommand.withDefaultInclude(own, folder))
+            val packOnly = build.copy(packOnly = true)
+            assertSame("pack only stores every file", packOnly, AddonBuilderCommand.withDefaultInclude(packOnly, folder))
+        } finally {
+            folder.toFile().deleteRecursively()
+        }
+    }
+
     fun testMinimalCommandLine() {
         val source = path("Work", "MyMod", "Scripts")
         val destination = path("Work", "@MyMod", "Addons")
