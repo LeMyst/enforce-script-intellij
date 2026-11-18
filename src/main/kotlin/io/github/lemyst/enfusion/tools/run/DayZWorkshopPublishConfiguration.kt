@@ -28,6 +28,8 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.util.NotNullLazyValue
 import com.intellij.openapi.util.SystemInfo
+import io.github.lemyst.enfusion.tools.DayZInstallation
+import io.github.lemyst.enfusion.tools.SteamCmdDownload
 import io.github.lemyst.enfusion.tools.detect.WorkshopPublish
 import java.nio.file.Files
 import java.nio.file.Path
@@ -71,7 +73,6 @@ class DayZWorkshopPublishConfigurationFactory(type: DayZWorkshopPublishConfigura
 class DayZWorkshopPublishOptions : RunConfigurationOptions() {
     /** The built `@MyMod` folder, uploaded as the item's content. */
     var contentFolder by string()
-    var steamCmd by string()
     /** The Steam account SteamCMD logs in with. Only its name: never a password. */
     var account by string()
     /** Empty to create a new item, filled in with the new ID after the first upload. */
@@ -123,8 +124,15 @@ class DayZWorkshopPublishConfiguration(project: Project, factory: ConfigurationF
         if (!Files.isDirectory(content.resolve("addons")) && !Files.isDirectory(content.resolve("Addons"))) {
             throw RuntimeConfigurationError("$content has no addons folder: build the mod first.")
         }
-        val steamCmd = o.path(o.steamCmd) ?: throw RuntimeConfigurationError("Set steamcmd.exe. SteamCMD is Valve's command-line Steam client, a separate download.")
-        if (!Files.isRegularFile(steamCmd)) throw RuntimeConfigurationError("$steamCmd does not exist.")
+        // A path of this machine, kept in the DayZ settings rather than here: a run configuration
+        // can be shared through the project, and another machine's SteamCMD is elsewhere.
+        val steamCmd = DayZInstallation.getInstance().steamCmdExe()
+        if (steamCmd == null || !Files.isRegularFile(steamCmd)) {
+            throw RuntimeConfigurationError(
+                "SteamCMD not found. It is Valve's command-line Steam client: Fix downloads it, or set its folder in " +
+                    "Settings | Languages & Frameworks | Enforce Script | DayZ Installation.",
+            ).apply { setQuickFix(Runnable { SteamCmdDownload.run(project, null) }) }
+        }
         val account = o.account?.trim().orEmpty()
         if (!WorkshopPublish.isAccountName(account)) throw RuntimeConfigurationError("Set the Steam account name SteamCMD logs in with.")
         if (o.itemId.isNullOrBlank() && o.title.isNullOrBlank()) throw RuntimeConfigurationError("A new Workshop item needs a title.")
@@ -154,7 +162,7 @@ class DayZWorkshopPublishConfiguration(project: Project, factory: ConfigurationF
     private inner class PublishState(environment: ExecutionEnvironment, private val item: WorkshopPublish.Item) : CommandLineState(environment) {
 
         override fun startProcess(): ProcessHandler {
-            val steamCmd = options.path(options.steamCmd) ?: throw ExecutionException("Set steamcmd.exe.")
+            val steamCmd = DayZInstallation.getInstance().steamCmdExe() ?: throw ExecutionException("SteamCMD not found: set it in the DayZ Installation settings.")
             val account = options.account?.trim().orEmpty()
             val work = Path.of(PathManager.getSystemPath(), "enfusion", "workshop", "${project.locationHash}-${folderName(name)}")
             Files.createDirectories(work)

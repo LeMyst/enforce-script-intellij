@@ -45,8 +45,14 @@ the `@MyMod` folder a mod ships, one configuration per mod:
 ## Publishing to the Steam Workshop
 
 A **DayZ Workshop Publish** run configuration uploads a built `@MyMod` folder to the Steam
-Workshop with SteamCMD, Valve's command-line Steam client (a separate download). DayZ Tools'
-Publisher has no command line, so SteamCMD's `workshop_build_item` is the scriptable way.
+Workshop with SteamCMD, Valve's command-line Steam client. DayZ Tools' Publisher has no command
+line, so SteamCMD's `workshop_build_item` is the scriptable way.
+
+- **SteamCMD** is a path of the machine, set under
+  [DayZ installation](../setup/dayz-installation.md) and shared by every project, never stored in
+  the run configuration, which a project can share. *Download SteamCMD…*, in the configuration or
+  on that page, installs it from Valve; when it is missing, the configuration's error offers the
+  same download as its *Fix*.
 
 - **What it uploads:** the *Mod folder*, as *DayZ Mod Build* writes it. To build first, add that
   configuration under *Before launch*. Publishing is its own configuration so that it is never one

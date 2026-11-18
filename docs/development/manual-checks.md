@@ -400,9 +400,14 @@ Opening a real DayZ mod. The examples below use a mod called MyMod.
 
 ### Publishing to the Workshop
 
-With SteamCMD installed and a **private test item** (or none, to create one, set to *Private*).
+With a **private test item** (or none, to create one, set to *Private*).
 
-- *DayZ Workshop Publish* with the built mod folder, `steamcmd.exe`, the account name, visibility
+- Without SteamCMD: a new *DayZ Workshop Publish* → the error *SteamCMD not found* with *Fix* →
+  the confirmation names `%LOCALAPPDATA%\SteamCMD` → *Download* → a progress bar, then the
+  configuration's *SteamCMD* row shows `…\SteamCMD\steamcmd.exe`, and so does *Settings → … →
+  DayZ Installation → Steam Workshop*.
+- *Description* and *Change note* have a border, and scroll when the text is long.
+- *DayZ Workshop Publish* with the built mod folder, the account name, visibility
   *Private* and a change note → *Run* → a confirmation with the folder's size and the note.
   *Cancel* → nothing runs.
 - Confirm → SteamCMD's own window asks for the password and the Steam Guard code; the upload

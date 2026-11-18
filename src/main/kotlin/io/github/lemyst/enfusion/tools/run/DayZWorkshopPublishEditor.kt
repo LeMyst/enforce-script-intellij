@@ -6,10 +6,15 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.TextFieldWithBrowseButton
 import com.intellij.ui.SimpleListCellRenderer
+import com.intellij.openapi.util.io.FileUtil
+import com.intellij.ui.components.JBLabel
+import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.JBTextArea
 import com.intellij.ui.components.JBTextField
 import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.panel
+import io.github.lemyst.enfusion.tools.DayZInstallation
+import io.github.lemyst.enfusion.tools.SteamCmdDownload
 import io.github.lemyst.enfusion.tools.detect.WorkshopPublish
 import javax.swing.JComponent
 import javax.swing.JList
@@ -20,9 +25,8 @@ class DayZWorkshopPublishEditor(private val project: Project) : SettingsEditor<D
     private val contentFolder = TextFieldWithBrowseButton().apply {
         addBrowseFolderListener(project, FileChooserDescriptorFactory.singleDir().withTitle("Built Mod Folder"))
     }
-    private val steamCmd = TextFieldWithBrowseButton().apply {
-        addBrowseFolderListener(project, FileChooserDescriptorFactory.singleFile().withExtensionFilter("exe").withTitle("steamcmd.exe"))
-    }
+    /** Where SteamCMD is: a setting of the machine, shown here and downloaded from here. */
+    private val steamCmd = JBLabel()
     private val account = JBTextField()
     private val itemId = JBTextField()
     private val title = JBTextField()
@@ -49,8 +53,15 @@ class DayZWorkshopPublishEditor(private val project: Project) : SettingsEditor<D
             cell(contentFolder).align(AlignX.FILL).comment("The built @MyMod folder, as DayZ Mod Build writes it. Add that configuration under Before launch to build first.")
         }
         row("SteamCMD:") {
-            cell(steamCmd).align(AlignX.FILL).comment("steamcmd.exe, Valve's command-line Steam client, a separate download.")
-        }
+            cell(steamCmd)
+            button("Download SteamCMD…") {
+                SteamCmdDownload.run(project, steamCmd)
+                showSteamCmd()
+            }
+        }.rowComment(
+            "Valve's command-line Steam client. Its folder belongs to this machine, not the project: " +
+                "Settings | Languages & Frameworks | Enforce Script | DayZ Installation.",
+        )
         row("Steam account:") {
             cell(account).align(AlignX.FILL)
                 .comment("The account name only. SteamCMD asks for the password and the Steam Guard code in its own window the first time, and keeps the login; the IDE never sees them.")
@@ -63,23 +74,28 @@ class DayZWorkshopPublishEditor(private val project: Project) : SettingsEditor<D
             cell(title).align(AlignX.FILL).comment("Needed for a new item. Empty keeps the item's title.")
         }
         row("Description:") {
-            cell(itemDescription).align(AlignX.FILL).comment("Empty keeps the item's description. Steam reads BBCode here.")
+            // In a scroll pane, which also gives the area its border.
+            cell(JBScrollPane(itemDescription)).align(AlignX.FILL).comment("Empty keeps the item's description. Steam reads BBCode here.")
         }
         row("Preview image:") {
             cell(previewFile).align(AlignX.FILL).comment("Empty keeps the item's preview.")
         }
         row("Change note:") {
-            cell(changeNote).align(AlignX.FILL).comment("One entry of the item's Change Notes tab.")
+            cell(JBScrollPane(changeNote)).align(AlignX.FILL).comment("One entry of the item's Change Notes tab.")
         }
         row("Or from a changelog:") {
             cell(changelogFile).align(AlignX.FILL).comment("When the change note is empty: the first section of this file, such as a CHANGELOG.md's newest version.")
         }
     }
 
+    private fun showSteamCmd() {
+        steamCmd.text = DayZInstallation.getInstance().steamCmdExe()?.let { FileUtil.toSystemDependentName(it.toString()) } ?: "Not found"
+    }
+
     override fun resetEditorFrom(configuration: DayZWorkshopPublishConfiguration) {
         val o = configuration.options
         contentFolder.text = o.contentFolder.orEmpty()
-        steamCmd.text = o.steamCmd.orEmpty()
+        showSteamCmd()
         account.text = o.account.orEmpty()
         itemId.text = o.itemId.orEmpty()
         title.text = o.title.orEmpty()
@@ -93,7 +109,6 @@ class DayZWorkshopPublishEditor(private val project: Project) : SettingsEditor<D
     override fun applyEditorTo(configuration: DayZWorkshopPublishConfiguration) {
         val o = configuration.options
         o.contentFolder = contentFolder.text.trim().ifEmpty { null }
-        o.steamCmd = steamCmd.text.trim().ifEmpty { null }
         o.account = account.text.trim().ifEmpty { null }
         o.itemId = itemId.text.trim().ifEmpty { null }
         o.title = title.text.trim().ifEmpty { null }
