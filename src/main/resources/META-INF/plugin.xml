@@ -387,6 +387,28 @@
                 nameKey="inlay.auto.types.name"
                 descriptionKey="inlay.auto.types.description"/>
 
+        <!-- Live templates, offered by scope; the three scopes refine the language-wide one. -->
+        <defaultLiveTemplates file="/liveTemplates/EnforceScript.xml"/>
+        <liveTemplateContext
+                contextId="ENFORCE_SCRIPT"
+                implementation="io.github.lemyst.enfusion.templates.EnScriptContext"/>
+        <liveTemplateContext
+                contextId="ENFORCE_SCRIPT_FILE"
+                baseContextId="ENFORCE_SCRIPT"
+                implementation="io.github.lemyst.enfusion.templates.EnFileScopeContext"/>
+        <liveTemplateContext
+                contextId="ENFORCE_SCRIPT_CLASS"
+                baseContextId="ENFORCE_SCRIPT"
+                implementation="io.github.lemyst.enfusion.templates.EnClassBodyContext"/>
+        <liveTemplateContext
+                contextId="ENFORCE_SCRIPT_STATEMENT"
+                baseContextId="ENFORCE_SCRIPT"
+                implementation="io.github.lemyst.enfusion.templates.EnStatementContext"/>
+        <!-- File | New → Enforce Script File; editable under File and Code Templates. -->
+        <internalFileTemplate name="Enforce Script Class"/>
+        <internalFileTemplate name="Enforce Script Modded Class"/>
+        <internalFileTemplate name="Enforce Script Scripted Menu"/>
+
         <gotoClassContributor
                 implementation="io.github.lemyst.enfusion.nav.EnfusionGotoClassContributor"/>
         <gotoSymbolContributor
@@ -571,6 +593,11 @@
         <group id="Enfusion.NewDayZ">
             <add-to-group group-id="NewGroup" anchor="last"/>
             <separator/>
+            <action id="Enfusion.NewEnforceScriptFile"
+                    class="io.github.lemyst.enfusion.templates.NewEnforceScriptFileAction"
+                    icon="io.github.lemyst.enfusion.lang.EnfusionIcons.FILE"
+                    text="Enforce Script File"
+                    description="Create an Enforce Script class, modded class or scripted menu in this addon"/>
             <action id="Enfusion.NewDayZMod"
                     class="io.github.lemyst.enfusion.tools.NewDayZModAction"
                     icon="io.github.lemyst.enfusion.lang.EnfusionIcons.FILE"

@@ -1,0 +1,55 @@
+<templateSet group="Enforce Script">
+  <template name="modc"
+            value="modded class $CLASS$&#10;{&#10;&#9;$END$&#10;}"
+            description="modded class, the caret on the class name"
+            toReformat="true" toShortenFQNames="false">
+    <variable name="CLASS" expression="complete()" defaultValue="" alwaysStopAt="true"/>
+    <context>
+      <option name="ENFORCE_SCRIPT_FILE" value="true"/>
+    </context>
+  </template>
+  <template name="menu"
+            value="class $NAME$ extends UIScriptedMenu&#10;{&#10;&#9;override Widget Init()&#10;&#9;{&#10;&#9;&#9;layoutRoot = GetGame().GetWorkspace().CreateWidgets(&quot;$LAYOUT$&quot;);&#10;&#9;&#9;$END$&#10;&#9;&#9;return layoutRoot;&#10;&#9;}&#10;&#10;&#9;override void OnShow()&#10;&#9;{&#10;&#9;&#9;super.OnShow();&#10;&#9;}&#10;&#10;&#9;override void OnHide()&#10;&#9;{&#10;&#9;&#9;super.OnHide();&#10;&#9;}&#10;&#10;&#9;override void Update(float timeslice)&#10;&#9;{&#10;&#9;&#9;super.Update(timeslice);&#10;&#9;}&#10;&#10;&#9;override bool OnClick(Widget w, int x, int y, int button)&#10;&#9;{&#10;&#9;&#9;return super.OnClick(w, x, y, button);&#10;&#9;}&#10;}"
+            description="UIScriptedMenu: Init creating its layout, OnShow, OnHide, Update, OnClick"
+            toReformat="true" toShortenFQNames="false">
+    <variable name="NAME" expression="" defaultValue="&quot;MyMenu&quot;" alwaysStopAt="true"/>
+    <variable name="LAYOUT" expression="" defaultValue="&quot;MyMod/GUI/layouts/my_menu.layout&quot;" alwaysStopAt="true"/>
+    <context>
+      <option name="ENFORCE_SCRIPT_FILE" value="true"/>
+    </context>
+  </template>
+  <template name="weh"
+            value="class $NAME$ extends ScriptedWidgetEventHandler&#10;{&#10;&#9;protected Widget m_Root;&#10;&#10;&#9;void $NAME$(Widget root)&#10;&#9;{&#10;&#9;&#9;m_Root = root;&#10;&#9;&#9;m_Root.SetHandler(this);&#10;&#9;}&#10;&#10;&#9;override bool OnClick(Widget w, int x, int y, int button)&#10;&#9;{&#10;&#9;&#9;$END$&#10;&#9;&#9;return false;&#10;&#9;}&#10;}"
+            description="ScriptedWidgetEventHandler set on a root widget, with OnClick"
+            toReformat="true" toShortenFQNames="false">
+    <variable name="NAME" expression="" defaultValue="&quot;MyHandler&quot;" alwaysStopAt="true"/>
+    <context>
+      <option name="ENFORCE_SCRIPT_FILE" value="true"/>
+    </context>
+  </template>
+  <template name="onrpc"
+            value="override void OnRPC(PlayerIdentity sender, int rpc_type, ParamsReadContext ctx)&#10;{&#10;&#9;super.OnRPC(sender, rpc_type, ctx);&#10;&#9;switch (rpc_type)&#10;&#9;{&#10;&#9;&#9;case $RPC$:&#10;&#9;&#9;{&#10;&#9;&#9;&#9;$END$&#10;&#9;&#9;&#9;break;&#10;&#9;&#9;}&#10;&#9;}&#10;}"
+            description="OnRPC override with its super call and a switch on the RPC type"
+            toReformat="true" toShortenFQNames="false">
+    <variable name="RPC" expression="" defaultValue="&quot;MY_RPC&quot;" alwaysStopAt="true"/>
+    <context>
+      <option name="ENFORCE_SCRIPT_CLASS" value="true"/>
+    </context>
+  </template>
+  <template name="ifs"
+            value="#ifdef SERVER&#10;$SELECTION$$END$&#10;#endif"
+            description="#ifdef SERVER … #endif"
+            toReformat="true" toShortenFQNames="false">
+    <context>
+      <option name="ENFORCE_SCRIPT" value="true"/>
+    </context>
+  </template>
+  <template name="ifc"
+            value="#ifndef SERVER&#10;$SELECTION$$END$&#10;#endif"
+            description="#ifndef SERVER … #endif"
+            toReformat="true" toShortenFQNames="false">
+    <context>
+      <option name="ENFORCE_SCRIPT" value="true"/>
+    </context>
+  </template>
+</templateSet>

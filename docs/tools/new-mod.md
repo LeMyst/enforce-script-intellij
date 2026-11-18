@@ -42,4 +42,5 @@ keys, logs and the IDE's folder. *Then create its first addon* opens *DayZ Addon
 ## Not supported
 
 A new IDE project (both work in a folder of the current one), logos and pictures, which are added by
-hand, editing an existing `config.cpp` through a form, and file templates for `.c` classes.
+hand, and editing an existing `config.cpp` through a form. For a new `.c` file in an addon, see
+[New Enforce Script file](../scripts/templates.md#new-enforce-script-file).

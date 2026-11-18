@@ -1,0 +1,28 @@
+class ${NAME} extends UIScriptedMenu
+{
+	override Widget Init()
+	{
+		layoutRoot = GetGame().GetWorkspace().CreateWidgets("${LAYOUT}");
+		return layoutRoot;
+	}
+
+	override void OnShow()
+	{
+		super.OnShow();
+	}
+
+	override void OnHide()
+	{
+		super.OnHide();
+	}
+
+	override void Update(float timeslice)
+	{
+		super.Update(timeslice);
+	}
+
+	override bool OnClick(Widget w, int x, int y, int button)
+	{
+		return super.OnClick(w, x, y, button);
+	}
+}
