@@ -56,10 +56,10 @@ greyed out, and an override redeclared by several `modded class` layers is shown
   A name or a constant usually says what it is already.
 - Only when every overload the call may mean has the same parameter name at that position, so a
   hint is never a guess; and not for a one-parameter method named `Set…`.
-- Not for the calls whose arguments are obvious: `Print`, `Error`, `Math.*`, `Vector`, container
-  access (`*.Get`, `*.Insert`, `*.Find`, ...), `string.Format` and the `Param` holders. This list
-  is fixed: the platform's editable exclude list belongs to an experimental API the plugin does not
-  use. The hints can be switched off under *Settings → Editor → Inlay Hints → Parameter names*.
+- An exclude list under *Settings → Editor → Inlay Hints → Parameter names → Enforce Script*,
+  prefilled with the calls whose arguments are obvious: `Print`, `Error`, `Math.*`, `Vector`,
+  container access (`*.Get`, `*.Insert`, `*.Find`, ...) and `string.Format`. *Do not show hints
+  for current method* on a hint adds its method.
 
 **Types of `auto` variables**, after the name: `auto p: Param1<int> = new Param1<int>(5)` and
 `foreach (auto zone: Zone : m_Zones)`, from the same inference as Go to Declaration. Nothing is
