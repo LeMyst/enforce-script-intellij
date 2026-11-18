@@ -447,7 +447,9 @@ With `P:\DZ` (or the game's `Addons` as a PBO root) in the roots.
 - Select a few lines, `Ctrl+Alt+T` → *ifs* wraps them in `#ifdef SERVER` … `#endif`.
 - Right-click a script module folder of an addon → *New → Enforce Script File* → *Scripted menu*
   named `MyMenu` → the file opens with the layout path `<prefix>/GUI/layouts/my_menu.layout`, and
-  parses with no error. Open it in game from a menu id to check it shows its layout.
+  parses with no error. Open it in game from a menu id to check it shows its layout. In a project
+  on `C:` (not on the work drive) → the path starts with the project folder's name, not
+  `Users/…`.
 - The same action on a folder outside any addon → not offered. In an addon folder outside the
   script modules → the file is created, with a warning that it is in no script module.
 

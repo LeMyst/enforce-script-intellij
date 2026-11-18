@@ -41,7 +41,10 @@ Methods* (`Ctrl+O`) writes its signature exactly.
 
 *File → New → Enforce Script File* (and *New* in the *Project* view's menu) creates a `.c` file
 from a template: a *Class* with its constructor and destructor, a *Modded class*, or a *Scripted
-menu* whose layout path starts as `<addon prefix>/GUI/layouts/<class_name>.layout`.
+menu* whose layout path starts as `<addon prefix>/GUI/layouts/<class_name>.layout`. The addon's
+prefix is its `$PBOPREFIX$`, else its path on the work drive (`P:\MyMod\Scripts` → `MyMod/Scripts`),
+else, for a checkout elsewhere, the project folder's name and the path inside it, which is what
+the work drive's link to that checkout gives.
 
 - It is offered only in a folder inside an addon (with a `config.cpp` or `$PBOPREFIX$` above it),
   since anywhere else a `.c` file is C.

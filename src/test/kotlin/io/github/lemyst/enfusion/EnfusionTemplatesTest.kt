@@ -80,4 +80,20 @@ class EnfusionTemplatesTest : BasePlatformTestCase() {
             )
         }
     }
+
+    /**
+     * A scripted menu's layout path and a packed atlas's texture path start from the addon's game
+     * path. The sandbox review got `Users/.../Scripts/Client/GUI/layouts/...` for a checkout on `C:`:
+     * any drive letter was taken for the work drive.
+     */
+    fun testGamePathOfAnAddonWithoutPrefix() {
+        val prefix = io.github.lemyst.enfusion.texture.PackImageSet::gamePrefix
+        assertEquals("on the work drive", "MyMod/Scripts/Client", prefix("P:/MyMod/Scripts/Client", 'P', null))
+        assertEquals("another work drive letter", "MyMod/GUI", prefix("w:/MyMod/GUI", 'W', null))
+        assertEquals("under the project's folder", "MyMod/Scripts/Client", prefix("C:/Dev/MyMod/Scripts/Client", 'P', "C:/Dev/MyMod"))
+        assertEquals("the project's folder itself", "MyMod", prefix("C:/Dev/MyMod", 'P', "C:\\Dev\\MyMod"))
+        assertNull("another drive, outside the project", prefix("C:/Dev/Other/Addon", 'P', "C:/Dev/MyMod"))
+        assertNull("another drive, no project", prefix("C:/Users/me/MyMod/Scripts", 'P', null))
+        assertNull("a folder merely starting like the project's", prefix("C:/Dev/MyModExtra/X", 'P', "C:/Dev/MyMod"))
+    }
 }

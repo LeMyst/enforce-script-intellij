@@ -30,6 +30,8 @@ import com.intellij.ui.dsl.builder.bindText
 import com.intellij.ui.dsl.builder.columns
 import com.intellij.ui.dsl.builder.panel
 import io.github.lemyst.enfusion.texture.format.EddsWriter
+import io.github.lemyst.enfusion.tools.DayZInstallation
+import io.github.lemyst.enfusion.tools.WorkDrive
 import io.github.lemyst.enfusion.texture.format.ImageSetPacking
 import io.github.lemyst.enfusion.texture.format.TextureFormatException
 import io.github.lemyst.enfusion.texture.format.TgaReader
@@ -104,14 +106,14 @@ internal object PackImageSet {
 
     /**
      * The game's path to a file [fileName] in [folder]: the prefix of the addon holding it (its
-     * `$PBOPREFIX$`, or its path on the work drive, or its folder's name) and the path inside the
-     * addon, with forward slashes. Without an addon, the path from the folder holding the project.
+     * `$PBOPREFIX$`, else [gamePrefix], else its folder's name) and the path inside the addon, with
+     * forward slashes. Without an addon, the path from the folder holding the project.
      */
     fun texturePath(project: Project, folder: VirtualFile, fileName: String): String {
         var addon: VirtualFile? = folder
         while (addon != null && addon.findChild("config.cpp") == null && addon.findChild("\$PBOPREFIX\$") == null) addon = addon.parent
         if (addon != null) {
-            val prefix = declaredPrefix(addon) ?: onDrive(addon) ?: addon.name
+            val prefix = declaredPrefix(addon) ?: gamePrefix(addon.path, workDriveLetter(), project.basePath) ?: addon.name
             val inside = VfsUtilCore.getRelativePath(folder, addon, '/').orEmpty()
             return listOf(prefix.replace('\\', '/').trim('/'), inside, fileName).filter { it.isNotEmpty() }.joinToString("/")
         }
@@ -127,10 +129,32 @@ internal object PackImageSet {
         return line.trim().removePrefix("prefix=").trim().trim('\\', '/').takeIf { it.isNotEmpty() }
     }
 
-    /** The path after the drive, for a folder on the work drive (`P:\MyMod\GUI` → `MyMod/GUI`). */
-    private fun onDrive(addon: VirtualFile): String? {
-        val path = addon.path
-        return if (path.length > 3 && path[1] == ':' && path[2] == '/') path.substring(3).takeIf { it.isNotEmpty() } else null
+    /**
+     * The game path of the addon folder [addonPath] (as the VFS writes it, with `/`) when it declares
+     * none, or null: its path on the work drive [workDrive] (`P:/MyMod/GUI` → `MyMod/GUI`), else,
+     * under the project's folder [projectBase], that folder's name and the path inside it, which
+     * is what the work drive's link to a mod checkout gives (`C:/Dev/MyMod/Scripts` → `MyMod/Scripts`).
+     *
+     * Only the work drive counts. Any drive letter used to: in the sandbox review a scripted menu in a
+     * checkout on `C:` was given the layout path `Users/.../Scripts/Client/GUI/layouts/...`.
+     */
+    internal fun gamePrefix(addonPath: String, workDrive: Char, projectBase: String?): String? {
+        val path = addonPath.replace('\\', '/').trimEnd('/')
+        if (path.length > 3 && path[0].equals(workDrive, ignoreCase = true) && path[1] == ':' && path[2] == '/') {
+            return path.substring(3)
+        }
+        val base = projectBase?.replace('\\', '/')?.trimEnd('/')?.takeIf { it.isNotEmpty() } ?: return null
+        val name = base.substringAfterLast('/')
+        return when {
+            path.equals(base, ignoreCase = true) -> name
+            path.startsWith("$base/", ignoreCase = true) -> name + "/" + path.substring(base.length + 1)
+            else -> null
+        }
+    }
+
+    private fun workDriveLetter(): Char {
+        val installation = DayZInstallation.getInstance()
+        return WorkDrive.getInstance().letter(installation.configured.orElse(installation.lastDetected ?: installation.configured))
     }
 
     fun run(project: Project, dir: VirtualFile, files: List<VirtualFile>, settings: Settings) {
