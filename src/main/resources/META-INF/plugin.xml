@@ -253,6 +253,18 @@
                 implementationClass="io.github.lemyst.enfusion.nav.EnOverrideLineMarkerProvider"/>
         <gotoDeclarationHandler
                 implementation="io.github.lemyst.enfusion.nav.EnOverrideGotoDeclarationHandler"/>
+        <!-- The other direction: who patches or extends a class, who redeclares a method. Slow
+             markers, since the walk below EntityAI reaches thousands of classes. -->
+        <codeInsight.lineMarkerProvider
+                language="EnfusionScript"
+                implementationClass="io.github.lemyst.enfusion.nav.EnOverriddenLineMarkerProvider"/>
+        <!-- Ctrl+Alt+B: the same list as the downward icon. -->
+        <definitionsScopedSearch
+                implementation="io.github.lemyst.enfusion.nav.EnImplementationsSearch"/>
+        <!-- Ctrl+U: what a method overrides, or what a class extends or patches. -->
+        <codeInsight.gotoSuper
+                language="EnfusionScript"
+                implementationClass="io.github.lemyst.enfusion.nav.EnGotoSuperHandler"/>
 
         <!-- Ctrl+H. Nothing about a class says who extends it, hence the inverted index below. -->
         <typeHierarchyProvider

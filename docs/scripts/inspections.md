@@ -26,6 +26,17 @@ The two `override` ones and the `super` one carry quick fixes. Each is gated so 
 never indexed produces no report at all, and the duplicate-local rule is measured against 120
 vanilla files to prove it stays silent on code that compiles.
 
+To check a whole project instead of the open file:
+- **One inspection:** *Code → Analyze Code → Run Inspection by Name* (`Ctrl+Alt+Shift+I`). Type
+  its name, such as *'override' with no base declaration*, and choose the project as the scope.
+- **All of them:** *Code → Inspect Code*.
+
+The results open in the *Problems* tool window, grouped by file, with their quick fixes.
+
+**Not supported yet:** a superclass named through a `typedef`, as in vanilla's
+`typedef House BuildingSuper;`. Members inherited through it are not found, so an `override` of
+one can be reported as having no base declaration.
+
 ## Script modules
 
 **Script modules** — DayZ compiles scripts in five modules, `1_Core` to `5_Mission`, and each one
