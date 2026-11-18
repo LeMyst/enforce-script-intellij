@@ -53,8 +53,13 @@ Where the style or its pictures are not found, or the style draws nothing (`blan
 `ColorablePanel`), a panel is filled with its plain `color`, and a button is left empty (its colour
 tints its style, so it would be a block of colour).
 
-Every `color` is linear, as the engine's, and is shown in sRGB, so `0.141 0.141 0.141` is the
-mid-grey Workbench shows, not near black.
+Every `color` is drawn as the game draws it: each channel is the colour's own fraction of 255,
+with no gamma, so `0.141 0.141 0.141` is the near black `#242424`. Workbench's editor shows those
+values as the mid-grey `#696969`, but in game an `ImageWidget` with that `color` came out
+`#242424`, the same as one given `ARGB(255, 36, 36, 36)` from script.
+
+Each `color` and `"… color"` property has a swatch in the gutter, and clicking it opens the
+colour picker: see [Colour swatches](../scripts/editing.md#colour-swatches).
 
 ### Images
 

@@ -566,6 +566,22 @@ With a **private test item** (or none, to create one, set to *Private*).
   the pointer; drag → the view pans; a click without dragging still selects. *Fit* → back to the
   whole screen; *100%* → one layout pixel per screen pixel.
 
+## Colour swatches
+
+- Open a vanilla `.layout` → a swatch beside each `color` and `"text color"` line, the colour
+  the preview shows. Click one in a mod layout, pick another colour → the four numbers change
+  (the colour's own fractions, three decimals) and the preview updates.
+- In a script, `ARGB(255, 242, 38, 19)` → a red swatch; pick a colour → the four arguments change.
+  `ARGB(m_Alpha, 242, 199, 68)` → a yellow swatch; pick a colour → `m_Alpha` stays.
+  `ARGBF(1, 0, 0.5, 1)` → light blue. `const int COLOR_RED = 0xFFF22613;` → red, and a
+  `const int` flag such as `0x00000400` → no swatch.
+- In a config, `"#(argb,8,8,3)color(0.5,0.5,0.5,1,co)"` → grey.
+- Open vanilla `gui/looknfeel/dayzwidgets.styles` → it opens as XML, with a swatch beside each
+  `Color="…"`.
+- **In game**, an `ImageWidget` with `color 0.141 0.141 0.141 1` beside one given
+  `SetColor(ARGB(255, 36, 36, 36))` and one given `ARGB(255, 105, 105, 105)` → the first two are
+  the same `#242424`, as their swatches show; the third is lighter. Measured on 2026-11-18.
+
 ## Stringtable texts in place of keys
 
 - Open a mod script with `"#STR_…"` strings → each shows its text, collapsed; moving the caret
