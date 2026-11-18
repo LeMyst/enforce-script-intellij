@@ -144,6 +144,16 @@ Opening a real DayZ mod, with vanilla indexed.
   texture path still shows the texture.
 - `Ctrl` + hover a call → one line: class, signature, file.
 
+## Inlay hints
+
+- In a mod file, `GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(Refresh, 1000, false)`
+  → `delay:` before `1000` and `repeat:` before `false`, nothing before `Refresh`.
+- `Print("x")` and `Math.Clamp(v, 0, 1)` → no hint. Alt+Enter on a hint → *Do not show hints
+  for current method* hides them for that method.
+- `auto p = new Param1<int>(5);` → `p: Param1<int>`; `foreach (auto x : m_Array)` over an
+  `array<ref X>` field → `x: X`. Both can be switched off under *Settings → Editor → Inlay Hints*.
+- On a large vanilla file such as `PlayerBase.c`, typing stays smooth with hints on.
+
 ## Navigation from string literals
 
 Opening a real DayZ mod. The examples below use a mod called MyMod.
