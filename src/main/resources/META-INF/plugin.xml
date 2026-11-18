@@ -293,6 +293,8 @@
         <fileBasedIndex implementation="io.github.lemyst.enfusion.index.EnfusionInputNameIndex"/>
         <fileBasedIndex implementation="io.github.lemyst.enfusion.index.EnfusionConfigClassIndex"/>
         <fileBasedIndex implementation="io.github.lemyst.enfusion.index.EnfusionConfigAddonIndex"/>
+        <!-- The classes of each top-level config section, for item-name completion in script. -->
+        <fileBasedIndex implementation="io.github.lemyst.enfusion.index.EnfusionConfigSectionIndex"/>
 
         <!-- Reached only because EnLiteralExprMixin implements ContributedReferenceHost: the
              registry is not consulted for ordinary Grammar-Kit PSI. -->

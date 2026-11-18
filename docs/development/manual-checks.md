@@ -219,6 +219,17 @@ Opening a real DayZ mod. The examples below use a mod called MyMod.
 - Trigger completion inside a `FindAnyWidget("")` call → only the names from layouts the class
   actually loads, not every widget in the project.
 
+## Config class names in script
+
+With `P:\DZ` (or the game's `Addons` as a PBO root) in the roots.
+
+- Ctrl+Click `"Apple"` in `CreateInInventory("Apple")` → the vanilla `CfgVehicles` class, and a
+  mod's own redeclaration offered beside it. `IsKindOf("Inventory_Base")` → its declaration.
+- Type `CreateInInventory("Ap` and complete → item classes, no `scope = 0` base class.
+- `GetGame().ConfigGetText("CfgVehicles " + type + " displayName")` → `CfgVehicles` navigates.
+- Find Usages on a mod's item class in its `config.cpp` → the scripts that spawn it.
+- Without `P:\DZ`: nothing red, and typing in a spawn call stays smooth.
+
 ## config.cpp
 
 - `Scripts/Client/config.cpp` opens as **Enforce Config** (check the status bar), folds, and shows a
