@@ -43,7 +43,15 @@ it: *Undefined base class 'Apple'*. Its lookup, checked by binarising a config f
 - names ignore case.
 
 *Add 'class Apple;'* inserts the external declaration at the top of the section, after the ones
-already there; applied to the whole file, it adds every missing one. Only `config.cpp` is
+already there; applied to the whole file, it adds every missing one. It is offered only for a class
+directly in a top-level section such as `CfgVehicles`:
+
+- **Deeper**, the missing base is usually a class the enclosing class's base was meant to provide.
+  `class Apple;` added there would hide it rather than fix it.
+- **At the top of the file**, `class Apple;` would name a top-level `Apple` that nothing declares.
+  The class belongs in a section.
+
+Only `config.cpp` is
 checked, and only a base some indexed config declares: one found nowhere may be a dependency
 outside the roots. **Not checked:** what the game does with an unbinarised `config.cpp` under file
 patching.

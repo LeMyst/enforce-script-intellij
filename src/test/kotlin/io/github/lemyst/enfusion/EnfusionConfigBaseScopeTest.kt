@@ -91,6 +91,26 @@ class EnfusionConfigBaseScopeTest : BasePlatformTestCase() {
         myFixture.checkResult("class CfgVehicles\n{\n\tclass Apple;\n\tclass MyApple: Apple\n\t{\n\t};\n};\n")
     }
 
+    /** The sandbox review typed the class on one line, and left out its `;`. */
+    fun testQuickFixOnAOneLineClass() {
+        for (written in listOf("{};", "{}")) {
+            myFixture.configureByText("config.cpp", "class CfgPatches\n{\n};\nclass CfgVehicles\n{\n\tclass MyApple: App<caret>le $written\n};\n")
+            myFixture.launchAction(myFixture.findSingleIntention("Add 'class Apple;'"))
+            myFixture.checkResult("class CfgPatches\n{\n};\nclass CfgVehicles\n{\n\tclass Apple;\n\tclass MyApple: Apple $written\n};\n")
+        }
+    }
+
+    /**
+     * At the top of the file, `class Apple;` would binarise but name a top-level `Apple`, which
+     * nothing declares: the class belongs in a section, so no fix is offered, only the warning.
+     */
+    fun testNoQuickFixAtFileScope() {
+        myFixture.configureByText("config.cpp", "class MyApple: App<caret>le\n{\n};\n")
+        assertEmpty(myFixture.filterAvailableIntentions("Add 'class Apple;'"))
+        myFixture.configureByText("config.cpp", "class MyApple: ${warn("Apple")}\n{\n};\n")
+        myFixture.checkHighlighting(true, false, false)
+    }
+
     /**
      * The configs of `enfusionConfigRoots`, each root loaded whole so that the gate sees its
      * bases: vanilla's must give nothing, since they all binarise; the mods' counts are printed.
