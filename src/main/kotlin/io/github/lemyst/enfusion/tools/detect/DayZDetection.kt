@@ -31,27 +31,32 @@ data class DayZPaths(
     val clientProfile: Path? = null,
     /** The server's profile folder, as passed to `-profiles=`. Never detected: each server chooses its own. */
     val serverProfile: Path? = null,
+    /** SteamCMD's folder, holding `steamcmd.exe`, which publishes to the Workshop. */
+    val steamCmd: Path? = null,
 ) {
     val gameExe: Path? get() = game?.resolve(GAME_EXE)
     val gameDiagExe: Path? get() = game?.resolve(GAME_DIAG_EXE)
     val serverExe: Path? get() = server?.resolve(SERVER_EXE)
     val toolsBin: Path? get() = tools?.resolve("Bin")
+    val steamCmdExe: Path? get() = steamCmd?.resolve(STEAMCMD_EXE)
 
     /** Each field of [this], or the one from [fallback] where this one is unknown. */
     fun orElse(fallback: DayZPaths): DayZPaths = DayZPaths(
-        game ?: fallback.game,
-        server ?: fallback.server,
-        tools ?: fallback.tools,
-        workDriveSource ?: fallback.workDriveSource,
-        workDriveLetter ?: fallback.workDriveLetter,
-        clientProfile ?: fallback.clientProfile,
-        serverProfile ?: fallback.serverProfile,
+        game = game ?: fallback.game,
+        server = server ?: fallback.server,
+        tools = tools ?: fallback.tools,
+        workDriveSource = workDriveSource ?: fallback.workDriveSource,
+        workDriveLetter = workDriveLetter ?: fallback.workDriveLetter,
+        clientProfile = clientProfile ?: fallback.clientProfile,
+        serverProfile = serverProfile ?: fallback.serverProfile,
+        steamCmd = steamCmd ?: fallback.steamCmd,
     )
 
     companion object {
         const val GAME_EXE = "DayZ_x64.exe"
         const val GAME_DIAG_EXE = "DayZDiag_x64.exe"
         const val SERVER_EXE = "DayZServer_x64.exe"
+        const val STEAMCMD_EXE = "steamcmd.exe"
         const val TOOLS_SETTINGS = "settings.ini"
     }
 }
@@ -119,6 +124,9 @@ object DayZDetector {
             workDriveSource = toolsSettings?.workDriveSource?.let(::existingFolder),
             workDriveLetter = toolsSettings?.workDriveLetter,
             clientProfile = localAppData?.resolve("DayZ")?.takeIf { Files.isDirectory(it) },
+            // Only where the plugin installs it: SteamCMD has no installer, so no record says where
+            // a copy unzipped by hand went.
+            steamCmd = SteamCmdInstall.defaultFolder(localAppData)?.takeIf { Files.isRegularFile(it.resolve(DayZPaths.STEAMCMD_EXE)) },
         )
     }
 
@@ -157,6 +165,12 @@ object DayZPathChecks {
     }
 
     fun folder(folder: Path): String? = if (Files.isDirectory(folder)) null else "Folder not found"
+
+    fun steamCmd(folder: Path): String? = when {
+        !Files.isDirectory(folder) -> "Folder not found"
+        !Files.isRegularFile(folder.resolve(DayZPaths.STEAMCMD_EXE)) -> "${DayZPaths.STEAMCMD_EXE} not found in this folder"
+        else -> null
+    }
 
     fun driveLetter(letter: String): String? =
         if (letter.length == 1 && letter[0].uppercaseChar() in 'A'..'Z') null else "A single letter, such as P"

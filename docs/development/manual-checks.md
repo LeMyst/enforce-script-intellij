@@ -473,6 +473,24 @@ With `P:\DZ` (or the game's `Addons` as a PBO root) in the roots.
 - Untick an addon and run → its PBO and signature are removed from `addons\`.
 - Start a server with `verifySignatures = 2` on the built mod → clients with it join.
 
+### Publishing to the Workshop
+
+With a **private test item** (or none, to create one, set to *Private*).
+
+- Without SteamCMD: a new *DayZ Workshop Publish* → the error *SteamCMD not found* with *Fix* →
+  the confirmation names `%LOCALAPPDATA%\SteamCMD` → *Download* → a progress bar, then the
+  configuration's *SteamCMD* row shows `…\SteamCMD\steamcmd.exe`, and so does *Settings → … →
+  DayZ Installation → Steam Workshop*.
+- *Description* and *Change note* have a border, and scroll when the text is long.
+- *DayZ Workshop Publish* with the built mod folder, the account name, visibility
+  *Private* and a change note → *Run* → a confirmation with the folder's size and the note.
+  *Cancel* → nothing runs.
+- Confirm → SteamCMD's own window asks for the password and the Steam Guard code; the upload
+  runs. Close the window → the *Run* tab gives the item's link, and the configuration now holds
+  the item ID.
+- Run again with another change note → no password asked; the item's *Change Notes* tab has both.
+- Leave the change note empty and set a `CHANGELOG.md` → its newest section is the note.
+
 ## Layout preview
 
 - Open `P:\gui\layouts\day_z_ingamemenu.layout` → text and preview side by side: the button column
