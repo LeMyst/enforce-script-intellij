@@ -57,8 +57,9 @@ conflict over `OnScheduledTick` or `SetActions`:
   its file. Subclasses are counted transitively, each with its own layers.
 - **On a method**, an icon when `modded class` layers redeclare it or subclasses (and their
   layers) override it, with the same list.
-- **Go to Implementation** (`Ctrl+Alt+B`) on a class or method, at its declaration or at a
-  reference, gives the same list.
+- **Go to Implementation** (`Ctrl+Alt+B`, or *Navigate → Implementation(s)*) on a class or
+  method, at its declaration or at a reference, gives the same list. Put the caret on
+  `SetActions` in vanilla's `ItemBase`, or on a call such as `item.SetActions()`, and press it.
 
 A layer gets no icon for the other layers of its class: there is no load order the plugin can
 know, and the upward icon already links them. It works in read-only library files too, so
