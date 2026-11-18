@@ -88,8 +88,8 @@ object ImageSetPacking {
     /**
      * The set's own `Name` and texture `path` in [text], an `.imageset`, so that packing over it can
      * keep them. Layouts and scripts name the set (`"set:<Name> image:<icon>"`), not the file: in
-     * the sandbox review a mod's `dayzbr_gui.imageset` was named `battleroyale_gui`, packing it again
-     * renamed it after the folder, and every icon the layouts asked for showed as a white square.
+     * the sandbox review a mod's set was named differently from its file, packing it again renamed
+     * it after the folder, and every icon the layouts asked for showed as a white square.
      * The set's `Name` is the first one in the file, before its images'.
      */
     fun existing(text: String): Existing = Existing(
