@@ -141,9 +141,15 @@ private class AddSuperCallFix : LocalQuickFix {
         val document = documents.getDocument(file) ?: return
         documents.doPostponedOperationsAndUnblockDocument(document)
         val offset = brace.textRange.endOffset
-        val inserted = "\n$statement"
+        // `{}` on one line, or `{ Print(); }`: without a line break the `}` or the old statement
+        // would end up after the call, `super.SetActions();}`.
+        val restOfLine = document.charsSequence.subSequence(offset, document.textLength).takeWhile { it != '\n' }
+        val closeLine = !statement.endsWith("\n") && restOfLine.isNotBlank()
+        val inserted = "\n$statement" + if (closeLine) "\n" else ""
         document.insertString(offset, inserted)
         documents.commitDocument(document)
-        CodeStyleManager.getInstance(project).adjustLineIndent(file, TextRange(offset, offset + inserted.length))
+        // Up to the line after the call, which holds the `}` once it was moved down.
+        val end = minOf(offset + inserted.length + if (closeLine) 1 else 0, document.textLength)
+        CodeStyleManager.getInstance(project).adjustLineIndent(file, TextRange(offset, end))
     }
 }

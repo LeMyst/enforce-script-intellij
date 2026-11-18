@@ -113,6 +113,25 @@ class EnfusionModdedSuperTest : BasePlatformTestCase() {
         )
     }
 
+    /** The sandbox review's `override void SetActions() {}` gave `super.SetActions();}`. */
+    fun testFixOnAnEmptyBodyOnOneLine() {
+        myFixture.configureByText(
+            "test.es",
+            "modded class ItemBase\n{\n\toverride void Set<caret>Actions() {}\n}",
+        )
+        myFixture.launchAction(myFixture.findSingleIntention("Add super call"))
+        myFixture.checkResult("modded class ItemBase\n{\n\toverride void SetActions() {\n\t\tsuper.SetActions();\n\t}\n}")
+    }
+
+    fun testFixBeforeAStatementOnTheBraceLine() {
+        myFixture.configureByText(
+            "test.es",
+            "modded class ItemBase\n{\n\toverride void Ti<caret>ck(float dt) { Print(dt);\n\t}\n}",
+        )
+        myFixture.launchAction(myFixture.findSingleIntention("Add super call"))
+        myFixture.checkResult("modded class ItemBase\n{\n\toverride void Tick(float dt) {\n\t\tsuper.Tick(dt);\n\t\tPrint(dt);\n\t}\n}")
+    }
+
     fun testFixKeepsTheBoolShape() {
         myFixture.configureByText(
             "test.es",
