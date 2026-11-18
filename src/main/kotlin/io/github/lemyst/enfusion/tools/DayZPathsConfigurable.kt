@@ -89,6 +89,18 @@ class DayZPathsConfigurable(private val project: Project) : BoundConfigurable("D
                     field.comment("Overrides the server profile above for this project only. Saved in .idea/enfusion.xml.")
                 }
             }
+            group("Steam Workshop") {
+                val field = folderRow(
+                    "SteamCMD:", state::steamCmd, DayZPathChecks::steamCmd, { it.steamCmd },
+                    "Contains ${DayZPaths.STEAMCMD_EXE}, Valve's command-line Steam client, which publishes mods to the Workshop.",
+                )
+                row {
+                    button("Download SteamCMD…") {
+                        val typed = field.text.trim().takeIf { it.isNotEmpty() }?.let { runCatching { Path.of(it) }.getOrNull() }
+                        SteamCmdDownload.run(project, field, typed)?.let { field.text = FileUtil.toSystemDependentName(it.toString()) }
+                    }.comment("From Valve, into the folder above, or into AppData\\Local\\SteamCMD while it is empty.")
+                }
+            }
             group("Workbench") {
                 val settings = EnfusionProjectSettings.getInstance(project)
                 row("Mod folder:") {
@@ -133,7 +145,8 @@ class DayZPathsConfigurable(private val project: Project) : BoundConfigurable("D
         check: (Path) -> String?,
         detected: (DayZPaths) -> Path?,
         comment: String,
-    ) {
+    ): TextFieldWithBrowseButton {
+        lateinit var field: TextFieldWithBrowseButton
         row(label) {
             val cell = folderField(label.removeSuffix(":")) { paths -> detected(paths) }
                 .bindText({ property.get() ?: "" }, { property.set(it.trim().ifEmpty { null }) })
@@ -149,7 +162,9 @@ class DayZPathsConfigurable(private val project: Project) : BoundConfigurable("D
                 }
                 .comment(comment)
             placeholders += cell.component.textField to { paths -> detected(paths)?.let { FileUtil.toSystemDependentName(it.toString()) } }
+            field = cell.component
         }
+        return field
     }
 
     /**

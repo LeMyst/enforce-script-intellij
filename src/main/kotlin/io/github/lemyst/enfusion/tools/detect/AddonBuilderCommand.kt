@@ -25,6 +25,10 @@ data class AddonBuild(
     val include: Path? = null,
     /** `-exclude`: a file of patterns left out of the PBO. */
     val exclude: Path? = null,
+    /** Include patterns typed in the options, written to a file for `-include` before a build. */
+    val includePatterns: List<String>? = null,
+    /** Exclude patterns typed in the options, written to a file for `-exclude` before a build. */
+    val excludePatterns: List<String>? = null,
 ) {
     /** Addon Builder names the PBO after the source folder. */
     val pboName: String get() = source.fileName.toString() + ".pbo"
@@ -62,6 +66,218 @@ object AddonBuilderCommand {
         toolsBin.parent?.let { args += "-toolsDirectory=$it" }
         return args
     }
+
+    /**
+     * What a binarised PBO gets as it is when no include list is set. Addon Builder's command line
+     * copies nothing but what it binarises without `-include`, so a PBO held `config.bin` alone:
+     * no scripts, layouts or stringtable. Its window does copy, from its own `WhiteList` setting:
+     * `*.emat;*.edds;*.ptc;*.c;*.imageset;*.layout;*.ogg`. That list loses `stringtable.csv` too,
+     * and so the one here adds what the PBOs of 20 Workshop mods ship: stringtables, XML and JSON,
+     * styles, fonts, sounds, textures and materials. Checked on a scratch addon: `.paa` and
+     * `.rvmat` reached the PBO only when listed. Models are left to binarisation.
+     *
+     * `LICENSE` and `NOTICE` are there for third-party code an addon carries: Apache 2.0, for one,
+     * wants both shipped with it, and a third-party PBO in the review held them at its root. Checked
+     * on a scratch addon: a name without an extension packs that file at the root and in subfolders,
+     * case aside, and leaves `LICENSE.md` out.
+     */
+    val DEFAULT_INCLUDE = listOf(
+        "*.c", "*.layout", "*.imageset", "*.styles", "*.edds", "*.emat", "*.ptc",
+        "*.paa", "*.rvmat", "*.ogg", "*.wss", "*.fnt", "*.fxy", "*.jpg",
+        "*.csv", "*.xml", "*.json", "*.txt", "*.html", "*.cfg",
+        "LICENSE", "NOTICE",
+    )
+
+    /**
+     * An include or exclude list as typed in the options: the patterns themselves, as Addon
+     * Builder's window takes them (`*.c;*.layout`), or the path of a list file, as its command line
+     * takes. Patterns are told by a wildcard or a `;`: a Windows path cannot hold `*` or `?`, and
+     * `*.c` read as a path was once dropped without a word, leaving the default list in its place.
+     */
+    sealed interface ListSetting {
+        data class File(val path: Path) : ListSetting
+        data class Patterns(val patterns: List<String>) : ListSetting
+    }
+
+    fun listSetting(value: String?): ListSetting? {
+        val text = value?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        if (text.any { it == '*' || it == '?' || it == ';' }) {
+            // Addon Builder's help: "separator is ';' and ','".
+            val patterns = text.split(';', ',').map { it.trim() }.filter { it.isNotEmpty() }
+            return if (patterns.isEmpty()) null else ListSetting.Patterns(patterns)
+        }
+        return runCatching { Path.of(text) }.getOrNull()?.let { ListSetting.File(it) }
+    }
+
+    /** [build] with the include and exclude lists typed in the options, [include] and [exclude]. */
+    fun withListSettings(build: AddonBuild, include: String?, exclude: String?): AddonBuild {
+        val inc = listSetting(include)
+        val exc = listSetting(exclude)
+        return build.copy(
+            include = (inc as? ListSetting.File)?.path,
+            includePatterns = (inc as? ListSetting.Patterns)?.patterns,
+            exclude = (exc as? ListSetting.File)?.path,
+            excludePatterns = (exc as? ListSetting.Patterns)?.patterns,
+        )
+    }
+
+    /**
+     * [build] ready for its command line: its include list written into [folder], and never an
+     * `-exclude`.
+     *
+     * Addon Builder 1.0.240639 crashes on its own `-exclude` before building anything
+     * (`ArgumentNullException` in `TextureHeaderBinazrizeTask`), whatever the list holds, DayZ
+     * Tools' own `exclude.lst` included, and whatever else is passed. Its `-include`, though, takes
+     * exact paths inside the addon as well as wildcards. So an exclude list is applied here: the
+     * addon's files that the include list matches, less those the exclude list matches, are
+     * written as the include list, one path each. That covers the files copied as they are; what
+     * Addon Builder binarises (`config.cpp`, models) is not on either list.
+     *
+     * With no exclude list, the include list is written as it is: typed patterns, the patterns of
+     * the user's list file, or [DEFAULT_INCLUDE] when the build sets none and is binarised; a
+     * pack-only build stores every file anyway. Even a list file of the user's own is rewritten:
+     * Addon Builder 1.0.240639 fails with a bare *Build failed* on an include list file of several
+     * lines, LF or CRLF, and takes the same patterns on one line. The file is named after the
+     * addon's folder, so that two addons never share one. [files] lists the addon's files,
+     * relative, with `\`.
+     */
+    fun withListFiles(build: AddonBuild, folder: Path, files: (Path) -> List<String> = ::filesIn): AddonBuild {
+        val exclude = build.excludePatterns ?: build.exclude?.let { patternsIn(Files.readString(it)) }
+        val wanted = build.includePatterns ?: build.include?.let { patternsIn(Files.readString(it)) }
+        val include = when {
+            exclude != null ->
+                files(build.source).filter { matchesAny(wanted ?: DEFAULT_INCLUDE, it) && !matchesAny(exclude, it) }.map(::asPattern)
+            else -> wanted ?: DEFAULT_INCLUDE.takeUnless { build.packOnly }
+        }
+        // Pack only with no list: nothing to write.
+        if (include == null) return build
+        Files.createDirectories(folder)
+        val stem = build.source.fileName.toString() + "-" + Integer.toHexString(build.source.toString().lowercase().hashCode())
+        val file = folder.resolve("$stem.include.lst")
+        Files.writeString(file, include.joinToString(";"))
+        return build.copy(include = file, exclude = null, includePatterns = null, excludePatterns = null)
+    }
+
+    /**
+     * Why [build]'s lists cannot be used, or null: a list file that is not there, which Addon
+     * Builder would not report, or an exclude list on a pack-only build, which stores every file
+     * whatever its include list says, so the exclude list has nothing to work through.
+     */
+    fun listProblem(build: AddonBuild, exists: (Path) -> Boolean = Files::isRegularFile): String? {
+        listOfNotNull(build.include, build.exclude).firstOrNull { !exists(it) }?.let {
+            return "the list file $it does not exist. Type patterns such as *.c;*.layout, or the path of a list file."
+        }
+        if (build.packOnly && (build.exclude != null || build.excludePatterns != null)) {
+            return "a pack-only build stores every file and cannot leave any out: Addon Builder's own exclude list crashes it, and pack only ignores include lists. Clear the exclude list, or binarise."
+        }
+        return null
+    }
+
+    /**
+     * The patterns in a list file: one or more a line, separated by `;` or `,`, with a line that
+     * starts with `;` a comment, as in DayZ Tools' `exclude.lst`.
+     */
+    fun patternsIn(text: String): List<String> = text.lineSequence()
+        .map { it.trim() }
+        .filter { it.isNotEmpty() && !it.startsWith(";") }
+        .flatMap { it.split(';', ',') }
+        .map { it.trim() }
+        .filter { it.isNotEmpty() }
+        .toList()
+
+    /**
+     * Whether [relative], a path inside the addon written with `\`, matches one of [patterns], as
+     * Addon Builder matches its include list: case aside, a pattern matches the path (`data\*`
+     * reaches `data\deep\file.txt`) or the file name alone (`notes.txt` in any folder); `*` stands
+     * for any run of characters and `?` for one.
+     */
+    fun matchesAny(patterns: List<String>, relative: String): Boolean {
+        val name = relative.substringAfterLast('\\')
+        return patterns.any { pattern ->
+            val regex = globRegex(pattern.replace('/', '\\'))
+            regex.matches(relative) || regex.matches(name)
+        }
+    }
+
+    private fun globRegex(pattern: String): Regex = Regex(
+        pattern.split('*').joinToString(".*") { part -> part.split('?').joinToString(".") { Regex.escape(it) } },
+        RegexOption.IGNORE_CASE,
+    )
+
+    /** A path as an include pattern: `,` and `;` would split it, and `?` matches them as well. */
+    private fun asPattern(relative: String): String = relative.replace(',', '?').replace(';', '?')
+
+    /** The files under [folder], relative, with `\`, in a stable order. */
+    fun filesIn(folder: Path): List<String> = Files.walk(folder).use { paths ->
+        paths.filter { Files.isRegularFile(it) }
+            .map { folder.relativize(it).joinToString("\\") }
+            .sorted()
+            .toList()
+    }
+
+    /**
+     * The lists [build] packs with, as text for the release build's record of an addon: editing a
+     * list changes the PBO as much as editing a file does. A list file is read, so a change to its
+     * patterns counts, and the default list is spelled out, so a new default rebuilds too.
+     */
+    fun listsRecord(build: AddonBuild, read: (Path) -> String? = { runCatching { Files.readString(it) }.getOrNull() }): String {
+        fun describe(patterns: List<String>?, file: Path?, default: List<String>?): String = when {
+            patterns != null -> patterns.joinToString(";")
+            file != null -> "$file: " + (read(file) ?: "missing").replace("\r", "").replace('\n', ' ')
+            else -> default?.joinToString(";").orEmpty()
+        }
+        val include = describe(build.includePatterns, build.include, DEFAULT_INCLUDE.takeUnless { build.packOnly })
+        return "include=$include\nexclude=${describe(build.excludePatterns, build.exclude, null)}\n"
+    }
+
+    /**
+     * Windows' path limit, less its terminating NUL. Addon Builder copies each file it packs into
+     * its temp folder first, and a copy whose path is longer fails with a bare `Build failed`. A
+     * release build whose temp folder sat 200 characters deep, in a sandbox IDE's system folder,
+     * failed on every file more than about 60 characters into its addon.
+     */
+    const val MAX_PATH = 259
+
+    /**
+     * A temp folder for Addon Builder under [systemTemp], Windows' own temp folder, which is where
+     * Addon Builder works by default. It is short, unlike the IDE's system folder, so deep addon
+     * paths stay under [MAX_PATH]. [key] keeps builds apart.
+     */
+    fun shortTemp(systemTemp: Path, key: String): Path =
+        systemTemp.resolve("enfusion-ab").resolve(Integer.toHexString(key.hashCode()))
+
+    /**
+     * The file Addon Builder was writing when it stopped, when its path is past [MAX_PATH]: the
+     * copy of its last `Syncing file "…"` with no `File sync done` after it, in the `[sync]=`
+     * folder it named, or the `[dest]=` of a `Copying PBO` with no `Done.` after it.
+     */
+    fun tooLongCopy(output: String): String? {
+        var folder: String? = null
+        var pending: String? = null
+        for (line in output.lineSequence()) {
+            SYNC_FOLDER.find(line)?.let { folder = it.groupValues[1].trim() }
+            SYNCING_FILE.find(line)?.let { file -> folder?.let { pending = it.trimEnd('\\') + "\\" + file.groupValues[1] } }
+            COPYING_PBO.find(line)?.let { pending = it.groupValues[1].trim() }
+            if (line.contains("File sync done") || line.trimEnd().endsWith("]: Done.")) pending = null
+        }
+        return pending?.takeIf { it.length > MAX_PATH }
+    }
+
+    /** What to say about [tooLongCopy]'s result. */
+    fun tooLongMessage(copy: String): String =
+        "Addon Builder could not write $copy: ${copy.length} characters, past Windows' limit of 260. " +
+            "A shorter path to the addon's files or to the output folder avoids it."
+
+    /**
+     * Two lines the Steam API prints on stderr each time Addon Builder starts. They are no error,
+     * and shown in red they hid the real ones.
+     */
+    fun isSteamNoise(text: String): Boolean =
+        text.startsWith("Setting breakpad minidump AppID") || text.startsWith("Steam_SetMinidumpSteamID")
+
+    private val SYNC_FOLDER = Regex("""\[sync]=(.+)$""")
+    private val SYNCING_FILE = Regex("""Syncing file "(.+)"""")
+    private val COPYING_PBO = Regex("""Copying PBO\. \[source]=.*, \[dest]=(.+)$""")
 
     /** The build's outcome from its output, the last verdict line winning. */
     fun result(output: String): Result {

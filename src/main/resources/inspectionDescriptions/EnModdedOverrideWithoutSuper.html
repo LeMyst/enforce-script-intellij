@@ -1,0 +1,33 @@
+<html><body>
+Reports an <code>override</code> in a <code>modded class</code> whose body never calls
+<code>super</code> with the method's own name.
+<p>
+In a <code>modded class</code>, <code>super.Method()</code> calls the previous layer: other mods'
+layers and, at the end of the chain, vanilla. An override that never calls it drops all of them.
+The mod still compiles and works when tested alone, and breaks only next to other mods:
+<code>SetActions</code> without <code>super.SetActions()</code> removes every other action from the
+item, and <code>OnStoreSave</code> / <code>OnStoreLoad</code> without it desynchronise the
+persistence stream, so items fail to load after a restart.
+</p>
+<p>
+One call anywhere in the body is enough, in any branch. Methods of an ordinary subclass are never
+reported: replacing a method's behaviour there is ordinary.
+</p>
+<p>
+By default only <code>void</code> methods are reported, plus a few whose <code>super</code> call is
+needed whatever they return: <code>OnStoreSave</code>, <code>OnStoreLoad</code>,
+<code>SetActions</code>, <code>EEInit</code>, <code>EEDelete</code>, <code>OnRPC</code>,
+<code>OnVariablesSynchronized</code> and <code>OnInit</code>. A value-returning override is usually
+an intended replacement (<code>return false;</code>); the option reports those too.
+</p>
+<p>
+<b>Add super call</b> inserts the call as the first statement. In a <code>bool</code> method it
+keeps the shape vanilla's persistence uses:
+<code>if (!super.OnStoreLoad(ctx, version)) return false;</code>.
+For the rare intended replacement, suppress the warning on that method.
+</p>
+<p>
+Nothing is reported when the overridden method cannot be found, such as a base in a dependency mod
+that is not among the script roots.
+</p>
+</body></html>

@@ -27,6 +27,33 @@ class EnfusionMethodPresentationTest : BasePlatformTestCase() {
         assertTrue(locations.toString(), locations.any { it.startsWith("(int id): void  —  modded DayZGame · ") && it.endsWith("expansion/dayzgame.es") })
     }
 
+    /**
+     * A mod of several addons repeats the same paths in each, so the addon is named too: the
+     * outermost folder with a `config.cpp`, the PBO, and only when its name is not the mod's.
+     */
+    fun testLocationNamesTheAddonInsideAMod() {
+        myFixture.addFileToProject("mymod/SafeZone/config.cpp", "class CfgPatches {};")
+        myFixture.addFileToProject("mymod/SafeZone/scripts/config.cpp", "class CfgPatches {};")
+        val inAddon = myFixture.addFileToProject("mymod/SafeZone/scripts/4_World/zone.es", "class Zone {}")
+        myFixture.addFileToProject("single/config.cpp", "class CfgPatches {};")
+        val modIsAddon = myFixture.addFileToProject("single/scripts/4_World/one.es", "class One {}")
+        myFixture.addFileToProject("named/named/config.cpp", "class CfgPatches {};")
+        val sameName = myFixture.addFileToProject("named/named/scripts/two.es", "class Two {}")
+
+        val settings = io.github.lemyst.enfusion.settings.EnfusionProjectSettings.getInstance(project)
+        val saved = settings.roots
+        try {
+            settings.roots = listOf("/src/mymod", "/src/single", "/src/named")
+            fun location(file: com.intellij.psi.PsiFile) =
+                PsiTreeUtil.findChildOfType(file, io.github.lemyst.enfusion.psi.impl.EnClassDeclMixin::class.java)!!.fileLocation()
+            assertEquals("mymod/SafeZone · scripts/4_World/zone.es", location(inAddon))
+            assertEquals("single · scripts/4_World/one.es", location(modIsAddon))
+            assertEquals("named · named/scripts/two.es", location(sameName))
+        } finally {
+            settings.roots = saved
+        }
+    }
+
     /** The Structure view lists one file's members, so the class and file would only repeat. */
     fun testStructureViewShowsTheSignatureOnly() {
         val file = myFixture.configureByText("a.es", "class A { int Get(string key) { return 0; } }")
