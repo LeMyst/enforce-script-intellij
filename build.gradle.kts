@@ -81,6 +81,13 @@ intellijPlatform {
               <li>A viewer for <code>.edds</code> and <code>.paa</code> textures that outlines each
                   imageset image on its atlas, with texture and icon previews on hover and in the
                   gutter</li>
+              <li>DayZ tooling: the paths and the work drive, DayZ Tools, Addon Builder PBOs, a run
+                  configuration for a server and clients with the game's logs in a console, a
+                  release build and Workshop publishing</li>
+              <li>A preview of <code>.layout</code> files beside their text, imageset packing and
+                  extraction, and colour swatches with a picker</li>
+              <li>Quick Documentation, inlay hints, Override Methods, live and file templates,
+                  <code>stringtable.csv</code> as a table, and formatters for scripts and configs</li>
             </ul>
             <p>
             <a href="https://lemyst.github.io/enforce-script-intellij/">Documentation</a>, with
@@ -90,46 +97,68 @@ intellijPlatform {
             DayZ and Enfusion are trademarks of Bohemia Interactive a.s.
         """.trimIndent()
         changeNotes = """
+            <p><b>DayZ tools in the IDE</b></p>
             <ul>
-              <li><b>Texture viewer.</b> <code>.edds</code> and <code>.paa</code> files open as
-                  images, with zoom, a transparency checkerboard, a picker for every mip level and
-                  the pixel format in the status line. DXT1, DXT3, DXT5 and uncompressed textures
-                  are shown, raw or compressed. BC7 font atlases and the rare uncompressed
-                  <code>.paa</code> formats are named instead of shown.</li>
-              <li><b>Imageset outlines.</b> Over an atlas, the viewer outlines every image an
-                  imageset places on it, on the 1x and the 2x texture alike, so an icon with no
-                  <code>ImageSetDefClass</code> yet stands out. Hovering an outline names the image;
-                  double-clicking opens its entry. <i>Show Imageset Regions</i> turns them off.</li>
-              <li><b>Previews on hover.</b> Hovering a texture path, such as
-                  <code>picture="…/Mod_Logo.paa"</code>, shows the texture. Hovering an imageset
-                  image, such as <code>"set:dayz_gui image:DayZLogo"</code>, shows that one icon cut
-                  out of its atlas.</li>
-              <li><b>Texture icons in the gutter</b> beside imageset entries and beside lines
-                  that name a texture or an imageset image, in scripts, layouts and configs.
-                  Clicking one goes to the entry or the texture. They can be turned off under
-                  <i>Settings | Editor | General | Gutter Icons</i>, for configs separately.</li>
-              <li>Find in Files no longer matches inside textures, so texture folders no longer
-                  need excluding to keep results clean.</li>
-              <li>Texture paths now resolve to textures larger than 2.5 MB, and paths that start
-                  with a <code>{GUID}</code>, as imagesets and layouts write them.</li>
-              <li><b>Packed <code>.pbo</code> roots.</b> A root in <i>Settings | Languages &amp;
-                  Frameworks | Enforce Script</i> can be a <code>.pbo</code> file, for dependencies
-                  that exist only as Workshop mods. Its scripts, configs, layouts, imagesets and
-                  stringtables navigate like a source checkout, and <code>config.bin</code> is
-                  rebuilt as a readable <code>config.cpp</code>. Only those files are unpacked, to a
-                  cache in the IDE's system folder, and they open read-only.</li>
-              <li>A <b>folder root</b> now also brings in every <code>.pbo</code> under it, so one
-                  entry covers an <code>@Mod</code>, a whole <code>!Workshop</code> folder or a
-                  game install's <code>addons</code>. Folders are scanned again each time the
-                  project opens, behind a progress bar that can be cancelled. Adding a folder with
-                  more than 20 PBOs asks first.</li>
-              <li><b>PBO browser.</b> Opening a <code>.pbo</code> lists its entries, with a filter.
-                  <kbd>Enter</kbd> or a double-click opens entries read-only: scripts and layouts
-                  with their language, binarised configs as text, textures in the viewer.</li>
-              <li>A config class whose name starts with digits, such as vanilla's
-                  <code>1kHz_mono_1s_SoundShader</code>, no longer breaks parsing of the rest of
-                  the file.</li>
+              <li><b>DayZ paths.</b> <i>Settings | Tools | DayZ</i> finds DayZ, DayZ Tools and the work
+                  drive from Steam and DayZ Tools' own settings, once for every project.</li>
+              <li><b>Work drive and DayZ Tools.</b> Mount and unmount the work drive, open DayZ Tools
+                  and its tools, start Workbench on the project's mod with file patching, and extract
+                  the game data, which is offered when it is missing.</li>
+              <li><b>Build PBO</b> on an addon folder runs Addon Builder, with its log in a
+                  <i>Run</i> tab and the config error's line as a link. Its command line packs only
+                  what the include list names, so the plugin passes one: scripts, layouts,
+                  imagesets, textures, stringtables, data files, and <code>LICENSE</code> and
+                  <code>NOTICE</code>. Include and exclude lists can be set per addon.</li>
+              <li><b>DayZ run configuration.</b> Starts a server and any number of clients, or an
+                  offline mission, packing the project's addons into a mod first, only those that
+                  changed. The game's logs open in a console where errors link to their file and
+                  line. <i>Check Scripts</i> compiles the mod through DayZ Diag.</li>
+              <li><b>DayZ Mod Build</b> builds the mod for release: every addon, signed, with
+                  third-party PBOs and keys copied, and only what changed rebuilt. <b>Workshop
+                  publishing</b> uploads the result through SteamCMD, which it can download.</li>
+              <li><i>File | New</i> creates a DayZ mod or an addon, and optional buttons on the main
+                  toolbar reach the tools above.</li>
             </ul>
+            <p><b>Editing</b></p>
+            <ul>
+              <li><b>Quick Documentation</b> (<kbd>Ctrl+Q</kbd>): the signature, the Doxygen comment
+                  as vanilla writes it, and where a declaration comes from, with its
+                  <code>modded class</code> layers and what it overrides.</li>
+              <li><b>Inlay hints</b>: parameter names before literal arguments, with an editable
+                  exclude list, and the type an <code>auto</code> variable gets.</li>
+              <li><b>Override Methods</b> (<kbd>Ctrl+O</kbd>) generates overrides of the superclass
+                  chain and of the other <code>modded class</code> layers, with super calls; gutter
+                  icons show which layers and subclasses override a class or method.</li>
+              <li><b>Inspections</b>: a <code>modded class</code> override that never calls
+                  <code>super</code>; a name used from a later script module; a config base class
+                  that Addon Builder would not find, with a fix that declares it.</li>
+              <li><b>Formatting</b> keeps vanilla's indentation of braceless bodies, case bodies and
+                  continuation lines, and <code>config.cpp</code> / <code>mod.cpp</code> get an
+                  indentation-only formatter. Alignment tabs inside a line are kept.</li>
+              <li><b>Colour swatches</b> in the gutter for layout colours, <code>ARGB</code> /
+                  <code>ARGBF</code> calls, colour constants, <code>.styles</code> files and
+                  procedural textures, with the colour picker writing the value back.</li>
+              <li><b>Live templates</b> (<code>modc</code>, <code>onrpc</code>, <code>ifs</code>, ...)
+                  and file templates for a class, a <code>modded class</code> and a scripted
+                  menu.</li>
+              <li><b>stringtable.csv</b> opens as a table, a missing key can be created from the code,
+                  keys are found ignoring case in configs and in the vanilla stringtable, and
+                  <code>"#STR_…"</code> strings fold to their text.</li>
+              <li>Item class names in script strings, such as <code>CreateInInventory("Apple")</code>,
+                  go to their config class.</li>
+            </ul>
+            <p><b>Layouts and images</b></p>
+            <ul>
+              <li><b>Layout preview</b> beside a <code>.layout</code>'s text, with panel, button and
+                  window styles drawn as the game draws them, and colours as the game shows
+                  them.</li>
+              <li><b>Imagesets</b>: pack a folder of pictures into an <code>.edds</code> atlas and its
+                  <code>.imageset</code>, as BGRA8, DXT1 or DXT5 with LZ4 mips, and extract an
+                  imageset's images back into pictures. Packing over an imageset keeps its name.</li>
+              <li>BC7 textures are decoded in the viewer, the previews and the gutter icons.</li>
+            </ul>
+            <p>The <a href="https://lemyst.github.io/enforce-script-intellij/">documentation</a> is
+            now a site, with a page for each feature and what it does not support yet.</p>
         """.trimIndent()
         vendor {
             name = "Myst"
