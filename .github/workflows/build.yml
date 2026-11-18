@@ -1,4 +1,5 @@
-# Build, test and verify on every push to master and every pull request.
+# Build, test and verify on every push to master and every pull request. The Plugin Verifier is
+# skipped when nothing that reaches the plugin changed; the release workflow always runs it.
 #
 # The corpus tests skip here: they need the vanilla DayZ scripts, which are proprietary and never
 # leave a developer's machine. Run them locally before a release (see AGENTS.md).
@@ -18,9 +19,40 @@ jobs:
   build:
     name: Build and test
     runs-on: ubuntu-latest
+    outputs:
+      plugin: ${{ steps.changes.outputs.plugin }}
     steps:
       - name: Fetch sources
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # A pull request is checked out as its merge commit; depth 2 brings in its parents, the
+          # first of which is the base branch the change step diffs against.
+          fetch-depth: 2
+
+      # The verifier downloads several GB of IDEs, which is wasted on a change that never reaches
+      # the plugin. Whenever this step cannot tell (a manual run, a base commit it cannot fetch,
+      # a failing diff), it answers true and the verifier runs.
+      - name: Check whether the plugin changed
+        id: changes
+        env:
+          EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+          # Never packed into the plugin: the documentation site, top-level Markdown, and the
+          # configuration of Dependabot and of the other workflows.
+          NOT_PLUGIN: '^(docs/|[^/]+\.md$|\.github/dependabot\.yml$|\.github/workflows/(pages|release)\.yml$)'
+        run: |
+          base=
+          case "$EVENT" in
+            pull_request) base=HEAD^1 ;;
+            push) git fetch --quiet --depth=1 origin "$BEFORE" && base=$BEFORE ;;
+          esac
+          plugin=true
+          if [ -n "$base" ] && files=$(git diff --name-only "$base" HEAD) \
+              && ! printf '%s\n' "$files" | grep -qvE "$NOT_PLUGIN"; then
+            plugin=false
+          fi
+          echo "plugin=$plugin" >> "$GITHUB_OUTPUT"
+          echo "Plugin changed: $plugin"
 
       - name: Set up Java
         uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
@@ -52,6 +84,7 @@ jobs:
   verify:
     name: Plugin Verifier
     needs: [ build ]
+    if: ${{ needs.build.outputs.plugin == 'true' }}
     runs-on: ubuntu-latest
     steps:
       # The verifier downloads and unpacks every recommended IDE, several GB each.
