@@ -70,6 +70,26 @@ class EnfusionWorkshopPublishTest : TestCase() {
         assertNull(runCatching { WorkshopPublish.batch(root, "a b", root, root) }.getOrNull())
     }
 
+    /** The sandbox review: an upload SteamCMD logged as OK ended with exit code 7. */
+    fun testVerdictFromTheWorkshopLog() {
+        val log = """
+            [2026-01-01 10:00:00] Client version: 1
+            [2026-01-01 10:00:09] [AppID 221100] Create new workshop item of type Community for AppID 221100 : 1234 (OK)
+            [2026-01-01 10:00:09] [AppID 221100] Upload starting for workshop item 1234 by AppID 221100
+            [2026-01-01 10:00:15] [AppID 221100] Upload finished for workshop item 1234 : OK
+        """.trimIndent()
+        assertEquals(WorkshopPublish.LoggedUpload("1234", "OK"), WorkshopPublish.lastUpload(log))
+        assertTrue(WorkshopPublish.lastUpload(log)!!.succeeded)
+        val failed = WorkshopPublish.lastUpload("... Upload finished for workshop item 1234 : AccessDenied\n")!!
+        assertFalse(failed.succeeded)
+        assertEquals("AccessDenied", failed.result)
+        assertNull(WorkshopPublish.lastUpload("[2026-01-01 10:00:00] Client version: 1\n"))
+        assertEquals(
+            java.nio.file.Path.of("SteamCMD", "logs", "workshop_log.txt"),
+            WorkshopPublish.workshopLog(java.nio.file.Path.of("SteamCMD", "steamcmd.exe")),
+        )
+    }
+
     fun testExitCode() {
         assertEquals(0, WorkshopPublish.exitCode("0 \r\n"))
         assertEquals(8, WorkshopPublish.exitCode("8"))

@@ -121,6 +121,25 @@ object WorkshopPublish {
     /** SteamCMD's exit code as the batch file wrote it, or null when it did not run to the end. */
     fun exitCode(resultText: String?): Int? = resultText?.trim()?.toIntOrNull()
 
+    /** An upload as SteamCMD logs it: `Upload finished for workshop item 123 : OK`. */
+    data class LoggedUpload(val itemId: String, val result: String) {
+        val succeeded: Boolean get() = result.equals("OK", ignoreCase = true)
+    }
+
+    /** Where SteamCMD logs Workshop uploads: `logs\workshop_log.txt` beside `steamcmd.exe`. */
+    fun workshopLog(steamCmdExe: Path): Path = steamCmdExe.resolveSibling("logs").resolve("workshop_log.txt")
+
+    /**
+     * The last upload in [logText], the lines SteamCMD added to its Workshop log during this run.
+     * This, not the exit code, is the verdict: a run whose upload this log reports `OK` ended with
+     * code 7. Community reports tie 7 to the run where SteamCMD updates itself, which the first
+     * run after the download always is.
+     */
+    fun lastUpload(logText: String): LoggedUpload? =
+        UPLOAD_FINISHED.findAll(logText).lastOrNull()?.let { LoggedUpload(it.groupValues[1], it.groupValues[2]) }
+
+    private val UPLOAD_FINISHED = Regex("""Upload finished for workshop item (\d+) : (\w+)""")
+
     /**
      * The change note from a changelog: the first section of a Markdown file, its heading left out,
      * up to the next heading of the same or a higher level. `## 1.2.0` then its list gives the

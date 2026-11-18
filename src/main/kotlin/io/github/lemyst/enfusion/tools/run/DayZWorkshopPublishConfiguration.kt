@@ -172,6 +172,9 @@ class DayZWorkshopPublishConfiguration(project: Project, factory: ConfigurationF
             Files.deleteIfExists(result)
             Files.writeString(vdf, WorkshopPublish.vdf(item))
             Files.writeString(batch, WorkshopPublish.batch(steamCmd, account, vdf, result))
+            // SteamCMD appends to its log: only what this run adds is about this upload.
+            val log = WorkshopPublish.workshopLog(steamCmd)
+            val logStart = runCatching { Files.size(log) }.getOrDefault(0L)
 
             val handler = OSProcessHandler(GeneralCommandLine(WorkshopPublish.commandLine(batch)).withWorkDirectory(work.toFile()))
             handler.addProcessListener(object : ProcessListener {
@@ -185,16 +188,21 @@ class DayZWorkshopPublishConfiguration(project: Project, factory: ConfigurationF
 
                 override fun processTerminated(event: ProcessEvent) {
                     val code = WorkshopPublish.exitCode(runCatching { Files.readString(result) }.getOrNull())
-                    val id = runCatching { WorkshopPublish.publishedFileId(Files.readString(vdf)) }.getOrNull()
+                    val upload = runCatching { WorkshopPublish.lastUpload(appendedSince(log, logStart)) }.getOrNull()
+                    val id = upload?.itemId ?: runCatching { WorkshopPublish.publishedFileId(Files.readString(vdf)) }.getOrNull()
+                    val succeeded = upload?.succeeded ?: (code == 0)
                     val message = when {
+                        upload != null && upload.succeeded -> "Uploaded: https://steamcommunity.com/sharedfiles/filedetails/?id=$id\n"
+                        upload != null -> "SteamCMD reported ${upload.result} for item ${upload.itemId}: see its window for why.\n"
                         code == null -> "SteamCMD did not finish: its window was closed early. Nothing is known about the upload.\n"
                         code != 0 -> "SteamCMD failed with code $code: see its window for why.\n"
                         id != null -> "Uploaded: https://steamcommunity.com/sharedfiles/filedetails/?id=$id\n"
                         else -> "SteamCMD finished, but wrote no item ID back.\n"
                     }
-                    handler.notifyTextAvailable(message, if (code == 0) ProcessOutputTypes.SYSTEM else ProcessOutputTypes.STDERR)
+                    // On a line of its own: closing SteamCMD's window can leave a `^C` before it.
+                    handler.notifyTextAvailable("\n" + message, if (succeeded) ProcessOutputTypes.SYSTEM else ProcessOutputTypes.STDERR)
                     // A new item: remember its ID, so the next upload updates it instead of making another.
-                    if (code == 0 && id != null && options.itemId.isNullOrBlank()) {
+                    if (succeeded && id != null && options.itemId.isNullOrBlank()) {
                         ApplicationManager.getApplication().invokeLater({ options.itemId = id }, ModalityState.any())
                     }
                 }
@@ -205,5 +213,13 @@ class DayZWorkshopPublishConfiguration(project: Project, factory: ConfigurationF
 
     private companion object {
         fun folderName(name: String): String = name.replace(Regex("[^A-Za-z0-9._-]+"), "_").take(60)
+
+        /** What [file] gained past [start]; all of it if it is now shorter, as after a rotation. */
+        fun appendedSince(file: Path, start: Long): String {
+            Files.newByteChannel(file).use { channel ->
+                channel.position(if (channel.size() < start) 0 else start)
+                return String(java.nio.channels.Channels.newInputStream(channel).readAllBytes(), Charsets.UTF_8)
+            }
+        }
     }
 }

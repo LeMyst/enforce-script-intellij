@@ -67,5 +67,8 @@ line, so SteamCMD's `workshop_build_item` is the scriptable way.
   size, the visibility and the change note.
 - **The login:** only the *Steam account* name is stored. SteamCMD opens in a console window of its
   own, where its password and Steam Guard prompts are answered the first time; SteamCMD keeps the
-  login after that. The IDE never asks for, sees or stores them. The *Run* tab says when the window
-  is closed, with the item's link or SteamCMD's exit code.
+  login after that. The IDE never asks for, sees or stores them.
+- **The result:** the *Run* tab says when the window is closed, with the item's link or what went
+  wrong. It's read from what SteamCMD adds to its `logs\workshop_log.txt` during the run, since
+  SteamCMD can end a successful upload with a non-zero exit code, 7 when it has just updated
+  itself. The exit code is used only when the log names no upload.
