@@ -23,8 +23,8 @@ its sources.
 
 ## What is unpacked
 
-- **Only the navigable part is unpacked:** scripts (`.c`), layouts, imagesets, stringtables, other
-  small text files, and `config.bin`, which is rebuilt as a readable, indented `config.cpp` and then
+- **Only the navigable part is unpacked:** scripts (`.c`), layouts, imagesets, stringtables,
+  `.xml`, `.json`, `.h` / `.hpp` / `.cpp` files, and `config.bin`, which is rebuilt as a readable, indented `config.cpp` and then
   gets the full config support. Models, textures, sounds and everything else stay in the PBO, so a
   multi-gigabyte texture PBO costs only its header. Entries over 16 MB are skipped.
 - The files go to `enfusion-pbo` in the IDE's system directory, under the PBO's prefix, so packaged

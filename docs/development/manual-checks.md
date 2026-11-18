@@ -415,7 +415,8 @@ With `P:\DZ` (or the game's `Addons` as a PBO root) in the roots.
   - The server's command line has the shared `-mod=` plus `-serverMod=` for the *Server only* rows;
     the clients' have no server-only mod.
   - *Stop* closes all four.
-- Tick the three *Before Launch* boxes with a server and a mission → the console's first lines say
+- Tick both *Before Launch* boxes and *Wipe the mission's storage_\* folders*, with a server and a
+  mission → the console's first lines say
   what was stopped, cleared and wiped; the mission's `storage_*` folders are gone.
 - Two players with the same name → an error in the configuration. Several players without Goldberg
   → a warning. Neither box ticked → an error.
@@ -483,7 +484,7 @@ With `P:\DZ` (or the game's `Addons` as a PBO root) in the roots.
   notification. *Build PBO* again → no dialog.
 - Open the built PBO in the IDE, with no include list set → its scripts, layouts, imagesets,
   `stringtable.csv`, textures and data files are there beside `config.bin`. The command line in
-  the *Run* tab ends with `-include=…include.lst`.
+  the *Run* tab has `-include=…include.lst`.
 - Break `config.cpp` (delete a `}`) and build without *Pack only* → *Build failed*, an error
   notification, and the `File …, line N` line is a link to the config.
 - Build with a signing key → the `.bisign` appears; with no `.bikey` in `@Mod\Keys` → a warning.
@@ -524,10 +525,11 @@ With `P:\DZ` (or the game's `Addons` as a PBO root) in the roots.
 
 With a **private test item** (or none, to create one, set to *Private*).
 
-- Without SteamCMD: a new *DayZ Workshop Publish* → the error *SteamCMD not found* with *Fix* →
-  the confirmation names `%LOCALAPPDATA%\SteamCMD` → *Download* → a progress bar, then the
-  configuration's *SteamCMD* row shows `…\SteamCMD\steamcmd.exe`, and so does *Settings → … →
-  DayZ Installation → Steam Workshop*.
+- Without SteamCMD: a new *DayZ Workshop Publish* with *Mod folder* set to a built mod → the error
+  *SteamCMD not found* with *Fix* → the confirmation names `%LOCALAPPDATA%\SteamCMD` → *Download*
+  → a progress bar, then the configuration's *SteamCMD* row shows `…\SteamCMD\steamcmd.exe`, and
+  the *SteamCMD* field under *Settings → … → DayZ Installation → Steam Workshop* shows
+  `…\SteamCMD`.
 - *Description* and *Change note* have a border, and scroll when the text is long.
 - *DayZ Workshop Publish* with the built mod folder, the account name, visibility
   *Private* and a change note → *Run* → a confirmation with the folder's size and the note.
@@ -536,7 +538,8 @@ With a **private test item** (or none, to create one, set to *Private*).
   runs. Close the window → the *Run* tab gives the item's link, and the configuration now holds
   the item ID.
 - Run again with another change note → no password asked; the item's *Change Notes* tab has both.
-- Leave the change note empty and set a `CHANGELOG.md` → its newest section is the note.
+- Leave the change note empty and set a `CHANGELOG.md` whose first heading is its newest
+  `## 1.2.0` section → that section is the note.
 
 ## Layout preview
 

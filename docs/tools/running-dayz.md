@@ -17,7 +17,8 @@ settings, and everything it starts runs in one *Run* tab, where *Stop* stops it 
 
 - With both, the server starts first. The clients follow *Start the clients … seconds after the
   server* later (5 by default) and join it on `127.0.0.1` at *Port*.
-- Each line of output starts with `[Server]` or the player's name.
+- With more than one process, each line of output starts with `[Server]` or `[<player>]`, an
+  unnamed player being `Client 1`, `Client 2`, and so on.
 
 ## The editor
 

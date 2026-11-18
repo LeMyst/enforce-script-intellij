@@ -64,7 +64,7 @@ equivalent:
   deprecated `getSettingsPreview()` is not implemented; the preview is the resource
   `inlayProviders/Parameters/preview.es`.
 
-Either would break loudly rather than silently if the platform changed it, and the verifier is what
+Each would break loudly rather than silently if the platform changed it, and the verifier is what
 would catch it. **Internal** API usage is deliberately kept at zero. (`FileTypeOverrider` was a
 further such usage until 2025.2, when it stopped being marked experimental.)
 

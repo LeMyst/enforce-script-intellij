@@ -36,7 +36,7 @@ the picture's own edge pixels.
 
 The atlas is BGRA8 by default, with a full mip chain: the format of most vanilla UI atlases (13 of
 the 23 under `P:\gui\imagesets`), with every mip stored raw as in `dayz_gui.edds`, whose header it
-copies.
+copies. Turning off *Mipmaps* writes the full size only.
 
 - **Format:** *BGRA8* keeps every pixel. *DXT5* (BC3) is a quarter of its size and keeps smooth
   alpha, the usual choice for icons, as vanilla's `dayz_gui@2x.edds`. *DXT1* (BC1) is half of
@@ -44,9 +44,11 @@ copies.
   DXT1 asks first. The block encoders are fast ones, made for flat UI art.
 - **Compress the mipmaps with LZ4:** each mip of 64 bytes or more is stored LZ4-compressed when
   that makes it smaller, and raw otherwise, in vanilla's layout of 64 KiB chunks; this is the rule
-  every vanilla `.edds` follows. The `.imageset` lists the images by name
-and names the atlas by its game path (the addon's prefix and the path inside it, prefilled), without
-a `{GUID}`, as vanilla's `dayz_inventory.imageset` does.
+  every vanilla `.edds` follows.
+
+A new `.imageset` lists the images by name and names the atlas by its game path (the addon's prefix
+and the path inside it, prefilled), without a `{GUID}`, as vanilla's `dayz_inventory.imageset` does.
+Packing over an existing one keeps its path as written, `{GUID}` included.
 
 **Repeatable:** the same pictures and options give byte-identical files, so packing again with
 no change is no diff.

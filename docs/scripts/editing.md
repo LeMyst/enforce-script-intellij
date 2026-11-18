@@ -10,7 +10,10 @@ nav_order: 4
 
 **Syntax highlighting** for the whole language, including doc comments and preprocessor directives.
 Typing `"` inserts its closing quote, and a string left without one is reported on the string
-itself (*Missing closing quote*) rather than as a parse error on whatever follows it.
+itself (*Missing closing quote*) rather than as a parse error on whatever follows it. An unclosed
+`/*` is reported as *Unclosed comment*, in scripts, layouts and configs. The colours are under
+*Settings → Editor → Color Scheme → Enforce Script*. *Comment with Line Comment* and *Block
+Comment* work, and braces, brackets and parentheses are matched.
 
 ## Colour swatches
 
@@ -43,6 +46,9 @@ Enforce Script; widget declarations and their children blocks in `.layout`/`.ima
 Also on `#ifdef`/`#ifndef` regions, which fold whole (not per `#else` arm) and keep the flag visible
 while collapsed — `#ifdef SERVER ... #endif`. A branch the current define set *excludes* folds too,
 and starts collapsed.
+
+Stringtable keys fold to their text: see
+[Stringtables](../game-files/stringtables.md#texts-in-place-of-keys).
 
 ## Formatter
 

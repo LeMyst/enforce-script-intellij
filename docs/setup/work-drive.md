@@ -7,8 +7,9 @@ nav_order: 4
 # Work drive
 
 *Tools → DayZ → Mount Work Drive* and *Unmount Work Drive* mount the work-drive folder as its
-letter (`P:` unless DayZ Tools says otherwise), and a status-bar entry shows `P: → <folder>` or
-`P: not mounted`, with both actions in its popup. It hides itself when no work-drive folder is found.
+letter (`P:` unless DayZ Tools says otherwise), and a status-bar entry shows `P: → <folder>`,
+`P: not mounted` or `P: (disk)`; its popup offers *Mount Work Drive* or *Unmount Work Drive*,
+whichever applies, and *Refresh*. It hides itself when no work-drive folder is found.
 
 - With DayZ Tools installed, its own `Bin\WorkDrive\WorkDrive.exe /Mount <folder>` and
   `/Dismount` do the work, so the result is what the DayZ Tools launcher would do; WorkDrive takes

@@ -83,4 +83,4 @@ Column colouring and the column name at the caret in the text tab. The *original
 CSV has no room for it. A cell holding a line break shows it as `⏎` in the table and is edited on
 one line. The IDE writes a file back with one line separator throughout, so in a CRLF stringtable
 that has line breaks *inside* cells (the vanilla one has 250), saving turns those into CRLF too.
-Library stringtables, such as the vanilla one, open read-only.
+The *Table* tab of a library stringtable, such as the vanilla one, is read-only.

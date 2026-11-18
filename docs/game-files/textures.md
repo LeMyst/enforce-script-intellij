@@ -46,8 +46,11 @@ An imageset image is cut out of its atlas, so the popup shows that one icon rath
 sheet; when an imageset names a 1x and a 2x texture, the sharper one is used. Only the mip the
 preview needs is decoded, and previews are cached until the texture changes.
 
-**Not covered:** vanilla textures outside `gui/imagesets`, such as `P:\gui\textures`, are not in the
-library roots, so a path into them does not resolve and shows nothing. Nor do imagesets and textures
+A path into a vanilla folder that is not a root, such as `Gui/textures/…`, is looked up on the work
+drive as written; only the whole path is tried there, so a shorter one shows nothing.
+
+**Not covered:** the textures of a packed `.pbo` root, which stay in the PBO (open the `.pbo` to view
+one), so its imageset icons get no hover, gutter icon or preview. Nor do imagesets and textures
 in a folder marked **Excluded**, which the IDE does not index. After un-excluding one, if the preview
 still does not appear, *File → Invalidate Caches…* makes the IDE index it.
 

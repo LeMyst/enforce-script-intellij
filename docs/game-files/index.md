@@ -7,4 +7,4 @@ has_children: true
 # Game files
 
 The files around the scripts: `.layout` files and their preview, `.edds` and `.paa` textures,
-imagesets, and `stringtable.csv`.
+imagesets, packed from pictures and extracted back into them, and `stringtable.csv`.

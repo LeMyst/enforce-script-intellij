@@ -13,7 +13,8 @@ the client and server profile folders, and SteamCMD's folder. The [tooling featu
 - **Detected, not typed.** A field left empty uses the detected location, shown in grey, and its
   folder button opens there, ready to pick a folder nearby. The DayZ,
   DayZ Server and DayZ Tools folders come from Steam's own records (`libraryfolders.vdf` and each
-  app's `appmanifest_*.acf`), so a game installed in another Steam library is found too. The
+  app's `appmanifest_*.acf`), so a game installed in another Steam library is found too; the DayZ
+  folder otherwise comes from DayZ Tools' `settings.ini`. The
   work-drive folder and letter come from DayZ Tools' `settings.ini`, as its launcher sets them, and
   the client profile is `%LOCALAPPDATA%\DayZ`. The server profile is never detected: each server
   chooses its own with `-profiles=`. SteamCMD has no installer and no record, so it is found only
@@ -31,8 +32,8 @@ the client and server profile folders, and SteamCMD's folder. The [tooling featu
   `%LOCALAPPDATA%\SteamCMD`. It unpacks only `steamcmd.exe`, which downloads the rest of itself
   on its first start. [Publishing to the Workshop](../tools/release-build.md#publishing-to-the-steam-workshop)
   needs it.
-- **Not supported:** detection outside Windows, and DayZ installs that Steam does not know about
-  (a copied game folder): set those by hand.
+- **Not supported:** detection outside Windows, and DayZ installs that neither Steam nor DayZ
+  Tools' `settings.ini` knows about (a copied game folder): set those by hand.
 
 The same page holds Workbench's *Mod folder* (see
 [Workbench on the project's mod](../tools/dayz-tools.md#workbench-on-the-projects-mod)) and the
