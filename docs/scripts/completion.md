@@ -47,6 +47,25 @@ functions, and `new X(...)` constructors. All overloads are listed even where Ct
 one, since a call being typed has not chosen yet; one that cannot take the arguments typed so far is
 greyed out, and an override redeclared by several `modded class` layers is shown once.
 
+## Inlay hints
+
+**Parameter names** before the literal arguments of a call, so that
+`CallLater(Refresh, 1000, false)` reads `CallLater(Refresh, delay: 1000, repeat: false)`:
+
+- Only before a number (a negated one too), `true` / `false`, `null` or a string, as Java does.
+  A name or a constant usually says what it is already.
+- Only when every overload the call may mean has the same parameter name at that position, so a
+  hint is never a guess; and not for a one-parameter method named `Set…`.
+- An exclude list under *Settings → Editor → Inlay Hints → Parameter names → Enforce Script*,
+  prefilled with the calls whose arguments are obvious: `Print`, `Error`, `Math.*`, `Vector`,
+  container access (`*.Get`, `*.Insert`, `*.Find`, ...) and `string.Format`. *Do not show hints
+  for current method* on a hint adds its method.
+
+**Types of `auto` variables**, after the name: `auto p: Param1<int> = new Param1<int>(5)` and
+`foreach (auto zone: Zone : m_Zones)`, from the same inference as Go to Declaration. Nothing is
+shown when inference gives up, or finds several types that disagree. It is under *Settings →
+Editor → Inlay Hints → Types*.
+
 ## `#ifdef` flags
 
 **`#ifdef` completion** over the engine's flags *plus* every flag the project's `config.cpp` files

@@ -42,7 +42,8 @@ data class DayZModRelease(
  * copy, and which files in `addons\` and `keys\` no longer belong to the mod.
  *
  * An addon is built again only when something that ends up in its PBO changed since the last build:
- * its files (the manifest of [DayZAddonPacking]), its prefix or the signing key. It is also built
+ * its files (the manifest of [DayZAddonPacking]), its include and exclude lists, its prefix or the
+ * signing key. It is also built
  * when its PBO is missing, or its signature is while the mod is signed.
  */
 object DayZModReleasePlan {

@@ -54,33 +54,53 @@ abstract class EnNamedElementBase(node: ASTNode) : ASTWrapperPsiElement(node), E
      * `modded class` looks identical ("Math / Enforce Script Sources" twice over). Showing the tail
      * of the path is what makes the choice meaningful.
      */
-    protected fun fileLocation(): String? {
-        val path = containingFile?.virtualFile?.path?.replace('\\', '/') ?: return null
-        val origin = originOf(path)
+    fun fileLocation(): String? {
+        val file = containingFile?.virtualFile ?: return null
+        val path = file.path.replace('\\', '/')
+        val origin = originOf(path)?.let { (name, root) ->
+            addonUnder(file, root)?.takeUnless { it.equals(name, ignoreCase = true) }?.let { "$name/$it" } ?: name
+        }
         val tail = path.split('/').filter { it.isNotEmpty() }
             .takeLast(PATH_SEGMENTS_SHOWN).joinToString("/")
         return if (origin != null) "$origin \u00b7 $tail" else tail
     }
 
     /**
-     * Which mod or source tree a file came from.
+     * The addon folder of [file] below [root], the mod: the outermost folder holding a
+     * `config.cpp`, which is the PBO it is packed into. A mod of several addons repeats the same
+     * paths in each, so its name alone does not tell them apart. Null when the mod is the addon.
+     */
+    private fun addonUnder(file: com.intellij.openapi.vfs.VirtualFile, root: String): String? {
+        var addon: com.intellij.openapi.vfs.VirtualFile? = null
+        var dir = file.parent
+        while (dir != null) {
+            val path = dir.path.replace('\\', '/').trimEnd('/')
+            if (path.equals(root, ignoreCase = true) || !path.startsWith("$root/", ignoreCase = true)) break
+            if (dir.findChild("config.cpp") != null) addon = dir
+            dir = dir.parent
+        }
+        return addon?.name
+    }
+
+    /**
+     * Which mod or source tree a file came from: its name, and the folder that name stands for.
      *
      * The path alone is not enough to tell candidates apart: mods mirror the vanilla directory
      * layout almost exactly, so vanilla, this mod, an `Extra/` sub-addon and Expansion all declare
      * their `PlayerBase` at `.../4_World/Entities/ManBase/PlayerBase.c`. The origin is the only
      * thing that actually differs.
      */
-    private fun originOf(path: String): String? {
+    private fun originOf(path: String): Pair<String, String>? {
         val basePath = project.basePath?.replace('\\', '/')?.trimEnd('/')
         if (basePath != null && path.startsWith("$basePath/", ignoreCase = true)) {
-            return basePath.substringAfterLast('/')
+            return basePath.substringAfterLast('/') to basePath
         }
         for (root in EnfusionProjectSettings.getInstance(project).roots) {
             val normalised = root.replace('\\', '/').trimEnd('/')
             if (normalised.isNotEmpty() && path.startsWith("$normalised/", ignoreCase = true)) {
                 val name = normalised.substringAfterLast('/')
                 // `P:/scripts` would otherwise read as the unhelpful "scripts".
-                return if (name.equals("scripts", ignoreCase = true)) "vanilla" else name
+                return (if (name.equals("scripts", ignoreCase = true)) "vanilla" else name) to normalised
             }
         }
         return null

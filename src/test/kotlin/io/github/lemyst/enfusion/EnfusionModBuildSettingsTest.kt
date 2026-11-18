@@ -4,11 +4,14 @@ import com.intellij.execution.configurations.ConfigurationTypeUtil
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.util.JDOMUtil
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
+import io.github.lemyst.enfusion.tools.AddonBuildState
+import io.github.lemyst.enfusion.tools.AddonBuilds
 import io.github.lemyst.enfusion.tools.run.DayZExtraState
 import io.github.lemyst.enfusion.tools.run.DayZModBuildConfiguration
 import io.github.lemyst.enfusion.tools.run.DayZModBuildConfigurationType
 import io.github.lemyst.enfusion.tools.run.DayZModBuildEditor
 import org.jdom.Element
+import java.nio.file.Files
 
 /**
  * A DayZ Mod Build configuration keeps everything it is given: through its editor, through the
@@ -64,5 +67,30 @@ class EnfusionModBuildSettingsTest : BasePlatformTestCase() {
         val back = newConfiguration()
         back.readExternal(element)
         assertKept(back, "applied, saved and read back: ${JDOMUtil.write(element)}")
+    }
+
+    /**
+     * The release build lists an addon through the work drive, and *Build PBO* may have saved it
+     * under the project's path: two spellings of one folder, standing in here for `P:\MyMod\Scripts`
+     * and the folder `P:\MyMod` links to. Both find the same lists, and saving keeps one entry.
+     */
+    fun testAddonListsFoundThroughAnotherPathToTheFolder() {
+        val dir = Files.createTempDirectory("addon-lists")
+        try {
+            val scripts = Files.createDirectories(dir.resolve("MyMod").resolve("Scripts"))
+            // Linux resolves `..` through the folder itself, so it must exist.
+            val other = Files.createDirectories(dir.resolve("MyMod").resolve("Other"))
+            val roundabout = other.resolve("..").resolve("Scripts")
+            val builds = AddonBuilds()
+            builds.save(AddonBuildState().also { it.source = scripts.toString(); it.include = "C:\\lists\\mine.lst" })
+
+            assertEquals("C:\\lists\\mine.lst", builds.get(roundabout)?.include)
+
+            builds.save(AddonBuildState().also { it.source = roundabout.toString(); it.include = "C:\\lists\\new.lst" })
+            assertEquals(listOf(roundabout.toString()), builds.all().map { it.source })
+            assertEquals("C:\\lists\\new.lst", builds.get(scripts)?.include)
+        } finally {
+            dir.toFile().deleteRecursively()
+        }
     }
 }

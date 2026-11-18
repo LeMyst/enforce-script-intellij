@@ -43,4 +43,36 @@ after a class's or an array's `{`, the caret goes one level deeper.
 
 Tabs by default, under *Settings → Editor → Code Style → Enforce Config*. The 207 vanilla configs
 on `P:\DZ` are written exactly this way (tabs, an array's `{` on the line after its name, no spaces
-around `=`), and a test reformats every one of them and checks that no line moves.
+around `=`), and a test reformats every one of them and checks that no line moves. Lines holding
+only tabs come out empty, as IntelliJ does by default; tick *Keep indents on empty lines* under
+*Tabs and Indents* to keep them.
+
+## Undeclared base classes
+
+*Base class not declared in this scope* reports `class MyApple: Apple {}` when no `class Apple`
+comes before it where Addon Builder looks. Navigation resolves `Apple` through every indexed
+config, so nothing looks wrong, but CfgConvert binarises one `config.cpp` at a time and refuses
+it: *Undefined base class 'Apple'*. Its lookup, checked by binarising a config for each case:
+
+- a class of that name, full or external (`class Apple;`), declared **before** the derived class in
+  the same body; one declared after it is not seen;
+- else the same in each enclosing body, before the enclosing class, up to the top of the file; a
+  sibling section (`CfgWeapons` for a class in `CfgVehicles`) is never searched;
+- else a class an enclosing class inherits from its base, so `class DamageSystem: DamageSystem`
+  works inside `class MyApple: Apple` when `Apple` declares a `DamageSystem`, and fails when `Apple`
+  is only `class Apple;`;
+- names ignore case.
+
+*Add 'class Apple;'* inserts the external declaration at the top of the section, after the ones
+already there; applied to the whole file, it adds every missing one. It is offered only for a class
+directly in a top-level section such as `CfgVehicles`:
+
+- **Deeper**, the missing base is usually a class the enclosing class's base was meant to provide.
+  `class Apple;` added there would hide it rather than fix it.
+- **At the top of the file**, `class Apple;` would name a top-level `Apple` that nothing declares.
+  The class belongs in a section.
+
+Only `config.cpp` is
+checked, and only a base some indexed config declares: one found nowhere may be a dependency
+outside the roots. **Not checked:** what the game does with an unbinarised `config.cpp` under file
+patching.

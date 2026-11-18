@@ -26,5 +26,6 @@ class EnfusionReferenceContributor : PsiReferenceContributor() {
         registrar.registerReferenceProvider(literal, EnImageSetReferenceProvider())
         registrar.registerReferenceProvider(literal, EnInputNameReferenceProvider())
         registrar.registerReferenceProvider(literal, EnMethodNameReferenceProvider())
+        registrar.registerReferenceProvider(literal, EnConfigClassReferenceProvider())
     }
 }

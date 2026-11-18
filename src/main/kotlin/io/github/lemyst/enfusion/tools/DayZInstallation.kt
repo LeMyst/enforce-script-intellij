@@ -16,6 +16,7 @@ import com.intellij.openapi.util.SystemInfo
 import io.github.lemyst.enfusion.settings.EnfusionProjectSettings
 import io.github.lemyst.enfusion.tools.detect.DayZDetector
 import io.github.lemyst.enfusion.tools.detect.DayZPaths
+import io.github.lemyst.enfusion.tools.detect.SteamCmdInstall
 import io.github.lemyst.enfusion.tools.detect.SteamLibraries
 import java.nio.file.Path
 
@@ -27,6 +28,7 @@ class DayZPathsState : BaseState() {
     var workDriveLetter by string()
     var clientProfile by string()
     var serverProfile by string()
+    var steamCmd by string()
 
     /** The DayZ buttons in the main toolbar: a preference of this machine's IDE, like the paths. */
     var mainToolbar by property(true)
@@ -63,6 +65,7 @@ class DayZInstallation : SimplePersistentStateComponent<DayZPathsState>(DayZPath
             workDriveLetter = state.workDriveLetter?.trim()?.trimEnd(':')?.uppercase()?.takeIf { it.isNotEmpty() },
             clientProfile = path(state.clientProfile),
             serverProfile = path(state.serverProfile),
+            steamCmd = path(state.steamCmd),
         )
 
     /** The last detection's result, or null when detection has not run in this session yet. */
@@ -94,8 +97,20 @@ class DayZInstallation : SimplePersistentStateComponent<DayZPathsState>(DayZPath
         return if (override != null) base.copy(serverProfile = override) else base
     }
 
+    /**
+     * `steamcmd.exe`: the folder set, else the one the plugin installs into. Only a file check, so
+     * a run configuration's validation can call it on the EDT, unlike [paths].
+     */
+    fun steamCmdExe(): Path? {
+        configured.steamCmdExe?.let { return it }
+        val installed = SteamCmdInstall.defaultFolder(localAppData())?.resolve(DayZPaths.STEAMCMD_EXE) ?: return null
+        return installed.takeIf { java.nio.file.Files.isRegularFile(it) }
+    }
+
     companion object {
         fun getInstance(): DayZInstallation = service()
+
+        fun localAppData(): Path? = System.getenv("LOCALAPPDATA")?.let { runCatching { Path.of(it) }.getOrNull() }
 
         private val LOG = logger<DayZInstallation>()
 
@@ -110,8 +125,7 @@ class DayZInstallation : SimplePersistentStateComponent<DayZPathsState>(DayZPath
                 programFilesX86 = System.getenv("ProgramFiles(x86)"),
                 programFiles = System.getenv("ProgramFiles"),
             )
-            val localAppData = System.getenv("LOCALAPPDATA")?.let { runCatching { Path.of(it) }.getOrNull() }
-            return DayZDetector.detect(roots, localAppData)
+            return DayZDetector.detect(roots, localAppData())
         }
 
         /**
