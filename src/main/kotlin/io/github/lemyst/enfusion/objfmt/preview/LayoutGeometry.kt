@@ -28,10 +28,10 @@ class WidgetSpec(
     val text: String? get() = value("text")
 
     /**
-     * `color r g b a` as the ARGB the screen shows; null when not set. The channels are linear,
-     * 0 to 1, and shown in sRGB: `day_z_underground_trigger_editor_popup_dialog`'s buttons say
-     * `color 0.141 0.141 0.141 1` and are #696969 in Workbench, which is 0.141 in sRGB, not
-     * #242424. Alpha is a coverage, so it is left as it is.
+     * `color r g b a` as the ARGB the game draws; null when not set. Each channel, 0 to 1, is the
+     * colour's own fraction of 255, with no gamma: in game, an `ImageWidget` with `color 0.141
+     * 0.141 0.141 1` was drawn `#242424` (measured 2026-11-18). Workbench's editor shows the same
+     * values as `#696969`, as if they were linear, and the preview used to follow it.
      */
     val color: Int?
         get() {
@@ -39,11 +39,8 @@ class WidgetSpec(
             if (c.size < 3) return null
             fun value(i: Int) = (c.getOrNull(i)?.toDoubleOrNull() ?: 1.0).coerceIn(0.0, 1.0)
             fun byte(v: Double) = (v * 255 + 0.5).toInt()
-            return (byte(value(3)) shl 24) or (byte(srgb(value(0))) shl 16) or (byte(srgb(value(1))) shl 8) or byte(srgb(value(2)))
+            return (byte(value(3)) shl 24) or (byte(value(0)) shl 16) or (byte(value(1)) shl 8) or byte(value(2))
         }
-
-    private fun srgb(linear: Double): Double =
-        if (linear <= 0.0031308) 12.92 * linear else 1.055 * Math.pow(linear, 1 / 2.4) - 0.055
 }
 
 data class Rect(val x: Double, val y: Double, val w: Double, val h: Double) {

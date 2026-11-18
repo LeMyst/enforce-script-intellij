@@ -26,11 +26,14 @@ class EnfusionColorTest : BasePlatformTestCase() {
         return file.text
     }
 
-    fun testLinearChannelsShownInSrgb() {
-        // Workbench shows `color 0.141 0.141 0.141 1` as #696969.
-        assertEquals(Color(0x69, 0x69, 0x69, 255), EnColorMath.fromLinear(0.141, 0.141, 0.141, 1.0))
-        assertEquals("0.141 0.141 0.141 1", EnColorMath.toLinearText(Color(0x69, 0x69, 0x69), true))
-        assertEquals("1 0 0", EnColorMath.toLinearText(Color.RED, false))
+    /**
+     * In game, `color 0.141 0.141 0.141 1` on an `ImageWidget` was drawn `#242424`, as
+     * `ARGB(255, 36, 36, 36)` was: no gamma, whatever Workbench's `#696969` suggests.
+     */
+    fun testChannelsAreFractionsOf255() {
+        assertEquals(Color(0x24, 0x24, 0x24, 255), EnColorMath.fromChannels(0.141, 0.141, 0.141, 1.0))
+        assertEquals("0.141 0.141 0.141 1", EnColorMath.toChannelText(Color(0x24, 0x24, 0x24), true))
+        assertEquals("1 0 0", EnColorMath.toChannelText(Color.RED, false))
         assertEquals("0.5", EnColorMath.decimal(0.5, 3))
         assertEquals("0", EnColorMath.decimal(0.0001, 3))
     }
@@ -40,12 +43,12 @@ class EnfusionColorTest : BasePlatformTestCase() {
             "a.layout",
             "FrameWidgetClass Root {\n color 0.141 0.141 0.141 1\n \"text color\" 1 1 0 1\n size 1 1\n}\n",
         )
-        assertEquals(listOf(Color(0x69, 0x69, 0x69), Color(255, 255, 0)), colors(file).map { it.second })
+        assertEquals(listOf(Color(0x24, 0x24, 0x24), Color(255, 255, 0)), colors(file).map { it.second })
     }
 
-    fun testLayoutWriteBackIsLinear() {
+    fun testLayoutWriteBack() {
         val file = myFixture.configureByText("a.layout", "FrameWidgetClass Root {\n color 1 1 1 0.5\n}\n")
-        assertEquals("FrameWidgetClass Root {\n color 0.141 0.141 0.141 0.502\n}\n", pick(file, Color(0x69, 0x69, 0x69, 128)))
+        assertEquals("FrameWidgetClass Root {\n color 0.141 0.141 0.141 0.502\n}\n", pick(file, Color(0x24, 0x24, 0x24, 128)))
     }
 
     fun testScriptArgbAndArgbf() {

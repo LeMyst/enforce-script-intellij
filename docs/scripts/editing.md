@@ -19,15 +19,17 @@ clicked, writing the picked colour back in the notation it was read from:
 
 | Where | Notation | Written back |
 |---|---|---|
-| Layouts | `color 0.141 0.141 0.141 1`, `"text color"`, `"disabled text color"`, `"shadow color"`, `"outline color"` and any other `"… color"` | linear channels, three decimals as vanilla writes them; three channels stay three |
+| Layouts | `color 0.141 0.141 0.141 1`, `"text color"`, `"disabled text color"`, `"shadow color"`, `"outline color"` and any other `"… color"` | the channels, three decimals as vanilla writes them; three channels stay three |
 | `.styles` | `Color="4294967295"`, an ARGB integer | the integer |
 | Script | `ARGB(255, 242, 38, 19)` and `ARGBF(1, 0.95, 0.15, 0.07)` with literal colour channels; a computed alpha (`ARGB(m_Alpha, 242, 199, 68)`) is shown opaque | the same call, bytes or two decimals; a computed alpha is kept as written |
 | Script | `const int COLOR_RED = 0xFFF22613;`, a constant whose name says colour | `0xAARRGGBB` |
 | Configs and script strings | procedural textures, `"#(argb,8,8,3)color(0.5,0.5,0.5,1,co)"` | the four channels |
 
-Layout channels are linear: `0.141` is the mid-grey `#696969` Workbench shows, not near black. The
-swatch shows them in sRGB with the conversion the layout preview uses, and the picker writes them
-back linear. **Not covered:** a hex literal that is not a `const int` named for a colour, since a
+Layout channels and script `ARGB` bytes are the same colour space: `0.141` is `36` of 255, the near
+black `#242424`. Measured in game, an `ImageWidget` with `color 0.141 0.141 0.141 1` and one given
+`ARGB(255, 36, 36, 36)` came out the same `#242424`, so both swatches show the value as written.
+Workbench's editor shows `0.141` as `#696969`; the swatch and the layout preview follow the game.
+**Not covered:** a hex literal that is not a `const int` named for a colour, since a
 flag or a mask would get a swatch too; and `color[]` arrays in configs, whose light and particle
 values can exceed 1. The plugin opens `*.styles` files as XML, so they get the IDE's XML editing as
 well.

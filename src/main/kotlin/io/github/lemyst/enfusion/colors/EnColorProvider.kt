@@ -20,7 +20,7 @@ import java.awt.Color
  * colour back in the notation it was read from:
  *
  * - **Layouts:** `color r g b a` and the quoted `"text color"`, `"shadow color"`, … properties.
- *   The channels are linear and shown in sRGB, as Workbench and the layout preview show them.
+ *   The channels are the colour's own fractions of 255, as the game draws them (see [EnColorMath]).
  * - **`.styles`:** `Color="4294967295"`, an ARGB integer.
  * - **Script:** `ARGB(a, r, g, b)` and `ARGBF(a, r, g, b)` with literal colour channels (the
  *   alpha may be any expression), and the `0xAARRGGBB` initializer of a `const int` named for a
@@ -93,9 +93,9 @@ internal object EnColorNotations {
         val values = property.values()
         if (values.size !in 3..4) return null
         val channels = values.map { it.text.toDoubleOrNull() ?: return null }
-        val color = EnColorMath.fromLinear(channels[0], channels[1], channels[2], channels.getOrElse(3) { 1.0 })
+        val color = EnColorMath.fromChannels(channels[0], channels[1], channels[2], channels.getOrElse(3) { 1.0 })
         val range = com.intellij.openapi.util.TextRange(values.first().textRange.startOffset, values.last().textRange.endOffset)
-        return EnFoundColor(color, range) { EnColorMath.toLinearText(it, values.size == 4) }
+        return EnFoundColor(color, range) { EnColorMath.toChannelText(it, values.size == 4) }
     }
 
     // --- .styles -------------------------------------------------------------------------------
@@ -193,25 +193,21 @@ internal object EnColorNotations {
 /** Colour arithmetic, with no IntelliJ API. */
 internal object EnColorMath {
 
-    /** Layout channels: linear 0 to 1, shown in sRGB. Alpha is a coverage and stays as it is. */
-    fun fromLinear(r: Double, g: Double, b: Double, a: Double): Color =
-        Color(byte(srgb(r)), byte(srgb(g)), byte(srgb(b)), byte(a.coerceIn(0.0, 1.0)))
+    /**
+     * Layout channels, 0 to 1: each the colour's own fraction of 255, with no gamma. Measured in
+     * game on 2026-11-18: an `ImageWidget` with `color 0.141 0.141 0.141 1` was drawn `#242424`,
+     * the same as one given `ARGB(255, 36, 36, 36)` from script. Workbench's editor shows `0.141`
+     * as `#696969`, as if it were linear, but the game does not, and the swatch shows what the
+     * game draws.
+     */
+    fun fromChannels(r: Double, g: Double, b: Double, a: Double): Color =
+        Color(byte(r), byte(g), byte(b), byte(a))
 
-    /** `0.141 0.141 0.141 1`, back from a picked sRGB colour, three decimals as vanilla writes them. */
-    fun toLinearText(color: Color, withAlpha: Boolean): String {
-        val channels = mutableListOf(linear(color.red / 255.0), linear(color.green / 255.0), linear(color.blue / 255.0))
+    /** `0.141 0.141 0.141 1`, back from a picked colour, three decimals as vanilla writes them. */
+    fun toChannelText(color: Color, withAlpha: Boolean): String {
+        val channels = mutableListOf(color.red / 255.0, color.green / 255.0, color.blue / 255.0)
         if (withAlpha) channels += color.alpha / 255.0
         return channels.joinToString(" ") { decimal(it, 3) }
-    }
-
-    fun srgb(linear: Double): Double {
-        val c = linear.coerceIn(0.0, 1.0)
-        return if (c <= 0.0031308) 12.92 * c else 1.055 * Math.pow(c, 1 / 2.4) - 0.055
-    }
-
-    fun linear(srgb: Double): Double {
-        val c = srgb.coerceIn(0.0, 1.0)
-        return if (c <= 0.04045) c / 12.92 else Math.pow((c + 0.055) / 1.055, 2.4)
     }
 
     /** `0.5`, `1`, `0.141`: at most [places] decimals, trailing zeros dropped. */

@@ -239,8 +239,8 @@ class EnfusionLayoutPreviewTest : BasePlatformTestCase() {
     fun testColor() {
         assertEquals(0x80FF0000.toInt(), widget("PanelWidgetClass", "color" to "1 0 0 0.502").color)
         assertNull(widget("PanelWidgetClass").color)
-        // Linear, shown in sRGB: the colour Workbench gives a dialog button with these values.
-        assertEquals(0xFF696969.toInt(), widget("ButtonWidgetClass", "color" to "0.141 0.141 0.141 1").color)
+        // No gamma: the game drew these values `#242424` (2026-11-18), where Workbench shows `#696969`.
+        assertEquals(0xFF242424.toInt(), widget("ButtonWidgetClass", "color" to "0.141 0.141 0.141 1").color)
     }
 
     fun testSpecsFromALayoutFile() {
