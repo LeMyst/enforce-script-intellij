@@ -25,8 +25,9 @@ and starts collapsed.
 ## Formatter
 
 **Formatter** (`Ctrl+Alt+L`) — **indentation only**, deliberately. It adds no spacing or wrapping
-rules, so Allman braces and however you spaced a line survive untouched; it defaults to tabs
-because vanilla is tab-indented without exception. One level deeper, each as vanilla writes it
+rules, so Allman braces and however you spaced a line survive untouched, including the tabs
+vanilla uses to align names (`protected Camera<tabs>m_Camera;`); it defaults to tabs because
+vanilla is tab-indented without exception. One level deeper, each as vanilla writes it
 in the large majority of cases:
 
 - the contents of `{ }` (class and method bodies, blocks, enums, `switch`, array literals);

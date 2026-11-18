@@ -6,6 +6,7 @@ import io.github.lemyst.enfusion.tools.detect.DayZPathChecks
 import io.github.lemyst.enfusion.tools.detect.DayZPaths
 import io.github.lemyst.enfusion.tools.detect.DayZToolsSettings
 import io.github.lemyst.enfusion.tools.detect.KeyValues
+import io.github.lemyst.enfusion.tools.detect.SteamCmdInstall
 import io.github.lemyst.enfusion.tools.detect.SteamLibraries
 import junit.framework.TestCase
 import java.nio.file.Files
@@ -172,6 +173,48 @@ class EnfusionDayZDetectionTest : TestCase() {
         val roots = DayZDetector.steamRootCandidates("d:/program files (x86)/steam", "C:\\Program Files (x86)", null)
         assertEquals(2, roots.size)
         assertEquals(Path.of("d:/program files (x86)/steam").normalize(), roots[0])
+    }
+
+    /** SteamCMD has no installer and no record: only the folder the plugin downloads into is found. */
+    fun testDetectSteamCmdWhereThePluginInstallsIt() {
+        val localAppData = Files.createDirectories(temp.resolve("Local"))
+        assertNull(DayZDetector.detect(emptyList(), localAppData).steamCmd)
+        val folder = Files.createDirectories(localAppData.resolve("SteamCMD"))
+        assertNull("an empty folder is not an install", DayZDetector.detect(emptyList(), localAppData).steamCmd)
+        Files.createFile(folder.resolve(DayZPaths.STEAMCMD_EXE))
+        val detected = DayZDetector.detect(emptyList(), localAppData)
+        assertEquals(folder, detected.steamCmd)
+        assertEquals(folder.resolve("steamcmd.exe"), detected.steamCmdExe)
+        assertEquals(folder, DayZPaths().orElse(detected).steamCmd)
+        assertEquals("steamcmd.exe not found in this folder", DayZPathChecks.steamCmd(localAppData))
+        assertNull(DayZPathChecks.steamCmd(folder))
+    }
+
+    /** Only the archive's root `steamcmd.exe` is written: no other name can reach outside the folder. */
+    fun testExtractSteamCmd() {
+        val zip = java.io.ByteArrayOutputStream()
+        java.util.zip.ZipOutputStream(zip).use { out ->
+            for ((name, bytes) in listOf("../evil.exe" to "x", "sub/steamcmd.exe" to "y", "steamcmd.exe" to "MZ-steamcmd")) {
+                out.putNextEntry(java.util.zip.ZipEntry(name))
+                out.write(bytes.toByteArray())
+                out.closeEntry()
+            }
+        }
+        val folder = temp.resolve("SteamCMD")
+        val exe = SteamCmdInstall.extract(zip.toByteArray().inputStream(), folder)
+        assertEquals(folder.resolve("steamcmd.exe"), exe)
+        assertEquals("MZ-steamcmd", Files.readString(exe))
+        assertEquals(listOf("steamcmd.exe"), Files.list(folder).use { files -> files.map { it.fileName.toString() }.toList() })
+        assertFalse(Files.exists(temp.resolve("evil.exe")))
+
+        val empty = java.io.ByteArrayOutputStream().also { java.util.zip.ZipOutputStream(it).close() }
+        val other = temp.resolve("Other")
+        try {
+            SteamCmdInstall.extract(empty.toByteArray().inputStream(), other)
+            fail("an archive without steamcmd.exe is refused")
+        } catch (_: java.io.IOException) {
+        }
+        assertFalse("nothing is created for an archive without the executable", Files.exists(other))
     }
 
     fun testConfiguredPathsWinOverDetected() {

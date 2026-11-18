@@ -8,12 +8,14 @@ import com.intellij.execution.filters.TextConsoleBuilderFactory
 import com.intellij.execution.process.OSProcessHandler
 import com.intellij.execution.process.ProcessEvent
 import com.intellij.execution.process.ProcessListener
+import com.intellij.execution.process.ProcessOutputTypes
 import com.intellij.execution.ui.ConsoleView
 import com.intellij.execution.ui.ConsoleViewContentType
 import com.intellij.execution.ui.RunContentDescriptor
 import com.intellij.execution.ui.RunContentManager
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
+import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
@@ -68,16 +70,30 @@ object AddonBuildRunner {
             indicator.text = "Building ${build.pboName}"
             indicator.fraction = index.toDouble() / builds.size
             Files.createDirectories(build.destination)
-            val command = AddonBuilderCommand.commandLine(toolsBin, build)
+            val listFolder = Path.of(PathManager.getSystemPath(), "enfusion", "addon-builder")
+            AddonBuilderCommand.listProblem(build)?.let { problem ->
+                failed += build.pboName
+                console.print("✗ ${build.pboName}: $problem\n\n", ConsoleViewContentType.ERROR_OUTPUT)
+                continue
+            }
+            val ready = AddonBuilderCommand.withListFiles(build, listFolder)
+            val command = AddonBuilderCommand.commandLine(toolsBin, ready)
             console.print("> ${command.joinToString(" ") { if (it.contains(' ')) "\"$it\"" else it }}\n", ConsoleViewContentType.SYSTEM_OUTPUT)
             val output = StringBuilder()
             val handler = OSProcessHandler(GeneralCommandLine(command).withWorkDirectory(build.source.toFile()))
             handler.addProcessListener(object : ProcessListener {
                 override fun onTextAvailable(event: ProcessEvent, outputType: Key<*>) {
                     output.append(event.text)
+                    // Printed here rather than through attachToProcess, which would show the
+                    // Steam API's two stderr lines in red on every build.
+                    val type = when {
+                        outputType === ProcessOutputTypes.SYSTEM -> ConsoleViewContentType.SYSTEM_OUTPUT
+                        outputType === ProcessOutputTypes.STDERR && !AddonBuilderCommand.isSteamNoise(event.text) -> ConsoleViewContentType.ERROR_OUTPUT
+                        else -> ConsoleViewContentType.NORMAL_OUTPUT
+                    }
+                    console.print(event.text, type)
                 }
             })
-            console.attachToProcess(handler)
             handler.startNotify()
             while (!handler.waitFor(250)) {
                 if (indicator.isCanceled) {
@@ -93,6 +109,9 @@ object AddonBuildRunner {
                 LocalFileSystem.getInstance().refreshNioFiles(listOf(build.pbo))
             } else {
                 failed += build.pboName
+                AddonBuilderCommand.tooLongCopy(output.toString())?.let {
+                    console.print(AddonBuilderCommand.tooLongMessage(it) + "\n", ConsoleViewContentType.ERROR_OUTPUT)
+                }
                 console.print("✗ ${build.pboName} failed\n\n", ConsoleViewContentType.ERROR_OUTPUT)
             }
         }

@@ -80,6 +80,22 @@ Opening a real DayZ mod.
   **Community Framework Stubs** disappears and both now open the real source, with no second
   candidate. Remove the root again and the stub comes back.
 
+## Layers and overrides below
+
+Opening a real DayZ mod with a dependency mod as a root.
+
+- Open vanilla `PlayerBase.c` → a gutter icon on the class name, *Modded by N layers, extended
+  by M subclasses*; clicking it lists the dependency's and the mod's layers with their files.
+- On vanilla `SetActions` in an item class the mod patches → an icon listing the layers that
+  redeclare it. Typing in that file stays smooth while the icons appear.
+- On the mod's own `modded class PlayerBase` → an upward icon, *Patches PlayerBase, beside N
+  other layers*; clicking it lists vanilla's `PlayerBase.c` first.
+- `Ctrl+Click` the name of a layer's constructor `void PlayerBase()` → vanilla's constructor
+  only, not its destructor; and the other way round from `void ~PlayerBase()`.
+- `Ctrl+Alt+B` on `PlayerBase` in mod code → the same list; on a method call → its overrides.
+- `Ctrl+U` inside an `override` method of a `modded class` → what it overrides; on the class name
+  of an ordinary class → its superclass.
+
 ## Code completion
 
 Opening a real DayZ mod.
@@ -126,6 +142,47 @@ Opening a real DayZ mod.
 - `Widget.Cast(` and `ButtonWidget.Cast(` → `Class from`: `Cast` lives on vanilla's root `Class`,
   which `Widget` reaches only implicitly.
 
+## Override Methods
+
+Opening a real DayZ mod, with vanilla indexed.
+
+- In a `modded class PlayerBase`, `Ctrl+O` → the chooser lists vanilla's `PlayerBase` methods, each
+  other layer as its own group with its file, then `ManBase`, `DayZPlayer` and the rest of the
+  chain. Methods the layer already overrides are not listed.
+- Pick `EEInit` and `OnStoreLoad` with *Call super* ticked → `override void EEInit()` with
+  `super.EEInit();`, and `override bool OnStoreLoad(ParamsReadContext ctx, int version)` with
+  `return super.OnStoreLoad(ctx, version);`, after the member at the caret, tab-indented.
+- The generated code compiles: *Tools → DayZ → Check Scripts (Server)*.
+- `Ctrl+O` again → *Call super* is remembered.
+
+## Quick Documentation
+
+Opening a real DayZ mod, with vanilla indexed.
+
+- `Ctrl+Q` on `Math.RandomInt(` → the signature, the `\brief` text, the parameters with their
+  text, *Returns*, and the `@code` example as code. *Class* links to `Math`.
+- `Ctrl+Q` on `GetGame().CreateObjectEx(` → the signature with its defaulted flags.
+- `Ctrl+Q` on a method of a `modded class` that has no comment of its own → the vanilla comment,
+  with *From …* naming the vanilla declaration, and *Other layers* listing the layers. Clicking a
+  link shows that declaration's documentation.
+- `Ctrl+Q` on `PlayerBase` → its *Extends* chain and every *Modded by* layer, each a link.
+- `Ctrl+Q` on `ECE_PLACE_ON_SURFACE` → its value in decimal and hex.
+- `Ctrl+Q` on an `auto` local → *Type* with the inferred type and *(inferred)*.
+- Turn on *Settings → Editor → General → Code Completion → Show the documentation popup* and
+  *Show quick documentation on mouse move*; hover a vanilla call → the same popup, and hovering a
+  texture path still shows the texture.
+- `Ctrl` + hover a call → one line: class, signature, file.
+
+## Inlay hints
+
+- In a mod file, `GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(Refresh, 1000, false)`
+  → `delay:` before `1000` and `repeat:` before `false`, nothing before `Refresh`.
+- `Print("x")` and `Math.Clamp(v, 0, 1)` → no hint. Alt+Enter on a hint → *Do not show hints
+  for current method* hides them for that method.
+- `auto p = new Param1<int>(5);` → `p: Param1<int>`; `foreach (auto x : m_Array)` over an
+  `array<ref X>` field → `x: X`. Both can be switched off under *Settings → Editor → Inlay Hints*.
+- On a large vanilla file such as `PlayerBase.c`, typing stays smooth with hints on.
+
 ## Navigation from string literals
 
 Opening a real DayZ mod. The examples below use a mod called MyMod.
@@ -162,6 +219,17 @@ Opening a real DayZ mod. The examples below use a mod called MyMod.
 - Trigger completion inside a `FindAnyWidget("")` call → only the names from layouts the class
   actually loads, not every widget in the project.
 
+## Config class names in script
+
+With `P:\DZ` (or the game's `Addons` as a PBO root) in the roots.
+
+- Ctrl+Click `"Apple"` in `CreateInInventory("Apple")` → the vanilla `CfgVehicles` class, and a
+  mod's own redeclaration offered beside it. `IsKindOf("Inventory_Base")` → its declaration.
+- Type `CreateInInventory("Ap` and complete → item classes, no `scope = 0` base class.
+- `GetGame().ConfigGetText("CfgVehicles " + type + " displayName")` → `CfgVehicles` navigates.
+- Find Usages on a mod's item class in its `config.cpp` → the scripts that spawn it.
+- Without `P:\DZ`: nothing red, and typing in a spawn call stays smooth.
+
 ## config.cpp
 
 - `Scripts/Client/config.cpp` opens as **Enforce Config** (check the status bar), folds, and shows a
@@ -181,6 +249,17 @@ Opening a real DayZ mod. The examples below use a mod called MyMod.
   appears under *External Libraries*; confirm the IDE indexes configs only and does not sit on
   24 GB of `.paa`. Adding `P:\scripts` or a mod checkout shows no warning.
 - A C or C++ file in an unrelated project is **not** claimed.
+- `Ctrl+Alt+L` on a hand-written mod `config.cpp` with mixed indentation → class bodies and
+  multi-line arrays indented with tabs, spacing and one-line arrays unchanged. On a vanilla
+  `P:\DZ` config → no line moves; lines holding only tabs come out empty, unless *Keep indents on
+  empty lines* is ticked. Enter after `class X: Y` and its `{` → one level deeper.
+- `Ctrl+Alt+L` on a vanilla script whose names are aligned with tabs, such as the fields at the
+  top of `5_mission\dayzintroscene.c` → the tabs stay tabs, and the names stay aligned.
+- *Settings → Editor → Code Style → Enforce Config* exists, with tabs on.
+- In a mod `config.cpp`, write `class MyApple: Apple {};` in `CfgVehicles` with no `class Apple;`
+  (and vanilla configs in the roots) → a warning on `Apple`; `Alt+Enter` → *Add 'class Apple;'*
+  adds it at the top of `CfgVehicles`. *Build PBO* with binarising then succeeds where it failed.
+- Open a vanilla `P:\DZ` config → no such warning anywhere.
 
 ## Texture viewer
 
@@ -234,6 +313,16 @@ Opening a real DayZ mod. The examples below use a mod called MyMod.
 - Use one of the icons in a layout (`image0 "set:<name> image:<icon>"`) → the layout preview shows
   it. In game, the icon shows, with no neighbour bleeding into its edge.
 - A folder with two `icon.png` in different subfolders → refused, naming `icon`.
+- Next to an `.imageset` whose `Name` differs from its file name (`Name "my_gui"` in
+  `icons.imageset`), *Pack into Imageset…* on the `icons` folder → the dialog proposes `my_gui`
+  and the `.imageset`'s texture path. *Pack* → in game, the layouts' `set:my_gui` icons still show.
+- Pack the same folder as *DXT5* with *Compress the mipmaps with LZ4* → a much smaller `.edds` that
+  the viewer opens as DXT5 with `LZ4` mips. **In game**, use an icon from it in a layout: it shows,
+  with its soft edges. Do the same with *DXT1* on opaque icons.
+- Choose *DXT1* for pictures with soft edges → a warning before packing.
+- Right-click a vanilla imageset such as `P:\gui\imagesets\dayz_gui.imageset` → *Extract Images…*
+  → choose a folder → one PNG per image, each matching its gutter icon. Pack that folder again →
+  an imageset naming the same images.
 
 ## DayZ installation
 
@@ -390,6 +479,9 @@ Opening a real DayZ mod. The examples below use a mod called MyMod.
 - Right-click a mod's addon folder → *Build PBO* → the options dialog, prefilled; *Build* → a *Run*
   tab with Addon Builder's log and *Build Successful*, the PBO in the output folder, and a
   notification. *Build PBO* again → no dialog.
+- Open the built PBO in the IDE, with no include list set → its scripts, layouts, imagesets,
+  `stringtable.csv`, textures and data files are there beside `config.bin`. The command line in
+  the *Run* tab ends with `-include=…include.lst`.
 - Break `config.cpp` (delete a `}`) and build without *Pack only* → *Build failed*, an error
   notification, and the `File …, line N` line is a link to the config.
 - Build with a signing key → the `.bisign` appears; with no `.bikey` in `@Mod\Keys` → a warning.
@@ -406,9 +498,43 @@ Opening a real DayZ mod. The examples below use a mod called MyMod.
       `.MyMod.bisign`.
     - `keys\` holds `MyMod.bikey` and the third-party key, and `mod.cpp` and the extras are copied.
     - The last lines say *Signatures checked: all OK* and *Built …*.
+- With the run configuration's folder deep on disk (as in a sandbox IDE) → every addon still
+  builds, scripts of 60 characters' depth included. The Steam API's two lines after each addon
+  are not red.
+- Select an addon → *Addon Builder Lists…* → the include and exclude lists. Type `*.layout` as
+  the include list of an addon with scripts and run, with no file changed → that addon alone is
+  rebuilt, and its PBO holds its layouts but no scripts. *Build PBO with Options…* on the same
+  addon shows `*.layout`, and *Build PBO* packs the same.
+- Set the include list to a file that does not exist → that addon fails, naming the file.
+- Set the include list to a file with one pattern a line (`*.c`, then `*.layout`) → the addon
+  builds, with its scripts and layouts.
+- Put a `LICENSE` and a `NOTICE` file in an addon with no include list → both are in its PBO.
+- Clear the include list and set the exclude list to `*.edds` → the addon rebuilds, its PBO
+  holds everything the default list takes but its `.edds`, and the command line has no
+  `-exclude`. The same with DayZ Tools' `Bin\PboUtils\exclude.lst` as the exclude list.
+- *Build PBO with Options…* with *Pack only* and an exclude list → the build stops and says
+  why.
 - Run again → *0 addon(s) to build*. Edit one script → that addon only.
 - Untick an addon and run → its PBO and signature are removed from `addons\`.
 - Start a server with `verifySignatures = 2` on the built mod → clients with it join.
+
+### Publishing to the Workshop
+
+With a **private test item** (or none, to create one, set to *Private*).
+
+- Without SteamCMD: a new *DayZ Workshop Publish* → the error *SteamCMD not found* with *Fix* →
+  the confirmation names `%LOCALAPPDATA%\SteamCMD` → *Download* → a progress bar, then the
+  configuration's *SteamCMD* row shows `…\SteamCMD\steamcmd.exe`, and so does *Settings → … →
+  DayZ Installation → Steam Workshop*.
+- *Description* and *Change note* have a border, and scroll when the text is long.
+- *DayZ Workshop Publish* with the built mod folder, the account name, visibility
+  *Private* and a change note → *Run* → a confirmation with the folder's size and the note.
+  *Cancel* → nothing runs.
+- Confirm → SteamCMD's own window asks for the password and the Steam Guard code; the upload
+  runs. Close the window → the *Run* tab gives the item's link, and the configuration now holds
+  the item ID.
+- Run again with another change note → no password asked; the item's *Change Notes* tab has both.
+- Leave the change note empty and set a `CHANGELOG.md` → its newest section is the note.
 
 ## Layout preview
 
@@ -438,6 +564,16 @@ Opening a real DayZ mod. The examples below use a mod called MyMod.
   the pointer; drag → the view pans; a click without dragging still selects. *Fit* → back to the
   whole screen; *100%* → one layout pixel per screen pixel.
 
+## Stringtable texts in place of keys
+
+- Open a mod script with `"#STR_…"` strings → each shows its text, collapsed; moving the caret
+  into one shows the key again. Vanilla keys such as `"#menu_add"` fold too.
+- A layout's `text "#STR_…"` and a config's `displayName="$STR_…"` fold the same way.
+- Pick *french* in a layout preview's language list → the folds read French after the next
+  reparse (type a character).
+- Untick *Code Folding → Enforce Script → Stringtable keys as their text* → the keys are back.
+- In a large vanilla file (`missiongameplay.c`), typing stays smooth.
+
 ## Rename and inspections
 
 - `Shift+F6` on a method in a `modded class` that overrides vanilla → **refused**, with a message
@@ -454,3 +590,6 @@ Opening a real DayZ mod. The examples below use a mod called MyMod.
 - Break something on purpose — misspell the handler in `AddTimer(…, this, "OnTikc")`, or drop the
   `override` from a method in a `modded class` — and confirm each is flagged, then that `Alt+Enter`
   repairs it.
+- In a `modded class PlayerBase`, write `override void SetActions() {}` → a weak warning on the
+  name, and `Alt+Enter` → *Add super call* inserts `super.SetActions();`. The same override in an
+  ordinary subclass is not reported.
