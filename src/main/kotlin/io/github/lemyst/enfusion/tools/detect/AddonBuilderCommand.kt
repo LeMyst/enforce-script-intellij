@@ -116,30 +116,96 @@ object AddonBuilderCommand {
     }
 
     /**
-     * [build] ready for its command line: typed patterns written into [folder] as list files, and
-     * [DEFAULT_INCLUDE] as its include list when it sets none and is binarised. A pack-only build
-     * stores every file anyway. The files are named after the addon's folder, so that two addons
-     * never share one.
+     * [build] ready for its command line: its include list written into [folder], and never an
+     * `-exclude`.
+     *
+     * Addon Builder 1.0.240639 crashes on its own `-exclude` before building anything
+     * (`ArgumentNullException` in `TextureHeaderBinazrizeTask`), whatever the list holds, DayZ
+     * Tools' own `exclude.lst` included, and whatever else is passed. Its `-include`, though, takes
+     * exact paths inside the addon as well as wildcards. So an exclude list is applied here: the
+     * addon's files that the include list matches, less those the exclude list matches, are
+     * written as the include list, one path each. That covers the files copied as they are; what
+     * Addon Builder binarises (`config.cpp`, models) is not on either list.
+     *
+     * With no exclude list, typed patterns are written as they are, and [DEFAULT_INCLUDE] when the
+     * build sets no include list and is binarised; a pack-only build stores every file anyway. The
+     * file is named after the addon's folder, so that two addons never share one. [files] lists the
+     * addon's files, relative, with `\`.
      */
-    fun withListFiles(build: AddonBuild, folder: Path): AddonBuild {
-        val include = build.includePatterns ?: DEFAULT_INCLUDE.takeIf { build.include == null && !build.packOnly }
-        val exclude = build.excludePatterns
-        if (include == null && exclude == null) return build
+    fun withListFiles(build: AddonBuild, folder: Path, files: (Path) -> List<String> = ::filesIn): AddonBuild {
+        val exclude = build.excludePatterns ?: build.exclude?.let { patternsIn(Files.readString(it)) }
+        val include = when {
+            exclude != null -> {
+                val wanted = build.includePatterns ?: build.include?.let { patternsIn(Files.readString(it)) } ?: DEFAULT_INCLUDE
+                files(build.source).filter { matchesAny(wanted, it) && !matchesAny(exclude, it) }.map(::asPattern)
+            }
+            else -> build.includePatterns ?: DEFAULT_INCLUDE.takeIf { build.include == null && !build.packOnly }
+        }
+        // Only a list file of the user's own, or pack only, and no exclude list: nothing to write.
+        if (include == null) return build
         Files.createDirectories(folder)
         val stem = build.source.fileName.toString() + "-" + Integer.toHexString(build.source.toString().lowercase().hashCode())
-        fun write(kind: String, patterns: List<String>): Path =
-            folder.resolve("$stem.$kind.lst").also { Files.writeString(it, patterns.joinToString(";")) }
-        return build.copy(
-            include = include?.let { write("include", it) } ?: build.include,
-            exclude = exclude?.let { write("exclude", it) } ?: build.exclude,
-            includePatterns = null,
-            excludePatterns = null,
-        )
+        val file = folder.resolve("$stem.include.lst")
+        Files.writeString(file, include.joinToString(";"))
+        return build.copy(include = file, exclude = null, includePatterns = null, excludePatterns = null)
     }
 
-    /** A list file [build] names that is not there, which Addon Builder would not report. */
-    fun missingListFile(build: AddonBuild, exists: (Path) -> Boolean = Files::isRegularFile): Path? =
-        listOfNotNull(build.include, build.exclude).firstOrNull { !exists(it) }
+    /**
+     * Why [build]'s lists cannot be used, or null: a list file that is not there, which Addon
+     * Builder would not report, or an exclude list on a pack-only build, which stores every file
+     * whatever its include list says, so the exclude list has nothing to work through.
+     */
+    fun listProblem(build: AddonBuild, exists: (Path) -> Boolean = Files::isRegularFile): String? {
+        listOfNotNull(build.include, build.exclude).firstOrNull { !exists(it) }?.let {
+            return "the list file $it does not exist. Type patterns such as *.c;*.layout, or the path of a list file."
+        }
+        if (build.packOnly && (build.exclude != null || build.excludePatterns != null)) {
+            return "a pack-only build stores every file and cannot leave any out: Addon Builder's own exclude list crashes it, and pack only ignores include lists. Clear the exclude list, or binarise."
+        }
+        return null
+    }
+
+    /**
+     * The patterns in a list file: one or more a line, separated by `;` or `,`, with a line that
+     * starts with `;` a comment, as in DayZ Tools' `exclude.lst`.
+     */
+    fun patternsIn(text: String): List<String> = text.lineSequence()
+        .map { it.trim() }
+        .filter { it.isNotEmpty() && !it.startsWith(";") }
+        .flatMap { it.split(';', ',') }
+        .map { it.trim() }
+        .filter { it.isNotEmpty() }
+        .toList()
+
+    /**
+     * Whether [relative], a path inside the addon written with `\`, matches one of [patterns], as
+     * Addon Builder matches its include list: case aside, a pattern matches the path (`data\*`
+     * reaches `data\deep\file.txt`) or the file name alone (`notes.txt` in any folder); `*` stands
+     * for any run of characters and `?` for one.
+     */
+    fun matchesAny(patterns: List<String>, relative: String): Boolean {
+        val name = relative.substringAfterLast('\\')
+        return patterns.any { pattern ->
+            val regex = globRegex(pattern.replace('/', '\\'))
+            regex.matches(relative) || regex.matches(name)
+        }
+    }
+
+    private fun globRegex(pattern: String): Regex = Regex(
+        pattern.split('*').joinToString(".*") { part -> part.split('?').joinToString(".") { Regex.escape(it) } },
+        RegexOption.IGNORE_CASE,
+    )
+
+    /** A path as an include pattern: `,` and `;` would split it, and `?` matches them as well. */
+    private fun asPattern(relative: String): String = relative.replace(',', '?').replace(';', '?')
+
+    /** The files under [folder], relative, with `\`, in a stable order. */
+    fun filesIn(folder: Path): List<String> = Files.walk(folder).use { paths ->
+        paths.filter { Files.isRegularFile(it) }
+            .map { folder.relativize(it).joinToString("\\") }
+            .sorted()
+            .toList()
+    }
 
     /**
      * The lists [build] packs with, as text for the release build's record of an addon: editing a

@@ -167,11 +167,11 @@ class DayZModBuildHandler(
         val staging = build.destination
         staging.toFile().deleteRecursively()
         Files.createDirectories(staging)
-        val ready = AddonBuilderCommand.withListFiles(build, work.resolve("lists"))
-        AddonBuilderCommand.missingListFile(ready)?.let {
-            error("${release.pboNameOf(addon)}: the list file $it does not exist. Type patterns such as *.c;*.layout, or the path of a list file.")
+        AddonBuilderCommand.listProblem(build)?.let {
+            error("${release.pboNameOf(addon)}: $it")
             return false
         }
+        val ready = AddonBuilderCommand.withListFiles(build, work.resolve("lists"))
         say("Building ${release.pboNameOf(addon)} from ${addon.folder}")
         val output = runTool(AddonBuilderCommand.commandLine(toolsBin, ready), addon.folder)
         if (AddonBuilderCommand.result(output) != AddonBuilderCommand.Result.SUCCEEDED || !Files.isRegularFile(build.pbo)) {

@@ -423,6 +423,11 @@ Opening a real DayZ mod. The examples below use a mod called MyMod.
   rebuilt, and its PBO holds its layouts but no scripts. *Build PBO with Options…* on the same
   addon shows `*.layout`, and *Build PBO* packs the same.
 - Set the include list to a file that does not exist → that addon fails, naming the file.
+- Clear the include list and set the exclude list to `*.edds` → the addon rebuilds, its PBO
+  holds everything the default list takes but its `.edds`, and the command line has no
+  `-exclude`. The same with DayZ Tools' `Bin\PboUtils\exclude.lst` as the exclude list.
+- *Build PBO with Options…* with *Pack only* and an exclude list → the build stops and says
+  why.
 - Run again → *0 addon(s) to build*. Edit one script → that addon only.
 - Untick an addon and run → its PBO and signature are removed from `addons\`.
 - Start a server with `verifySignatures = 2` on the built mod → clients with it join.

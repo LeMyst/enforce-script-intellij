@@ -68,13 +68,9 @@ class EnfusionAddonBuilderTest : TestCase() {
         val folder = Files.createTempDirectory("addon-lists")
         try {
             val build = AddonBuild(path("Work", "MyMod", "GUI"), path("Work", "@MyMod", "Addons"))
-            val typed = AddonBuilderCommand.withListSettings(build, "*.c", "*.psd;*.blend")
-            val ready = AddonBuilderCommand.withListFiles(typed, folder)
-            assertEquals("*.c", Files.readString(ready.include!!))
-            assertEquals("*.psd;*.blend", Files.readString(ready.exclude!!))
-            assertNotSame(ready.include, ready.exclude)
-            val command = AddonBuilderCommand.commandLine(bin, ready)
-            assertTrue(command.toString(), "-include=${ready.include}" in command && "-exclude=${ready.exclude}" in command)
+            val ready = AddonBuilderCommand.withListFiles(AddonBuilderCommand.withListSettings(build, "*.c;*.layout", null), folder)
+            assertEquals("*.c;*.layout", Files.readString(ready.include!!))
+            assertTrue("-include=${ready.include}" in AddonBuilderCommand.commandLine(bin, ready))
 
             val other = AddonBuilderCommand.withListFiles(AddonBuilderCommand.withListSettings(build.copy(source = path("Work", "MyMod", "Scripts")), "*.c", null), folder)
             assertFalse("each addon has its own file", other.include == ready.include)
@@ -83,13 +79,59 @@ class EnfusionAddonBuilderTest : TestCase() {
         }
     }
 
+    /**
+     * Addon Builder 1.0.240639 crashed on every `-exclude` tried, DayZ Tools' own `exclude.lst`
+     * included. Its `-include` took exact paths, so the exclude list is applied to the addon's files
+     * here and `-exclude` is never passed.
+     */
+    fun testExcludeListIsAppliedThroughTheIncludeList() {
+        val folder = Files.createTempDirectory("addon-lists")
+        try {
+            val files = listOf("config.cpp", "data\\a,b.txt", "data\\notes.txt", "data\\small.edds", "gui\\test.layout", "scripts\\test.c", "source\\art.psd")
+            val build = AddonBuild(path("Work", "MyMod", "GUI"), path("Work", "@MyMod", "Addons"))
+            fun ready(include: String?, exclude: String?) =
+                AddonBuilderCommand.withListFiles(AddonBuilderCommand.withListSettings(build, include, exclude), folder) { files }
+
+            val default = ready(null, "*.edds")
+            assertNull("never -exclude", default.exclude)
+            assertFalse(AddonBuilderCommand.commandLine(bin, default).any { it.startsWith("-exclude") })
+            assertEquals(
+                "the default list less the textures; `,` written as `?`",
+                "data\\a?b.txt;data\\notes.txt;gui\\test.layout;scripts\\test.c",
+                Files.readString(default.include!!),
+            )
+            assertEquals("scripts\\test.c", Files.readString(ready("*.c;*.txt", "data\\*").include!!))
+            assertEquals("everything left out packs config.bin alone", "", Files.readString(ready("*.c", "*.c").include!!))
+
+            val exclude = Files.writeString(folder.resolve("exclude.lst"), ";;;; Files created during binarization\r\n*.txt\r\n*.layout\r\n")
+            assertEquals("data\\small.edds;scripts\\test.c", Files.readString(ready(null, exclude.toString()).include!!))
+        } finally {
+            folder.toFile().deleteRecursively()
+        }
+    }
+
+    /** Matching as Addon Builder's include list did on a scratch addon. */
+    fun testPatternMatching() {
+        val match = AddonBuilderCommand::matchesAny
+        assertTrue("a name pattern reaches any folder", match(listOf("*.txt"), "data\\deep\\inner.txt"))
+        assertTrue("a bare name too", match(listOf("notes.txt"), "data\\notes.txt"))
+        assertTrue("a folder pattern reaches its subfolders", match(listOf("data\\*"), "data\\deep\\inner.txt"))
+        assertTrue("case aside, either slash", match(listOf("SCRIPTS/Test.C"), "scripts\\test.c"))
+        assertTrue(match(listOf("data\\a?b.txt"), "data\\a,b.txt"))
+        assertFalse(match(listOf("data\\*"), "gui\\data.layout"))
+        assertFalse(match(listOf("*.c"), "scripts\\test.cpp"))
+        assertEquals(listOf("*.dep", "*.log", "*.c", "*.layout"), AddonBuilderCommand.patternsIn(";; comment\r\n*.dep\n\n*.log\n*.c;*.layout\n"))
+    }
+
     /** Addon Builder packs on without a list it cannot read, so the build stops first. */
-    fun testMissingListFile() {
+    fun testListProblems() {
         val list = path("Work", "lists", "gone.lst")
         val build = AddonBuild(path("Work", "MyMod", "GUI"), path("Work", "@MyMod", "Addons"), include = list)
-        assertEquals(list, AddonBuilderCommand.missingListFile(build) { false })
-        assertNull(AddonBuilderCommand.missingListFile(build) { true })
-        assertNull(AddonBuilderCommand.missingListFile(build.copy(include = null)) { false })
+        assertTrue(AddonBuilderCommand.listProblem(build) { false }!!.contains(list.toString()))
+        assertNull(AddonBuilderCommand.listProblem(build) { true })
+        assertNull(AddonBuilderCommand.listProblem(build.copy(include = null)) { false })
+        val packOnly = build.copy(include = null, packOnly = true, excludePatterns = listOf("*.psd"))
+        assertTrue("pack only ignores include lists, so nothing can be left out", AddonBuilderCommand.listProblem(packOnly) { true }!!.contains("pack-only"))
     }
 
     /** The sandbox review changed a list and the release build found nothing to rebuild. */
