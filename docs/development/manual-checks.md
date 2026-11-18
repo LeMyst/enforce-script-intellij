@@ -313,6 +313,13 @@ With `P:\DZ` (or the game's `Addons` as a PBO root) in the roots.
 - Use one of the icons in a layout (`image0 "set:<name> image:<icon>"`) → the layout preview shows
   it. In game, the icon shows, with no neighbour bleeding into its edge.
 - A folder with two `icon.png` in different subfolders → refused, naming `icon`.
+- Next to an `.imageset` whose `Name` differs from its file name (`Name "my_gui"` in
+  `icons.imageset`), *Pack into Imageset…* on the `icons` folder → the dialog proposes `my_gui`
+  and the `.imageset`'s texture path. *Pack* → in game, the layouts' `set:my_gui` icons still show.
+- Pack the same folder as *DXT5* with *Compress the mipmaps with LZ4* → a much smaller `.edds` that
+  the viewer opens as DXT5 with `LZ4` mips. **In game**, use an icon from it in a layout: it shows,
+  with its soft edges. Do the same with *DXT1* on opaque icons.
+- Choose *DXT1* for pictures with soft edges → a warning before packing.
 - Right-click a vanilla imageset such as `P:\gui\imagesets\dayz_gui.imageset` → *Extract Images…*
   → choose a folder → one PNG per image, each matching its gutter icon. Pack that folder again →
   an imageset naming the same images.

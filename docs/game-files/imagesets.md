@@ -17,6 +17,11 @@ Each picture is an image named after its file (`arrow_left.png` → `arrow_left`
 *Subfolders become groups* puts each first-level subfolder's pictures in its own
 `ImageSetGroupClass`.
 
+The set itself is named after the folder, unless an `.imageset` of the folder's name is already
+next to it: packing over that one keeps its `Name` and its texture path, `{GUID}` included.
+Layouts and scripts ask for a picture by the set's `Name` (`"set:<Name> image:<icon>"`), not by
+its file name, so a new name would turn every one of those icons into a white square in game.
+
 ## Placement
 
 Pictures are placed largest first with MaxRects, on the smallest power-of-two atlas that holds
@@ -29,9 +34,17 @@ the picture's own edge pixels.
 
 ## Output
 
-The atlas is BGRA8, uncompressed, with a full mip chain: the format of most vanilla UI atlases
-(13 of the 23 under `P:\gui\imagesets`), with every mip stored raw as in `dayz_gui.edds`, whose
-header it copies (most others compress their larger mips). The `.imageset` lists the images by name
+The atlas is BGRA8 by default, with a full mip chain: the format of most vanilla UI atlases (13 of
+the 23 under `P:\gui\imagesets`), with every mip stored raw as in `dayz_gui.edds`, whose header it
+copies.
+
+- **Format:** *BGRA8* keeps every pixel. *DXT5* (BC3) is a quarter of its size and keeps smooth
+  alpha, the usual choice for icons, as vanilla's `dayz_gui@2x.edds`. *DXT1* (BC1) is half of
+  DXT5, for opaque or cut-out pictures: alpha is on or off, so packing pictures with soft edges as
+  DXT1 asks first. The block encoders are fast ones, made for flat UI art.
+- **Compress the mipmaps with LZ4:** each mip of 64 bytes or more is stored LZ4-compressed when
+  that makes it smaller, and raw otherwise, in vanilla's layout of 64 KiB chunks; this is the rule
+  every vanilla `.edds` follows. The `.imageset` lists the images by name
 and names the atlas by its game path (the addon's prefix and the path inside it, prefilled), without
 a `{GUID}`, as vanilla's `dayz_inventory.imageset` does.
 
@@ -52,6 +65,5 @@ existing pictures are replaced after a confirmation.
 
 ## Not supported yet
 
-Block compression (DXT1, DXT5, BC7) and LZ4-compressed mips, which make smaller files (a 1024² atlas
-is 5.6 MB uncompressed); updating an existing imageset while keeping its images in place;
-remembering the options per folder.
+BC7, and a slower, higher-quality block encoder; updating an existing imageset while keeping its
+images in place; remembering the options per folder.

@@ -22,6 +22,9 @@ import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.COLUMNS_LARGE
 import com.intellij.ui.dsl.builder.bindIntText
+import com.intellij.ui.dsl.builder.bindItem
+import com.intellij.ui.dsl.builder.toNullableProperty
+import com.intellij.ui.dsl.listCellRenderer.textListCellRenderer
 import com.intellij.ui.dsl.builder.bindSelected
 import com.intellij.ui.dsl.builder.bindText
 import com.intellij.ui.dsl.builder.columns
@@ -56,11 +59,15 @@ class PackImageSetAction : DumbAwareAction() {
             return
         }
         val parent = dir.parent ?: dir
+        // Packing over an imageset, as after extracting it to this folder, keeps what layouts and
+        // scripts know it by rather than renaming it after the folder.
+        val existing = parent.findChild(dir.name + ".imageset")
+            ?.let { ImageSetPacking.existing(VfsUtilCore.loadText(it)) }
         val options = PackImageSet.Settings(
-            name = dir.name,
+            name = existing?.name ?: dir.name,
             outputFolder = parent.path,
             fileName = dir.name,
-            texturePath = PackImageSet.texturePath(project, parent, dir.name + ".edds"),
+            texturePath = existing?.texturePath ?: PackImageSet.texturePath(project, parent, dir.name + ".edds"),
         )
         if (!PackImageSetDialog(project, options, sources.size).showAndGet()) return
         PackImageSet.run(project, dir, sources, options)
@@ -81,6 +88,8 @@ internal object PackImageSet {
         var mips: Boolean = true,
         var extrude: Boolean = false,
         var groups: Boolean = false,
+        var format: EddsWriter.Format = EddsWriter.Format.BGRA8,
+        var lz4: Boolean = false,
     )
 
     /** The pictures under [dir], any depth, in path order. */
@@ -126,11 +135,15 @@ internal object PackImageSet {
 
     fun run(project: Project, dir: VirtualFile, files: List<VirtualFile>, settings: Settings) {
         val result = try {
-            ProgressManager.getInstance().runProcessWithProgressSynchronously<Pair<ByteArray, String>, Exception>(
+            ProgressManager.getInstance().runProcessWithProgressSynchronously<Pair<ByteArray, String>?, Exception>(
                 {
                     val sources = files.map { read(dir, it, settings.groups) }
                     val packed = ImageSetPacking.pack(sources, ImageSetPacking.Options(settings.padding, settings.maxSide, settings.extrude))
-                    val edds = EddsWriter.bgra8(packed.argb, packed.width, packed.height, settings.mips)
+                    // DXT1 keeps alpha as on or off: soft edges and shadows would turn hard.
+                    if (settings.format == EddsWriter.Format.DXT1 && EddsWriter.hasPartialAlpha(packed.argb) && !confirmLossyAlpha(project)) {
+                        return@runProcessWithProgressSynchronously null
+                    }
+                    val edds = EddsWriter.write(packed.argb, packed.width, packed.height, settings.mips, settings.format, settings.lz4)
                     edds to ImageSetPacking.imageSet(settings.name, settings.texturePath, packed)
                 },
                 "Packing ${files.size} Pictures",
@@ -144,7 +157,7 @@ internal object PackImageSet {
             Messages.showErrorDialog(project, e.message, "Pack into Imageset")
             return
         }
-        val (edds, imageSet) = result
+        val (edds, imageSet) = result ?: return
         val written = WriteCommandAction.writeCommandAction(project).withName("Pack into Imageset").compute<VirtualFile, Exception> {
             val out = VfsUtil.createDirectoryIfMissing(settings.outputFolder) ?: error("Cannot create ${settings.outputFolder}")
             val texture = out.findChild(settings.fileName + ".edds") ?: out.createChildData(this, settings.fileName + ".edds")
@@ -161,6 +174,22 @@ internal object PackImageSet {
                 NotificationType.INFORMATION,
             )
             .notify(project)
+    }
+
+    /** Asked from the packing thread, on the EDT: DXT1 would lose the pictures' partial alpha. */
+    private fun confirmLossyAlpha(project: Project): Boolean {
+        var answer = false
+        com.intellij.openapi.application.ApplicationManager.getApplication().invokeAndWait({
+            answer = Messages.showOkCancelDialog(
+                project,
+                "Some pictures have partly transparent pixels, which DXT1 stores as either opaque or transparent: soft edges and shadows turn hard. DXT5 keeps them.",
+                "Pack into Imageset",
+                "Pack as DXT1",
+                Messages.getCancelButton(),
+                Messages.getWarningIcon(),
+            ) == Messages.OK
+        }, com.intellij.openapi.application.ModalityState.any())
+        return answer
     }
 
     /** One picture: its image name, its group (its first folder under [dir], when asked), its pixels. */
@@ -219,7 +248,12 @@ private class PackImageSetDialog(private val project: Project, private val setti
             row { checkBox("Mipmaps, as vanilla's UI atlases have").bindSelected(settings::mips) }
             row { checkBox("Repeat each picture's edge into half the gap round it").bindSelected(settings::extrude) }
             row { checkBox("Subfolders become groups").bindSelected(settings::groups) }
-            row { comment("BGRA8, uncompressed: the format of most vanilla UI atlases. Packing the same pictures again gives the same files.") }
+            row("Format:") {
+                comboBox(EddsWriter.Format.entries, textListCellRenderer<EddsWriter.Format?> { it?.label }).bindItem(settings::format.toNullableProperty())
+                    .comment("BGRA8 keeps every pixel, the format of most vanilla UI atlases. DXT5 is a quarter of its size and keeps smooth alpha; DXT1 is half of DXT5, for opaque or cut-out pictures.")
+            }
+            row { checkBox("Compress the mipmaps with LZ4, as most vanilla atlases do").bindSelected(settings::lz4) }
+            row { comment("Packing the same pictures with the same options again gives the same files.") }
         }
         return form
     }
