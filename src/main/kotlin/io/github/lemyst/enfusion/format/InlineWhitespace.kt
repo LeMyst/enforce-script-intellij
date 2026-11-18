@@ -1,5 +1,6 @@
 package io.github.lemyst.enfusion.format
 
+import com.intellij.formatting.ASTBlock
 import com.intellij.formatting.Block
 import com.intellij.formatting.Spacing
 import com.intellij.lang.ASTNode
@@ -19,6 +20,20 @@ internal object InlineWhitespace {
 
     fun between(parent: ASTNode, child1: Block?, child2: Block, lineSpacing: Spacing): Spacing {
         if (child1 == null) return lineSpacing
+        // Only the nodes between the two blocks are read, usually one whitespace leaf. Reading
+        // `parent.chars` built the whole parent's text on every call, and a body is asked once per
+        // pair of its children: reformatting a 525,000-line vanilla config took over 8 minutes.
+        val first = (child1 as? ASTBlock)?.node
+        val second = (child2 as? ASTBlock)?.node
+        if (first != null && second != null && first.treeParent === second.treeParent) {
+            var node = first.treeNext
+            while (node != null && node !== second) {
+                if (node.textContains('\n')) return lineSpacing
+                node = node.treeNext
+            }
+            if (node === second) return Spacing.getReadOnlySpacing()
+        }
+        // Blocks that are not siblings: the gap read from the parent's text, as before.
         val text = parent.chars
         val base = parent.startOffset
         val from = (child1.textRange.endOffset - base).coerceIn(0, text.length)
