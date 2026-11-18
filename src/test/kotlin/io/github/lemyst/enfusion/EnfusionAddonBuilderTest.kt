@@ -62,6 +62,25 @@ class EnfusionAddonBuilderTest : TestCase() {
         assertNull("every copy finished", AddonBuilderCommand.tooLongCopy(output.substringBefore("[2026-01-01 10:00:00,003]")))
     }
 
+    /** The second sandbox run: a PBO built fine, then failed as it was copied to a deep folder. */
+    fun testTooLongPboCopyIsNamed() {
+        val dest = "C:\\" + "d".repeat(230) + "\\staging\\addon\\AddonWithALongName.pbo"
+        val output = """
+            [2026-01-01 10:00:00,000] [INFO ]: Packing "C:\temp\addon"...
+            [2026-01-01 10:00:00,001] [INFO ]: Done.
+            [2026-01-01 10:00:00,002] [INFO ]: Copying PBO. [source]=C:\temp\AddonWithALongName.pbo, [dest]=$dest
+            [2026-01-01 10:00:00,003] [ERROR]: Build failed
+        """.trimIndent()
+        assertEquals(dest, AddonBuilderCommand.tooLongCopy(output))
+        assertNull("the copy was done", AddonBuilderCommand.tooLongCopy(output.replace("[ERROR]: Build failed", "[INFO ]: Done.")))
+    }
+
+    fun testSteamApiLinesAreNoise() {
+        assertTrue(AddonBuilderCommand.isSteamNoise("Setting breakpad minidump AppID = 830640\n"))
+        assertTrue(AddonBuilderCommand.isSteamNoise("Steam_SetMinidumpSteamID:  Caching Steam ID:  1 [API loaded no]\n"))
+        assertFalse(AddonBuilderCommand.isSteamNoise("[2026-01-01 10:00:00,000] [ERROR]: Build failed\n"))
+    }
+
     fun testShortTempFolder() {
         val systemTemp = path("Users", "me", "AppData", "Local", "Temp")
         val one = AddonBuilderCommand.shortTemp(systemTemp, "release one")

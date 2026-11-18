@@ -149,7 +149,7 @@ class DayZModBuildConfiguration(project: Project, factory: ConfigurationFactory,
                 }
                 val work = Path.of(PathManager.getSystemPath(), "enfusion", "release", "${project.locationHash}-${folderName(name)}")
                 val builds = AddonBuilds.getInstance(project)
-                val handler = DayZModBuildHandler(release, toolsBin, work) { folder -> builds.get(folder)?.toBuild() }
+                val handler = DayZModBuildHandler(release, toolsBin, work) { folder -> builds.get(folder) }
                 ProcessTerminatedListener.attach(handler)
                 return handler
             }

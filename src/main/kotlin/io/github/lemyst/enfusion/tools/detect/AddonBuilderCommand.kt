@@ -108,28 +108,37 @@ object AddonBuilderCommand {
         systemTemp.resolve("enfusion-ab").resolve(Integer.toHexString(key.hashCode()))
 
     /**
-     * The copy Addon Builder was making when it stopped, when its path is past [MAX_PATH]. That is
-     * the last `Syncing file "…"` line with no `File sync done` after it, in the `[sync]=` folder
-     * Addon Builder named.
+     * The file Addon Builder was writing when it stopped, when its path is past [MAX_PATH]: the
+     * copy of its last `Syncing file "…"` with no `File sync done` after it, in the `[sync]=`
+     * folder it named, or the `[dest]=` of a `Copying PBO` with no `Done.` after it.
      */
     fun tooLongCopy(output: String): String? {
         var folder: String? = null
         var pending: String? = null
         for (line in output.lineSequence()) {
             SYNC_FOLDER.find(line)?.let { folder = it.groupValues[1].trim() }
-            SYNCING_FILE.find(line)?.let { pending = it.groupValues[1] }
-            if (line.contains("File sync done")) pending = null
+            SYNCING_FILE.find(line)?.let { file -> folder?.let { pending = it.trimEnd('\\') + "\\" + file.groupValues[1] } }
+            COPYING_PBO.find(line)?.let { pending = it.groupValues[1].trim() }
+            if (line.contains("File sync done") || line.trimEnd().endsWith("]: Done.")) pending = null
         }
-        val copy = (folder ?: return null).trimEnd('\\') + "\\" + (pending ?: return null)
-        return copy.takeIf { it.length > MAX_PATH }
+        return pending?.takeIf { it.length > MAX_PATH }
     }
 
     /** What to say about [tooLongCopy]'s result. */
     fun tooLongMessage(copy: String): String =
-        "Addon Builder could not copy a file into its temp folder: $copy is ${copy.length} characters, past Windows' limit of 260. Shorten the file's path in the addon."
+        "Addon Builder could not write $copy: ${copy.length} characters, past Windows' limit of 260. " +
+            "A shorter path to the addon's files or to the output folder avoids it."
+
+    /**
+     * Two lines the Steam API prints on stderr each time Addon Builder starts. They are no error,
+     * and shown in red they hid the real ones.
+     */
+    fun isSteamNoise(text: String): Boolean =
+        text.startsWith("Setting breakpad minidump AppID") || text.startsWith("Steam_SetMinidumpSteamID")
 
     private val SYNC_FOLDER = Regex("""\[sync]=(.+)$""")
     private val SYNCING_FILE = Regex("""Syncing file "(.+)"""")
+    private val COPYING_PBO = Regex("""Copying PBO\. \[source]=.*, \[dest]=(.+)$""")
 
     /** The build's outcome from its output, the last verdict line winning. */
     fun result(output: String): Result {

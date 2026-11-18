@@ -9,6 +9,7 @@ import com.intellij.execution.process.ProcessOutputTypes
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.util.Key
+import io.github.lemyst.enfusion.tools.AddonBuildState
 import io.github.lemyst.enfusion.tools.detect.AddonBuild
 import io.github.lemyst.enfusion.tools.detect.AddonBuilderCommand
 import io.github.lemyst.enfusion.tools.detect.DayZAddonPacking
@@ -27,7 +28,7 @@ import java.nio.file.StandardCopyOption
  * named, signed by DSSignFile, the other files copied, files no longer part of the mod removed,
  * and the signatures checked. *Stop* stops the running tool and the steps after it.
  *
- * Each addon is built into a folder of its own under [work] and then moved into `addons\` under
+ * Each addon is built into a folder of its own, outside [work], and then moved into `addons\` under
  * its release name: Addon Builder names a PBO after its source folder, so `Scripts\Client` and
  * `Other\Client` would both be `Client.pbo`. Signing comes after, so that the signature is made for
  * the name the mod ships.
@@ -35,20 +36,23 @@ import java.nio.file.StandardCopyOption
 class DayZModBuildHandler(
     private val release: DayZModRelease,
     private val toolsBin: Path,
-    /** The release build's own folder in the IDE's system folder: staging and manifests. */
+    /** The release build's own folder in the IDE's system folder, for its manifests. */
     private val work: Path,
     /** The saved *Build PBO* options of an addon folder, for its include and exclude lists. */
-    private val savedOptions: (Path) -> AddonBuild?,
+    private val savedOptions: (Path) -> AddonBuildState?,
 ) : ProcessHandler() {
 
     /**
-     * Not under [work]: Addon Builder copies every file there first, and the IDE's system folder
-     * left too few of Windows' 260 characters for a deep addon. See [AddonBuilderCommand.MAX_PATH].
+     * Addon Builder's temp folder and the folder each PBO is first written to, both outside
+     * [work]: Addon Builder copies every file into the first and the PBO into the second, and the
+     * IDE's system folder left too few of Windows' 260 characters for either. See
+     * [AddonBuilderCommand.MAX_PATH].
      */
-    private val addonBuilderTemp: Path = AddonBuilderCommand.shortTemp(
+    private val shortFolder: Path = AddonBuilderCommand.shortTemp(
         Path.of(System.getenv("TEMP") ?: System.getProperty("java.io.tmpdir")),
         work.toString(),
     )
+    private val addonBuilderTemp: Path = shortFolder.resolve("temp")
 
     @Volatile
     private var stopping = false
@@ -141,7 +145,7 @@ class DayZModBuildHandler(
 
     /** Builds one addon, moves its PBO into `addons\` under its release name, and signs it. */
     private fun buildAddon(addon: DayZAddonPacking.Addon, addonsDir: Path): Boolean {
-        val staging = work.resolve("staging").resolve(release.pboNameOf(addon).removeSuffix(".pbo"))
+        val staging = shortFolder.resolve("pbo").resolve(release.pboNameOf(addon).removeSuffix(".pbo"))
         staging.toFile().deleteRecursively()
         Files.createDirectories(staging)
         val saved = savedOptions(addon.folder)
@@ -152,8 +156,8 @@ class DayZModBuildHandler(
             packOnly = false,
             clear = true,
             temp = addonBuilderTemp,
-            include = saved?.include,
-            exclude = saved?.exclude,
+            include = saved?.includePath(),
+            exclude = saved?.excludePath(),
         )
         say("Building ${release.pboNameOf(addon)} from ${addon.folder}")
         val output = runTool(AddonBuilderCommand.commandLine(toolsBin, AddonBuilderCommand.withDefaultInclude(build, work)), addon.folder)
@@ -183,7 +187,8 @@ class DayZModBuildHandler(
             override fun onTextAvailable(event: ProcessEvent, outputType: Key<*>) {
                 if (outputType === ProcessOutputTypes.SYSTEM) return
                 output.append(event.text)
-                notifyTextAvailable(event.text, outputType)
+                val shown = if (AddonBuilderCommand.isSteamNoise(event.text)) ProcessOutputTypes.STDOUT else outputType
+                notifyTextAvailable(event.text, shown)
             }
         })
         running = handler

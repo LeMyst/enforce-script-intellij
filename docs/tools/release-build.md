@@ -21,8 +21,11 @@ the `@MyMod` folder a mod ships, one configuration per mod:
 - **What goes into `addons\`:**
   - *Rescan Project Addons* lists the project's `config.cpp` folders, as the
     [DayZ run configuration](running-dayz.md) does, and *Add PBO Files…* adds third-party PBOs.
-  - **The project's addons** are built by Addon Builder, binarised, with each addon's saved
-    [*Build PBO*](building-pbos.md) include and exclude lists. Each one is built into a folder of
+  - **The project's addons** are built by Addon Builder, binarised, with each addon's include and
+    exclude lists. Select an addon in the table and click *Addon Builder Lists…* to set them.
+    They are saved with the addon's [*Build PBO*](building-pbos.md) options, so both builds use
+    the same lists. With no include list, the plugin's own applies: see
+    [What goes into the PBO](building-pbos.md). Each one is built into a folder of
     its own, then moved into `addons\` under its release name: its prefix's folders joined by `_`,
     so `MyMod\Scripts\Client` becomes `Scripts_Client.pbo`, as mod build scripts name them.
     *Lower-case PBO names* makes it `scripts_client.pbo`, signature included; switching it

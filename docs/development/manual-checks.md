@@ -415,6 +415,12 @@ Opening a real DayZ mod. The examples below use a mod called MyMod.
       `.MyMod.bisign`.
     - `keys\` holds `MyMod.bikey` and the third-party key, and `mod.cpp` and the extras are copied.
     - The last lines say *Signatures checked: all OK* and *Built …*.
+- With the run configuration's folder deep on disk (as in a sandbox IDE) → every addon still
+  builds, scripts of 60 characters' depth included. The Steam API's two lines after each addon
+  are not red.
+- Select an addon → *Addon Builder Lists…* → the include and exclude lists. Set an include list
+  without `*.c` and run → that PBO holds no scripts. *Build PBO with Options…* on the same addon
+  shows the same list.
 - Run again → *0 addon(s) to build*. Edit one script → that addon only.
 - Untick an addon and run → its PBO and signature are removed from `addons\`.
 - Start a server with `verifySignatures = 2` on the built mod → clients with it join.
