@@ -17,6 +17,11 @@ Each picture is an image named after its file (`arrow_left.png` → `arrow_left`
 *Subfolders become groups* puts each first-level subfolder's pictures in its own
 `ImageSetGroupClass`.
 
+The set itself is named after the folder, unless an `.imageset` of the folder's name is already
+next to it: packing over that one keeps its `Name` and its texture path, `{GUID}` included.
+Layouts and scripts ask for a picture by the set's `Name` (`"set:<Name> image:<icon>"`), not by
+its file name, so a new name would turn every one of those icons into a white square in game.
+
 ## Placement
 
 Pictures are placed largest first with MaxRects, on the smallest power-of-two atlas that holds

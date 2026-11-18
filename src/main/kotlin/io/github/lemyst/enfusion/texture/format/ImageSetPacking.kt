@@ -82,6 +82,24 @@ object ImageSetPacking {
         }
     }
 
+    /** What an existing `.imageset` is known by: its `Name`, and the path of its first texture. */
+    class Existing(val name: String?, val texturePath: String?)
+
+    /**
+     * The set's own `Name` and texture `path` in [text], an `.imageset`, so that packing over it can
+     * keep them. Layouts and scripts name the set (`"set:<Name> image:<icon>"`), not the file: in
+     * the sandbox review a mod's `dayzbr_gui.imageset` was named `battleroyale_gui`, packing it again
+     * renamed it after the folder, and every icon the layouts asked for showed as a white square.
+     * The set's `Name` is the first one in the file, before its images'.
+     */
+    fun existing(text: String): Existing = Existing(
+        name = NAME.find(text)?.groupValues?.get(1),
+        texturePath = PATH.find(text)?.groupValues?.get(1),
+    )
+
+    private val NAME = Regex("""(?m)^\s*Name\s+"([^"]*)"""")
+    private val PATH = Regex("""(?m)^\s*path\s+"([^"]*)"""")
+
     /**
      * The `.imageset` for [packed], naming the atlas [texturePath] (the game's path to it, without
      * a `{GUID}`, as vanilla's `dayz_inventory.imageset` writes it). Pictures without a group go

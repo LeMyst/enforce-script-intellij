@@ -59,11 +59,15 @@ class PackImageSetAction : DumbAwareAction() {
             return
         }
         val parent = dir.parent ?: dir
+        // Packing over an imageset, as after extracting it to this folder, keeps what layouts and
+        // scripts know it by rather than renaming it after the folder.
+        val existing = parent.findChild(dir.name + ".imageset")
+            ?.let { ImageSetPacking.existing(VfsUtilCore.loadText(it)) }
         val options = PackImageSet.Settings(
-            name = dir.name,
+            name = existing?.name ?: dir.name,
             outputFolder = parent.path,
             fileName = dir.name,
-            texturePath = PackImageSet.texturePath(project, parent, dir.name + ".edds"),
+            texturePath = existing?.texturePath ?: PackImageSet.texturePath(project, parent, dir.name + ".edds"),
         )
         if (!PackImageSetDialog(project, options, sources.size).showAndGet()) return
         PackImageSet.run(project, dir, sources, options)

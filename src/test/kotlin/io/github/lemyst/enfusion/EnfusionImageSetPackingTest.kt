@@ -120,6 +120,45 @@ class EnfusionImageSetPackingTest : BasePlatformTestCase() {
         }
     }
 
+    /**
+     * Packing over an imageset keeps its name and texture path. In the sandbox review, repacking a
+     * mod's set renamed it after its folder, and every icon its layouts asked for turned white.
+     */
+    fun testAnExistingImageSetKeepsItsNameAndTexturePath() {
+        val text = """
+            ImageSetClass {
+             Name "my_mod_gui"
+             RefSize 256 256
+             Textures {
+              ImageSetTextureClass {
+               mpix 1
+               path "{0123456789ABCDEF}MyMod/GUI/imagesets/icons.edds"
+              }
+             }
+             Images {
+              ImageSetDefClass Logo {
+               Name "Logo"
+               Pos 0 0
+               Size 64 64
+               Flags 0
+              }
+             }
+            }
+        """.trimIndent()
+        val existing = ImageSetPacking.existing(text)
+        assertEquals("the set's own Name, not its first image's", "my_mod_gui", existing.name)
+        assertEquals("{0123456789ABCDEF}MyMod/GUI/imagesets/icons.edds", existing.texturePath)
+
+        val packed = ImageSetPacking.pack(listOf(ImageSetPacking.Source("Logo", null, 1, 1, intArrayOf(-1))))
+        val again = ImageSetPacking.existing(ImageSetPacking.imageSet(existing.name!!, existing.texturePath!!, packed))
+        assertEquals("my_mod_gui", again.name)
+        assertEquals(existing.texturePath, again.texturePath)
+
+        val nothing = ImageSetPacking.existing("ImageSetClass {\n}\n")
+        assertNull(nothing.name)
+        assertNull(nothing.texturePath)
+    }
+
     /** The descriptor parses, and names each picture where its pixels are. */
     fun testImageSetTextParsesAndPlacesEachPicture() {
         val red = ImageSetPacking.Source("red", null, 3, 2, IntArray(6) { 0xFFFF0000.toInt() })
