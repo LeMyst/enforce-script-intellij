@@ -320,6 +320,10 @@
         <codeInsight.overrideMethod
                 language="EnfusionScript"
                 implementationClass="io.github.lemyst.enfusion.nav.EnOverrideMethodsHandler"/>
+        <!-- Ctrl+Q: the signature, the Doxygen comment, and where a declaration comes from. -->
+        <lang.documentationProvider
+                language="EnfusionScript"
+                implementationClass="io.github.lemyst.enfusion.doc.EnfusionDocumentationProvider"/>
 
         <gotoClassContributor
                 implementation="io.github.lemyst.enfusion.nav.EnfusionGotoClassContributor"/>

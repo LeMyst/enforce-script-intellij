@@ -28,27 +28,27 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Fetch sources
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Pages
         if: ${{ github.event_name != 'pull_request' }}
-        uses: actions/configure-pages@v6
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
 
       # The `github-pages` gem, as GitHub's own Pages build uses: the theme comes in through
       # `remote_theme` in docs/_config.yml, so the repository needs no Gemfile or Ruby setup.
       - name: Build with Jekyll
-        uses: actions/jekyll-build-pages@v1
+        uses: actions/jekyll-build-pages@44a6e6beabd48582f863aeeb6cb2151cc1716697 # v1.0.13
         with:
           source: ./docs
           destination: ./_site
 
       - name: Upload the site for Pages
         if: ${{ github.event_name != 'pull_request' }}
-        uses: actions/upload-pages-artifact@v5
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
 
       - name: Upload the site for review
         if: ${{ github.event_name == 'pull_request' }}
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: docs-site
           path: _site
@@ -68,4 +68,4 @@ jobs:
     steps:
       - name: Deploy
         id: deployment
-        uses: actions/deploy-pages@v5
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
