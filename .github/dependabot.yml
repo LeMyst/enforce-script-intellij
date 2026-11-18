@@ -1,0 +1,13 @@
+version: 2
+updates:
+  # The workflows pin every action to a commit SHA, with its version in a trailing comment.
+  # Dependabot moves both together, so the pins stay current without hand edits.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    # One pull request a week for all actions, rather than one per action.
+    groups:
+      github-actions:
+        patterns:
+          - "*"

@@ -176,13 +176,22 @@ vanilla DayZ files or anything copied from them.
 
 - `.github/workflows/build.yml` runs on every push to `master` and every pull request. It builds,
   runs the tests and the configuration check, and uploads the plugin zip as an artifact. It also
-  runs the Plugin Verifier in a second job. The corpus tests **skip** in CI, because the vanilla
-  sources cannot be published, so a green CI run is not the whole picture: run them locally too.
+  runs the Plugin Verifier in a second job, which is skipped when a change touches only `docs/`,
+  top-level Markdown, `dependabot.yml` or the other two workflows; the list is `NOT_PLUGIN` in
+  `build.yml`. Anything else runs it, including `build.yml` itself, and the release workflow
+  always runs it. The corpus tests **skip** in CI, because the vanilla sources cannot be
+  published, so a green CI run is not the whole picture: run them locally too.
 - `.github/workflows/release.yml` runs when a `v*` tag is pushed and produces a **draft** GitHub
   release with the zip attached (see below).
 - `.github/workflows/pages.yml` builds the documentation site when `docs/` changes. On a pull
   request it only builds, and uploads the result as the `docs-site` artifact. On `master` it
   deploys to GitHub Pages (the repository's Pages source is *GitHub Actions*).
+- **Every action is pinned to a full commit SHA**, with its exact version in a trailing comment
+  (`uses: actions/checkout@<sha> # v7.0.1`). A tag can be moved to other code after the fact; a
+  SHA cannot. Pin a new action the same way, resolving the tag with
+  `git ls-remote --tags https://github.com/<owner>/<repo>.git` (for an annotated tag, take the
+  `^{}` line, which is the commit). Dependabot (`.github/dependabot.yml`) bumps the SHA and the
+  comment together in one grouped pull request a week.
 
 ## Releasing
 
