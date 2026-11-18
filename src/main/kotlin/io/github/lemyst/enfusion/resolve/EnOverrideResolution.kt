@@ -55,7 +55,9 @@ object EnOverrideResolution {
         }
 
         found -= method
-        return found.toList()
+        // `~PlayerBase()` is named `PlayerBase` too: without this, a layer's constructor led to
+        // vanilla's constructor and destructor both, and so did its destructor.
+        return found.filter { it.isDestructor() == method.isDestructor() }
     }
 
     /** Methods declared directly in [owner]'s own body, ignoring anything it inherits. */

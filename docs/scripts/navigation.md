@@ -35,6 +35,10 @@ collection in `foreach (auto x : ...)`.
 **Go to Declaration and a gutter icon on `override` methods**, linking back to what they override —
 another `modded class` layer of the same class, or a superclass. A method's own name is a
 declaration rather than a reference, so without this Ctrl+Click on it did nothing at all.
+On a `modded class`, an upward icon leads to the class it patches, listed first, and to the other
+layers of that class. A constructor leads only to constructors and a destructor only to
+destructors, although `~PlayerBase()` carries the class's name too.
+
 **Go to Super Method** (`Ctrl+U`) goes the same way from anywhere in the method, and from
 elsewhere in a class to the class it extends or, for a `modded class`, the class it patches.
 

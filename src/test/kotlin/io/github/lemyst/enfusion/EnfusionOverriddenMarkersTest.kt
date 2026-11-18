@@ -1,6 +1,7 @@
 package io.github.lemyst.enfusion
 
 import com.intellij.codeInsight.daemon.LineMarkerInfo
+import com.intellij.codeInsight.daemon.RelatedItemLineMarkerInfo
 import com.intellij.psi.PsiElement
 import com.intellij.psi.search.searches.DefinitionsScopedSearch
 import com.intellij.psi.util.PsiTreeUtil
@@ -9,6 +10,8 @@ import io.github.lemyst.enfusion.inspections.EnMissingOverrideInspection
 import io.github.lemyst.enfusion.inspections.EnRedundantOverrideInspection
 import io.github.lemyst.enfusion.nav.EnGotoSuperHandler
 import io.github.lemyst.enfusion.nav.EnOverriddenLineMarkerProvider
+import io.github.lemyst.enfusion.nav.EnOverrideLineMarkerProvider
+import io.github.lemyst.enfusion.resolve.EnOverrideResolution
 import io.github.lemyst.enfusion.psi.EnNamedElement
 import io.github.lemyst.enfusion.psi.impl.EnClassDeclMixin
 import io.github.lemyst.enfusion.psi.impl.EnMethodDeclMixin
@@ -120,6 +123,29 @@ class EnfusionOverriddenMarkersTest : BasePlatformTestCase() {
         myFixture.addFileToProject("mods/mine_layer.es", "modded class MyThing\n{\n\toverride void Do() {}\n}")
         myFixture.configureByText("mine.es", "class MyThing\n{\n\tvoid Do() {}\n}")
         myFixture.checkHighlighting(true, false, true)
+    }
+
+    /** The sandbox review: a mod's `modded class` had no gutter link to the class it patches. */
+    fun testLayerMarkerLeadsToTheOriginalAndTheOtherLayers() {
+        val layer = named<EnClassDeclMixin>("mods/b.es", "ItemBase")
+        val info = EnOverrideLineMarkerProvider().getLineMarkerInfo(layer.nameIdentifier!!) as RelatedItemLineMarkerInfo<*>
+        assertEquals("Patches ItemBase, beside 1 other layer", info.lineMarkerTooltip)
+        assertEquals(
+            setOf("entity.es", "a.es"),
+            info.createGotoRelatedItems().map { it.element!!.containingFile.name }.toSet(),
+        )
+        val original = named<EnClassDeclMixin>("vanilla/entity.es", "ItemBase")
+        assertNull("an original patches nothing", EnOverrideLineMarkerProvider().getLineMarkerInfo(original.nameIdentifier!!))
+        assertEquals("Beside 2 other layers", EnOverrideLineMarkerProvider.layerText("X", 0, 2))
+    }
+
+    /** The sandbox review: `~PlayerBase()` is named `PlayerBase`, and Ctrl+Click offered both. */
+    fun testConstructorAndDestructorAreNotEachOthersOverrides() {
+        myFixture.addFileToProject("vanilla/player.es", "class PlayerBase\n{\n\tvoid PlayerBase() {}\n\tvoid ~PlayerBase() {}\n}")
+        myFixture.addFileToProject("mods/player.es", "modded class PlayerBase\n{\n\tvoid PlayerBase() {}\n\tvoid ~PlayerBase() {}\n}")
+        val (constructor, destructor) = PsiTreeUtil.findChildrenOfType(file("mods/player.es"), EnMethodDeclMixin::class.java).toList()
+        assertEquals(listOf(false), EnOverrideResolution.superDeclarationsOf(constructor).map { it.isDestructor() })
+        assertEquals(listOf(true), EnOverrideResolution.superDeclarationsOf(destructor).map { it.isDestructor() })
     }
 
     private fun owner(element: PsiElement): String? =
