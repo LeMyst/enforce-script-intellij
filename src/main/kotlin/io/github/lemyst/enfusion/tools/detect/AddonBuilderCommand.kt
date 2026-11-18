@@ -75,11 +75,17 @@ object AddonBuilderCommand {
      * and so the one here adds what the PBOs of 20 Workshop mods ship: stringtables, XML and JSON,
      * styles, fonts, sounds, textures and materials. Checked on a scratch addon: `.paa` and
      * `.rvmat` reached the PBO only when listed. Models are left to binarisation.
+     *
+     * `LICENSE` and `NOTICE` are there for third-party code an addon carries: Apache 2.0, for one,
+     * wants both shipped with it, and a third-party PBO in the review held them at its root. Checked
+     * on a scratch addon: a name without an extension packs that file at the root and in subfolders,
+     * case aside, and leaves `LICENSE.md` out.
      */
     val DEFAULT_INCLUDE = listOf(
         "*.c", "*.layout", "*.imageset", "*.styles", "*.edds", "*.emat", "*.ptc",
         "*.paa", "*.rvmat", "*.ogg", "*.wss", "*.fnt", "*.fxy", "*.jpg",
         "*.csv", "*.xml", "*.json", "*.txt", "*.html", "*.cfg",
+        "LICENSE", "NOTICE",
     )
 
     /**
@@ -127,21 +133,23 @@ object AddonBuilderCommand {
      * written as the include list, one path each. That covers the files copied as they are; what
      * Addon Builder binarises (`config.cpp`, models) is not on either list.
      *
-     * With no exclude list, typed patterns are written as they are, and [DEFAULT_INCLUDE] when the
-     * build sets no include list and is binarised; a pack-only build stores every file anyway. The
-     * file is named after the addon's folder, so that two addons never share one. [files] lists the
-     * addon's files, relative, with `\`.
+     * With no exclude list, the include list is written as it is: typed patterns, the patterns of
+     * the user's list file, or [DEFAULT_INCLUDE] when the build sets none and is binarised; a
+     * pack-only build stores every file anyway. Even a list file of the user's own is rewritten:
+     * Addon Builder 1.0.240639 fails with a bare *Build failed* on an include list file of several
+     * lines, LF or CRLF, and takes the same patterns on one line. The file is named after the
+     * addon's folder, so that two addons never share one. [files] lists the addon's files,
+     * relative, with `\`.
      */
     fun withListFiles(build: AddonBuild, folder: Path, files: (Path) -> List<String> = ::filesIn): AddonBuild {
         val exclude = build.excludePatterns ?: build.exclude?.let { patternsIn(Files.readString(it)) }
+        val wanted = build.includePatterns ?: build.include?.let { patternsIn(Files.readString(it)) }
         val include = when {
-            exclude != null -> {
-                val wanted = build.includePatterns ?: build.include?.let { patternsIn(Files.readString(it)) } ?: DEFAULT_INCLUDE
-                files(build.source).filter { matchesAny(wanted, it) && !matchesAny(exclude, it) }.map(::asPattern)
-            }
-            else -> build.includePatterns ?: DEFAULT_INCLUDE.takeIf { build.include == null && !build.packOnly }
+            exclude != null ->
+                files(build.source).filter { matchesAny(wanted ?: DEFAULT_INCLUDE, it) && !matchesAny(exclude, it) }.map(::asPattern)
+            else -> wanted ?: DEFAULT_INCLUDE.takeUnless { build.packOnly }
         }
-        // Only a list file of the user's own, or pack only, and no exclude list: nothing to write.
+        // Pack only with no list: nothing to write.
         if (include == null) return build
         Files.createDirectories(folder)
         val stem = build.source.fileName.toString() + "-" + Integer.toHexString(build.source.toString().lowercase().hashCode())

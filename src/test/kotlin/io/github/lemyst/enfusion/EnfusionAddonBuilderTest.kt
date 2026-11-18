@@ -32,13 +32,11 @@ class EnfusionAddonBuilderTest : TestCase() {
             assertEquals(folder, list.parent)
             assertTrue(list.fileName.toString(), list.fileName.toString().startsWith("Scripts-"))
             val patterns = Files.readString(list).split(';')
-            for (needed in listOf("*.c", "*.layout", "*.imageset", "*.csv", "*.edds", "*.paa", "*.rvmat")) {
+            for (needed in listOf("*.c", "*.layout", "*.imageset", "*.csv", "*.edds", "*.paa", "*.rvmat", "LICENSE", "NOTICE")) {
                 assertTrue(needed, needed in patterns)
             }
             assertTrue("-include=$list" in AddonBuilderCommand.commandLine(bin, withList))
 
-            val own = build.copy(include = path("Work", "mine.lst"))
-            assertSame("a list the user set is kept", own, AddonBuilderCommand.withListFiles(own, folder))
             val packOnly = build.copy(packOnly = true)
             assertSame("pack only stores every file", packOnly, AddonBuilderCommand.withListFiles(packOnly, folder))
         } finally {
@@ -80,6 +78,23 @@ class EnfusionAddonBuilderTest : TestCase() {
     }
 
     /**
+     * Addon Builder 1.0.240639 failed with a bare *Build failed* on an include list file of
+     * several lines, LF or CRLF, on a scratch addon, and packed the same patterns on one line.
+     */
+    fun testIncludeListFileIsWrittenOnOneLine() {
+        val folder = Files.createTempDirectory("addon-lists")
+        try {
+            val mine = Files.writeString(folder.resolve("mine.lst"), "; scripts and layouts\r\n*.c\r\n*.layout;LICENSE\r\n")
+            val build = AddonBuild(path("Work", "MyMod", "GUI"), path("Work", "@MyMod", "Addons"))
+            val ready = AddonBuilderCommand.withListFiles(AddonBuilderCommand.withListSettings(build, mine.toString(), null), folder.resolve("out"))
+            assertFalse("the user's file is left as it is", ready.include == mine)
+            assertEquals("*.c;*.layout;LICENSE", Files.readString(ready.include!!))
+        } finally {
+            folder.toFile().deleteRecursively()
+        }
+    }
+
+    /**
      * Addon Builder 1.0.240639 crashed on every `-exclude` tried, DayZ Tools' own `exclude.lst`
      * included. Its `-include` took exact paths, so the exclude list is applied to the addon's files
      * here and `-exclude` is never passed.
@@ -115,6 +130,8 @@ class EnfusionAddonBuilderTest : TestCase() {
         val match = AddonBuilderCommand::matchesAny
         assertTrue("a name pattern reaches any folder", match(listOf("*.txt"), "data\\deep\\inner.txt"))
         assertTrue("a bare name too", match(listOf("notes.txt"), "data\\notes.txt"))
+        assertTrue("a name without an extension", match(listOf("LICENSE"), "third\\license"))
+        assertFalse(match(listOf("LICENSE"), "LICENSE.md"))
         assertTrue("a folder pattern reaches its subfolders", match(listOf("data\\*"), "data\\deep\\inner.txt"))
         assertTrue("case aside, either slash", match(listOf("SCRIPTS/Test.C"), "scripts\\test.c"))
         assertTrue(match(listOf("data\\a?b.txt"), "data\\a,b.txt"))

@@ -20,14 +20,17 @@ the options first, and *Tools → DayZ → Build All PBOs* builds every addon of
   binarises, such as `config.bin`, plus the files the include list names. With no include list
   set, the plugin passes its own: scripts (`*.c`), layouts, imagesets, styles, textures (`*.edds`,
   `*.paa`), materials (`*.rvmat`, `*.emat`), particles, sounds, fonts, and data files (`*.csv`,
-  `*.xml`, `*.json`, `*.txt`, `*.html`, `*.cfg`, `*.jpg`). Addon Builder's own window has a
-  shorter default, without stringtables. An include list you set replaces the plugin's; *pack
+  `*.xml`, `*.json`, `*.txt`, `*.html`, `*.cfg`, `*.jpg`), and the `LICENSE` and `NOTICE` files
+  that licences such as Apache 2.0 require third-party code to ship with. Addon Builder's own
+  window has a shorter default, without stringtables. An include list you set replaces the plugin's; *pack
   only* stores every file and needs none.
 - **The lists** take patterns typed straight in, separated by `;` or `,` as in Addon Builder's
   window (`*.c;*.layout`), or the path of a list file such as DayZ Tools' `exclude.lst`. A value
   with `*`, `?` or `;` is read as patterns, anything else as a file. A list file holds one or more
-  patterns a line, and a line starting with `;` is a comment. A list file that does not exist
-  stops the build with its path, since Addon Builder would pack on without it.
+  patterns a line, and a line starting with `;` is a comment. Addon Builder gets the patterns on
+  one line, in a copy: it fails with a bare *Build failed* on an include list of several lines. A
+  list file that does not exist stops the build with its path, since Addon Builder would pack on
+  without it.
   - **Matching:** a pattern with a folder (`source\*`) matches the path inside the addon, its
     subfolders included; one without (`*.psd`, `notes.txt`) matches the file name in any folder.
     Letter case is ignored.
