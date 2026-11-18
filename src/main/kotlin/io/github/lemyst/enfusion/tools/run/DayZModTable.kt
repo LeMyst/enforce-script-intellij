@@ -1,6 +1,7 @@
 package io.github.lemyst.enfusion.tools.run
 
 import com.intellij.icons.AllIcons
+import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.fileChooser.FileChooser
@@ -19,6 +20,7 @@ import com.intellij.util.ui.ColumnInfo
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.ListTableModel
 import io.github.lemyst.enfusion.tools.AddonBuildSupport
+import io.github.lemyst.enfusion.tools.AddonListsDialog
 import io.github.lemyst.enfusion.tools.DayZInstallation
 import io.github.lemyst.enfusion.tools.WorkDrive
 import io.github.lemyst.enfusion.tools.detect.DayZLaunchCommand
@@ -98,11 +100,31 @@ class DayZModTable(
         visibleRowCount = 8
     }
 
+    /** A release build's per-addon setting: the include and exclude lists of the selected addon. */
+    private val listsAction = object : DumbAwareAction(
+        "Addon Builder Lists…",
+        "The include and exclude lists of the selected addon, shared with Build PBO",
+        AllIcons.General.Settings,
+    ) {
+        override fun actionPerformed(e: AnActionEvent) {
+            val row = table.selectedObject ?: return
+            val folder = runCatching { Path.of(row.path) }.getOrNull() ?: return
+            AddonListsDialog.edit(project, folder)
+        }
+
+        override fun update(e: AnActionEvent) {
+            e.presentation.isEnabled = table.selectedObject?.kind == DayZModKind.ADDON
+        }
+
+        override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
+    }
+
     val component: JComponent = if (forRelease) {
         ToolbarDecorator.createDecorator(table)
             .setAddAction { rescan() }
             .setAddActionName("Rescan Project Addons")
             .addExtraAction(action("Add PBO Files…", "Third-party PBOs, copied into the mod's addons folder with their signatures", AllIcons.FileTypes.Archive) { addPbos() })
+            .addExtraAction(listsAction)
             .createPanel()
     } else {
         ToolbarDecorator.createDecorator(table)

@@ -453,6 +453,9 @@ With `P:\DZ` (or the game's `Addons` as a PBO root) in the roots.
 - Right-click a mod's addon folder → *Build PBO* → the options dialog, prefilled; *Build* → a *Run*
   tab with Addon Builder's log and *Build Successful*, the PBO in the output folder, and a
   notification. *Build PBO* again → no dialog.
+- Open the built PBO in the IDE, with no include list set → its scripts, layouts, imagesets,
+  `stringtable.csv`, textures and data files are there beside `config.bin`. The command line in
+  the *Run* tab ends with `-include=…include.lst`.
 - Break `config.cpp` (delete a `}`) and build without *Pack only* → *Build failed*, an error
   notification, and the `File …, line N` line is a link to the config.
 - Build with a signing key → the `.bisign` appears; with no `.bikey` in `@Mod\Keys` → a warning.
@@ -469,6 +472,22 @@ With `P:\DZ` (or the game's `Addons` as a PBO root) in the roots.
       `.MyMod.bisign`.
     - `keys\` holds `MyMod.bikey` and the third-party key, and `mod.cpp` and the extras are copied.
     - The last lines say *Signatures checked: all OK* and *Built …*.
+- With the run configuration's folder deep on disk (as in a sandbox IDE) → every addon still
+  builds, scripts of 60 characters' depth included. The Steam API's two lines after each addon
+  are not red.
+- Select an addon → *Addon Builder Lists…* → the include and exclude lists. Type `*.layout` as
+  the include list of an addon with scripts and run, with no file changed → that addon alone is
+  rebuilt, and its PBO holds its layouts but no scripts. *Build PBO with Options…* on the same
+  addon shows `*.layout`, and *Build PBO* packs the same.
+- Set the include list to a file that does not exist → that addon fails, naming the file.
+- Set the include list to a file with one pattern a line (`*.c`, then `*.layout`) → the addon
+  builds, with its scripts and layouts.
+- Put a `LICENSE` and a `NOTICE` file in an addon with no include list → both are in its PBO.
+- Clear the include list and set the exclude list to `*.edds` → the addon rebuilds, its PBO
+  holds everything the default list takes but its `.edds`, and the command line has no
+  `-exclude`. The same with DayZ Tools' `Bin\PboUtils\exclude.lst` as the exclude list.
+- *Build PBO with Options…* with *Pack only* and an exclude list → the build stops and says
+  why.
 - Run again → *0 addon(s) to build*. Edit one script → that addon only.
 - Untick an addon and run → its PBO and signature are removed from `addons\`.
 - Start a server with `verifySignatures = 2` on the built mod → clients with it join.

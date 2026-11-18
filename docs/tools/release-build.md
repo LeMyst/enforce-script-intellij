@@ -21,8 +21,11 @@ the `@MyMod` folder a mod ships, one configuration per mod:
 - **What goes into `addons\`:**
   - *Rescan Project Addons* lists the project's `config.cpp` folders, as the
     [DayZ run configuration](running-dayz.md) does, and *Add PBO Files…* adds third-party PBOs.
-  - **The project's addons** are built by Addon Builder, binarised, with each addon's saved
-    [*Build PBO*](building-pbos.md) include and exclude lists. Each one is built into a folder of
+  - **The project's addons** are built by Addon Builder, binarised, with each addon's include and
+    exclude lists. Select an addon in the table and click *Addon Builder Lists…* to set them.
+    They are saved with the addon's [*Build PBO*](building-pbos.md) options, so both builds use
+    the same lists. With no include list, the plugin's own applies: see
+    [What goes into the PBO](building-pbos.md). Each one is built into a folder of
     its own, then moved into `addons\` under its release name: its prefix's folders joined by `_`,
     so `MyMod\Scripts\Client` becomes `Scripts_Client.pbo`, as mod build scripts name them.
     *Lower-case PBO names* makes it `scripts_client.pbo`, signature included; switching it
@@ -36,8 +39,8 @@ the `@MyMod` folder a mod ships, one configuration per mod:
     wrong or has no key fails the build.
 - **`mod.cpp` and extra files** (such as `LICENSE`) are copied into the mod's folder. `mod.cpp`
   starts as the one at the project's root.
-- **Only what changed:** an addon is built again only when its files, its prefix or the signing key
-  changed since the last build, or when its PBO or signature is missing. A copy is skipped when the
+- **Only what changed:** an addon is built again only when its files, its include or exclude list
+  (a list file's contents included), its prefix or the signing key changed since the last build, or when its PBO or signature is missing. A copy is skipped when the
   file is the same size and date. PBOs, signatures and keys no longer part of the mod are removed;
   other files in `addons\` are left alone.
 - **Not supported yet:** creating a signing key, and generating `mod.cpp`.

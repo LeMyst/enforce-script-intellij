@@ -9,6 +9,8 @@ import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project
 import com.intellij.util.xmlb.annotations.Tag
 import io.github.lemyst.enfusion.tools.detect.AddonBuild
+import io.github.lemyst.enfusion.tools.detect.AddonBuilderCommand
+import java.nio.file.Files
 import java.nio.file.Path
 
 /** One addon's saved Addon Builder options, keyed by its folder. */
@@ -27,7 +29,7 @@ class AddonBuildState : BaseState() {
     fun toBuild(): AddonBuild? {
         val source = path(source) ?: return null
         val destination = path(destination) ?: return null
-        return AddonBuild(
+        val build = AddonBuild(
             source = source,
             destination = destination,
             prefix = prefix?.takeIf { it.isNotBlank() },
@@ -35,9 +37,8 @@ class AddonBuildState : BaseState() {
             packOnly = packOnly,
             clear = clear,
             temp = path(temp),
-            include = path(include),
-            exclude = path(exclude),
         )
+        return AddonBuilderCommand.withListSettings(build, include, exclude)
     }
 
     private fun path(value: String?): Path? =
@@ -63,9 +64,24 @@ class AddonBuildsState : BaseState() {
 @State(name = "EnfusionAddonBuilds", storages = [Storage("enfusion-builds.xml")])
 class AddonBuilds : SimplePersistentStateComponent<AddonBuildsState>(AddonBuildsState()) {
 
-    fun get(source: Path): AddonBuildState? = state.addons.firstOrNull { it.source == source.toString() }
+    /**
+     * The options saved for [source], or for another path to the same folder. The release build
+     * lists an addon through the work drive (`P:\MyMod\Scripts`) while *Build PBO* may have saved
+     * it under the project's path that `P:\MyMod` links to; both must find the same lists.
+     */
+    fun get(source: Path): AddonBuildState? =
+        state.addons.firstOrNull { it.source == source.toString() }
+            ?: state.addons.firstOrNull { sameFolder(it.source, source) }
 
-    fun save(entry: AddonBuildState) = state.put(entry)
+    /** Saves [entry] in place of what was saved for its folder, under whichever path. */
+    fun save(entry: AddonBuildState) {
+        val folder = entry.source?.let { runCatching { Path.of(it) }.getOrNull() }
+        if (folder != null) state.addons.removeIf { it.source != entry.source && sameFolder(it.source, folder) }
+        state.put(entry)
+    }
+
+    private fun sameFolder(saved: String?, folder: Path): Boolean =
+        saved != null && runCatching { Files.isSameFile(Path.of(saved), folder) }.getOrDefault(false)
 
     fun all(): List<AddonBuildState> = state.addons.toList()
 
