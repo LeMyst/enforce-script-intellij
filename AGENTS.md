@@ -183,6 +183,12 @@ vanilla DayZ files or anything copied from them.
 - `.github/workflows/pages.yml` builds the documentation site when `docs/` changes. On a pull
   request it only builds, and uploads the result as the `docs-site` artifact. On `master` it
   deploys to GitHub Pages (the repository's Pages source is *GitHub Actions*).
+- **Every action is pinned to a full commit SHA**, with its exact version in a trailing comment
+  (`uses: actions/checkout@<sha> # v7.0.1`). A tag can be moved to other code after the fact; a
+  SHA cannot. Pin a new action the same way, resolving the tag with
+  `git ls-remote --tags https://github.com/<owner>/<repo>.git` (for an annotated tag, take the
+  `^{}` line, which is the commit). Dependabot (`.github/dependabot.yml`) bumps the SHA and the
+  comment together in one grouped pull request a week.
 
 ## Releasing
 
