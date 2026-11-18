@@ -138,6 +138,17 @@
         <lang.foldingBuilder
                 language="EnfusionScript"
                 implementationClass="io.github.lemyst.enfusion.lang.EnfusionFoldingBuilder"/>
+        <!-- A stringtable key folds to its text, in script, layouts and configs alike. -->
+        <lang.foldingBuilder
+                language="EnfusionScript"
+                implementationClass="io.github.lemyst.enfusion.stringtable.EnStringTableFoldingBuilder"/>
+        <lang.foldingBuilder
+                language="EnfusionObject"
+                implementationClass="io.github.lemyst.enfusion.stringtable.EnStringTableFoldingBuilder"/>
+        <lang.foldingBuilder
+                language="EnfusionConfig"
+                implementationClass="io.github.lemyst.enfusion.stringtable.EnStringTableFoldingBuilder"/>
+        <codeFoldingOptionsProvider instance="io.github.lemyst.enfusion.stringtable.EnStringTableFoldingOptionsProvider"/>
 
         <!-- Indentation only; the settings provider is what defaults the language to tabs. -->
         <lang.formatter
@@ -168,6 +179,14 @@
                 enabledByDefault="true"
                 level="WARNING"
                 implementationClass="io.github.lemyst.enfusion.inspections.EnRedundantOverrideInspection"/>
+        <localInspection
+                language="EnfusionScript"
+                shortName="EnModdedOverrideWithoutSuper"
+                displayName="Override in a modded class does not call super"
+                groupName="Enforce Script"
+                enabledByDefault="true"
+                level="WEAK WARNING"
+                implementationClass="io.github.lemyst.enfusion.inspections.EnModdedOverrideWithoutSuperInspection"/>
         <localInspection
                 language="EnfusionScript"
                 shortName="EnDuplicateLocal"
@@ -208,6 +227,14 @@
                 enabledByDefault="true"
                 level="WARNING"
                 implementationClass="io.github.lemyst.enfusion.inspections.EnScriptModuleVisibilityInspection"/>
+        <localInspection
+                language="EnfusionConfig"
+                shortName="EnCfgUndeclaredBase"
+                displayName="Base class not declared in this scope"
+                groupName="Enforce Script"
+                enabledByDefault="true"
+                level="WARNING"
+                implementationClass="io.github.lemyst.enfusion.inspections.EnCfgUndeclaredBaseInspection"/>
         <!-- No language attribute: the same key is written in script and in layouts alike. -->
         <localInspection
                 shortName="EnUnresolvedStringTableKey"
@@ -245,6 +272,18 @@
                 implementationClass="io.github.lemyst.enfusion.nav.EnOverrideLineMarkerProvider"/>
         <gotoDeclarationHandler
                 implementation="io.github.lemyst.enfusion.nav.EnOverrideGotoDeclarationHandler"/>
+        <!-- The other direction: who patches or extends a class, who redeclares a method. Slow
+             markers, since the walk below EntityAI reaches thousands of classes. -->
+        <codeInsight.lineMarkerProvider
+                language="EnfusionScript"
+                implementationClass="io.github.lemyst.enfusion.nav.EnOverriddenLineMarkerProvider"/>
+        <!-- Ctrl+Alt+B: the same list as the downward icon. -->
+        <definitionsScopedSearch
+                implementation="io.github.lemyst.enfusion.nav.EnImplementationsSearch"/>
+        <!-- Ctrl+U: what a method overrides, or what a class extends or patches. -->
+        <codeInsight.gotoSuper
+                language="EnfusionScript"
+                implementationClass="io.github.lemyst.enfusion.nav.EnGotoSuperHandler"/>
 
         <!-- Ctrl+H. Nothing about a class says who extends it, hence the inverted index below. -->
         <typeHierarchyProvider
@@ -262,6 +301,8 @@
         <fileBasedIndex implementation="io.github.lemyst.enfusion.index.EnfusionInputNameIndex"/>
         <fileBasedIndex implementation="io.github.lemyst.enfusion.index.EnfusionConfigClassIndex"/>
         <fileBasedIndex implementation="io.github.lemyst.enfusion.index.EnfusionConfigAddonIndex"/>
+        <!-- The classes of each top-level config section, for item-name completion in script. -->
+        <fileBasedIndex implementation="io.github.lemyst.enfusion.index.EnfusionConfigSectionIndex"/>
 
         <!-- Reached only because EnLiteralExprMixin implements ContributedReferenceHost: the
              registry is not consulted for ordinary Grammar-Kit PSI. -->
@@ -316,6 +357,28 @@
         <codeInsight.parameterInfo
                 language="EnfusionScript"
                 implementationClass="io.github.lemyst.enfusion.nav.EnfusionParameterInfoHandler"/>
+        <!-- Ctrl+O: signatures of the superclass chain and the other modded layers, with super calls. -->
+        <codeInsight.overrideMethod
+                language="EnfusionScript"
+                implementationClass="io.github.lemyst.enfusion.nav.EnOverrideMethodsHandler"/>
+        <!-- Ctrl+Q: the signature, the Doxygen comment, and where a declaration comes from. -->
+        <lang.documentationProvider
+                language="EnfusionScript"
+                implementationClass="io.github.lemyst.enfusion.doc.EnfusionDocumentationProvider"/>
+        <!-- Inlay hints: parameter names before literal arguments, and the type of `auto`. -->
+        <!-- Experimental API, accepted for its editable exclude list (docs/development/testing.md). -->
+        <codeInsight.parameterNameHints
+                language="EnfusionScript"
+                implementationClass="io.github.lemyst.enfusion.hints.EnParameterNameHintsProvider"/>
+        <codeInsight.declarativeInlayProvider
+                language="EnfusionScript"
+                implementationClass="io.github.lemyst.enfusion.hints.EnAutoTypeHintsProvider"
+                isEnabledByDefault="true"
+                group="TYPES_GROUP"
+                providerId="enfusion.auto.types"
+                bundle="messages.EnforceScriptBundle"
+                nameKey="inlay.auto.types.name"
+                descriptionKey="inlay.auto.types.description"/>
 
         <gotoClassContributor
                 implementation="io.github.lemyst.enfusion.nav.EnfusionGotoClassContributor"/>
@@ -489,6 +552,11 @@
                     class="io.github.lemyst.enfusion.texture.PackImageSetAction"
                     text="Pack into Imageset…"
                     description="Pack this folder's pictures into an .edds atlas and the .imageset that names them"/>
+            <!-- On an .imageset: its images cut back out of the atlas, as pictures. -->
+            <action id="Enfusion.ExtractImageSet"
+                    class="io.github.lemyst.enfusion.texture.ExtractImageSetAction"
+                    text="Extract Images…"
+                    description="Cut every image of this imageset out of its atlas into a PNG picture"/>
             <separator/>
         </group>
         <!-- File | New and the Project view's New: a mod, and an addon with its config.cpp. -->

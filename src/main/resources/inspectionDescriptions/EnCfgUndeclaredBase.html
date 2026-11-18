@@ -1,0 +1,32 @@
+<html><body>
+Reports a config class whose base class is not declared before it, where Addon Builder would look
+for it.
+<p>
+<code>class MyApple: Apple {}</code> inside <code>CfgVehicles</code> needs a <code>class Apple</code>
+(usually the external declaration <code>class Apple;</code>) earlier in the same file. The IDE
+resolves <code>Apple</code> through every indexed config, so navigation works and nothing looks
+wrong; binarising then fails with <i>Undefined base class 'Apple'</i>, because CfgConvert reads one
+<code>config.cpp</code> at a time.
+</p>
+<p>
+The lookup is CfgConvert's, each rule checked by binarising a test config:
+</p>
+<ul>
+<li>a class of that name declared <b>before</b> the derived class in the same body; one declared
+after it is not seen;</li>
+<li>else the same in each enclosing body, before the enclosing class, up to the top of the file; a
+sibling section such as <code>CfgWeapons</code> is never searched;</li>
+<li>else a class inherited by an enclosing class from its base. That is what makes
+<code>class DamageSystem: DamageSystem</code> work inside <code>class MyApple: Apple</code> when
+<code>Apple</code> declares one, and fail when <code>Apple</code> is only <code>class Apple;</code>;</li>
+<li>names ignore case.</li>
+</ul>
+<p>
+<b>Add 'class Apple;'</b> inserts the external declaration at the top of the section, after the
+ones already there. Applied to the whole file, it adds every missing one at once.
+</p>
+<p>
+Only <code>config.cpp</code> is checked, and only a base that some indexed config declares: one found
+nowhere may belong to a dependency outside the roots.
+</p>
+</body></html>

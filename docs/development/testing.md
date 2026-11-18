@@ -47,7 +47,7 @@ oldest supported IDE can load.
 
 ### Experimental API
 
-Two **experimental API** usages are known and accepted, each load-bearing with no stable
+Three **experimental API** usages are known and accepted, each load-bearing with no stable
 equivalent:
 
 - `AdditionalLibraryRootsListener.fireAdditionalLibraryChanged`, which targets a re-index at this
@@ -57,6 +57,12 @@ equivalent:
   must implement, so there is no way to offer documentation through that API without them. They
   are flagged only on the older releases: `TargetPresentation` on 2025.2 and 2025.3, `Pointer` up
   to 2026.1. From 2026.2 neither is experimental, and a released IDE never changes them.
+- `InlayParameterHintsProvider`, with the `InlayInfo` and `HintInfo.MethodInfo` it returns, for
+  the parameter-name hints. The platform marks the whole `com.intellij.codeInsight.hints` package
+  experimental, in every supported release up to 2026.3 (10 usages on each). Only this API gives users an editable exclude list and *Do not show hints for
+  current method*; the declarative inlay API, which the `auto` type hints use, has neither. Its
+  deprecated `getSettingsPreview()` is not implemented; the preview is the resource
+  `inlayProviders/Parameters/preview.es`.
 
 Either would break loudly rather than silently if the platform changed it, and the verifier is what
 would catch it. **Internal** API usage is deliberately kept at zero. (`FileTypeOverrider` was a

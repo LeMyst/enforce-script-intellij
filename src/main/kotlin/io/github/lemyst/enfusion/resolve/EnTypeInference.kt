@@ -79,6 +79,25 @@ object EnTypeInference {
     }
 
     /**
+     * The type a declaration holds: the one written on it, or, for `auto`, the one inferred from
+     * its initializer or its `foreach` collection. A method gives its return type.
+     */
+    fun typesOfDeclaration(declaration: PsiElement, project: Project): List<EnType> {
+        ProgressManager.checkCanceled()
+        return inSession { typesOfDeclarations(listOf(declaration), null, project, 0) }
+    }
+
+    /** Whether [declaration] is written with `auto` rather than a type. */
+    fun isAutoDeclaration(declaration: PsiElement): Boolean = isAuto(declaredTypeRef(declaration))
+
+    /** `array<Foo>`: the class name, then the type arguments as written. */
+    fun presentableText(type: EnType): String {
+        val name = type.declaration.name ?: return "?"
+        if (type.arguments.isEmpty()) return name
+        return type.arguments.joinToString(", ", "$name<", ">") { it.text.replace(Regex("\\s+"), " ").trim() }
+    }
+
+    /**
      * Runs [block] one level deeper in the current inference session, or returns [cutOff] once the
      * session is [MAX_NESTING] deep. For resolution that walks down a member chain by itself,
      * outside [typesOf]: [EnMemberReference] resolving its qualifier, which resolves its own, and so
