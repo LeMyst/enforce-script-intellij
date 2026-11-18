@@ -6,13 +6,14 @@ import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.CommonDataKeys
-import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.fileChooser.FileChooser
 import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.DumbService
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
+import com.intellij.openapi.util.Computable
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiManager
@@ -84,8 +85,9 @@ internal object ExtractImageSet {
     /** One image to write: where it lies, and where it goes under the target folder. */
     class Image(val texture: VirtualFile, val region: EnTexturePreviews.Region, val relativePath: String)
 
-    fun imagesOf(project: Project, file: VirtualFile): List<Image> = ReadAction.compute<List<Image>, RuntimeException> {
-        val psi = PsiManager.getInstance(project).findFile(file) ?: return@compute emptyList()
+    // Not ReadAction.compute, deprecated from 2026.1.
+    fun imagesOf(project: Project, file: VirtualFile): List<Image> = ApplicationManager.getApplication().runReadAction(Computable {
+        val psi = PsiManager.getInstance(project).findFile(file) ?: return@Computable emptyList()
         val defs = PsiTreeUtil.findChildrenOfType(psi, EnObjDeclMixin::class.java).filter(EnImageSetTextures::isImageDef)
         val used = HashSet<String>()
         defs.mapNotNull { def ->
@@ -95,7 +97,7 @@ internal object ExtractImageSet {
             val relative = ImageSetExtraction.unique(listOfNotNull(group?.let(ImageSetExtraction::fileName), "$name.png").joinToString("/"), used)
             Image(entry.texture, entry.region, relative)
         }
-    }
+    })
 
     /** The `ImageSetGroupClass` an image is listed in, if any. */
     private fun groupOf(def: EnObjDeclMixin): String? {
