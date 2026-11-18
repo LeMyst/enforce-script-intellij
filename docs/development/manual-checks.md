@@ -249,6 +249,10 @@ With `P:\DZ` (or the game's `Addons` as a PBO root) in the roots.
   appears under *External Libraries*; confirm the IDE indexes configs only and does not sit on
   24 GB of `.paa`. Adding `P:\scripts` or a mod checkout shows no warning.
 - A C or C++ file in an unrelated project is **not** claimed.
+- In a mod `config.cpp`, write `class MyApple: Apple {};` in `CfgVehicles` with no `class Apple;`
+  (and vanilla configs in the roots) → a warning on `Apple`; `Alt+Enter` → *Add 'class Apple;'*
+  adds it at the top of `CfgVehicles`. *Build PBO* with binarising then succeeds where it failed.
+- Open a vanilla `P:\DZ` config → no such warning anywhere.
 
 ## Texture viewer
 

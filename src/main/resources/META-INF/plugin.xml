@@ -227,6 +227,14 @@
                 enabledByDefault="true"
                 level="WARNING"
                 implementationClass="io.github.lemyst.enfusion.inspections.EnScriptModuleVisibilityInspection"/>
+        <localInspection
+                language="EnfusionConfig"
+                shortName="EnCfgUndeclaredBase"
+                displayName="Base class not declared in this scope"
+                groupName="Enforce Script"
+                enabledByDefault="true"
+                level="WARNING"
+                implementationClass="io.github.lemyst.enfusion.inspections.EnCfgUndeclaredBaseInspection"/>
         <!-- No language attribute: the same key is written in script and in layouts alike. -->
         <localInspection
                 shortName="EnUnresolvedStringTableKey"
