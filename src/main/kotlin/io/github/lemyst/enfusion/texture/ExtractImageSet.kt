@@ -111,7 +111,8 @@ internal object ExtractImageSet {
     fun run(project: Project, images: List<Image>, target: Path) {
         val written = ProgressManager.getInstance().runProcessWithProgressSynchronously<Int, Exception>(
             {
-                val indicator = ProgressManager.getInstance().progressIndicator
+                // Modal progress starts indeterminate, and a fraction set on it is ignored with a log.
+                val indicator = ProgressManager.getInstance().progressIndicator?.apply { isIndeterminate = false }
                 val decoded = HashMap<VirtualFile, BufferedImage?>()
                 var count = 0
                 for ((index, image) in images.withIndex()) {
