@@ -60,10 +60,26 @@ lands in the new row's `original` cell.
 
 Ctrl+Click on a key goes to its row: see [String references](../scripts/string-references.md).
 
+## Texts in place of keys
+
+A string naming a stringtable key **folds to the key's text**, collapsed by default:
+`"#STR_MYMOD_PARTY_INVITE"` reads `"Invite to party"`, as Android Studio shows string resources.
+Moving the caret into the string unfolds it, and hovering the fold shows the key.
+
+- **Where:** the strings that navigate to a row: `"#key"` (vanilla's `"#menu_add"` too) and
+  server-side bare `"STR_…"` in script, layout values such as `text "#STR_…"`, and `$STR_…` /
+  `#STR_…` values in configs. A key with no row stays as it is.
+- **Which language:** the one chosen in the layout preview's toolbar, else `original`, else
+  `english`. *Keys* in the preview means `original` here.
+- **Which tables:** the project's and the roots', the vanilla stringtable included. Each is parsed
+  once per change.
+- Texts longer than 60 characters end in `…`.
+- *Settings → Editor → General → Code Folding → Enforce Script → Stringtable keys as their text*
+  turns it off.
+
 ## Not supported
 
-Column colouring and the column name at the caret in the text tab, and translation hints on
-`"#STR_…"` strings. The *original changed* tint is not saved: it is gone after a restart, since the
+Column colouring and the column name at the caret in the text tab. The *original changed* tint is not saved: it is gone after a restart, since the
 CSV has no room for it. A cell holding a line break shows it as `⏎` in the table and is edited on
 one line. The IDE writes a file back with one line separator throughout, so in a CRLF stringtable
 that has line breaks *inside* cells (the vanilla one has 250), saving turns those into CRLF too.
