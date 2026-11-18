@@ -249,6 +249,13 @@ With `P:\DZ` (or the game's `Addons` as a PBO root) in the roots.
   appears under *External Libraries*; confirm the IDE indexes configs only and does not sit on
   24 GB of `.paa`. Adding `P:\scripts` or a mod checkout shows no warning.
 - A C or C++ file in an unrelated project is **not** claimed.
+- `Ctrl+Alt+L` on a hand-written mod `config.cpp` with mixed indentation → class bodies and
+  multi-line arrays indented with tabs, spacing and one-line arrays unchanged. On a vanilla
+  `P:\DZ` config → no line moves; lines holding only tabs come out empty, unless *Keep indents on
+  empty lines* is ticked. Enter after `class X: Y` and its `{` → one level deeper.
+- `Ctrl+Alt+L` on a vanilla script whose names are aligned with tabs, such as the fields at the
+  top of `5_mission\dayzintroscene.c` → the tabs stay tabs, and the names stay aligned.
+- *Settings → Editor → Code Style → Enforce Config* exists, with tabs on.
 - In a mod `config.cpp`, write `class MyApple: Apple {};` in `CfgVehicles` with no `class Apple;`
   (and vanilla configs in the roots) → a warning on `Apple`; `Alt+Enter` → *Add 'class Apple;'*
   adds it at the top of `CfgVehicles`. *Build PBO* with binarising then succeeds where it failed.

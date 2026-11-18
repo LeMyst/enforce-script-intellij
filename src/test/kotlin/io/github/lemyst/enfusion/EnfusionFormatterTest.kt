@@ -92,6 +92,13 @@ class EnfusionFormatterTest : BasePlatformTestCase() {
         assertEquals(source, reformat(source))
     }
 
+    /** The sandbox review: one Ctrl+Alt+L turned vanilla's alignment tabs into four spaces each. */
+    fun testAlignmentTabsInsideALineAreKept() {
+        val source = "class Scene\n{\n\tprotected Camera\t\t\t\t\tm_Camera;\n\tprotected ref Character\tm_Character;\n}"
+        assertEquals(source, reformat(source))
+        assertEquals("indentation still changes", source, reformat(source.replace("\n\tprotected Camera", "\nprotected Camera")))
+    }
+
     /** Spacing is left exactly as written, however unusual. */
     fun testUnusualSpacingIsPreserved() {
         val source = "class Foo\n{\n\tvoid Bar( int  x , int y )\n\t{\n\t}\n}"
@@ -233,22 +240,6 @@ class EnfusionFormatterTest : BasePlatformTestCase() {
     }
 
     /**
-     * The real gate, and note what it does *not* claim.
-     *
-     * Byte-identical round-tripping of vanilla is not achievable and asserting it was a mistake: the
-     * formatting engine unconditionally rewrites alignment tabs *inside* a line as spaces and strips
-     * trailing whitespace, and vanilla is not internally consistent anyway (`defines.c` indents a
-     * top-level comment decoratively).
-     *
-     * What must hold is that formatting only ever changes *how much* whitespace there is -- never
-     * which tokens sit on which line. Comparing each line with its whitespace runs collapsed states
-     * exactly that, and still catches the failures that would matter: a line added or dropped, or
-     * code joined, split or lost.
-     *
-     * Skips when the corpus is absent, exactly like the parse tests. A silent skip proves nothing,
-     * so a green run without `P:` mounted is not evidence.
-     */
-    /**
      * The formatter agrees with vanilla's indentation: after Ctrl+Alt+L, nearly every line of
      * vanilla keeps its leading whitespace. The lines that move are vanilla's minority styles (a
      * braceless body at its `if`'s level, a continuation aligned to a column), counted in
@@ -310,6 +301,22 @@ class EnfusionFormatterTest : BasePlatformTestCase() {
         }
     }
 
+    /**
+     * The real gate, and note what it does *not* claim.
+     *
+     * Byte-identical round-tripping of vanilla is not achievable and asserting it was a mistake: the
+     * formatting engine strips trailing whitespace, and vanilla is not internally consistent anyway
+     * (`defines.c` indents a top-level comment decoratively).
+     *
+     * What must hold is that formatting only ever changes a line's indentation: never which tokens
+     * sit on which line, nor the whitespace between them. Comparing each line without its leading
+     * and trailing whitespace states exactly that. It catches a line added or dropped, code joined,
+     * split or lost, and alignment tabs turned into spaces, which an earlier version of this check
+     * let through by collapsing whitespace runs: see [io.github.lemyst.enfusion.format.InlineWhitespace].
+     *
+     * Skips when the corpus is absent, exactly like the parse tests. A silent skip proves nothing,
+     * so a green run without `P:` mounted is not evidence.
+     */
     fun testFormattingNeverDamagesVanillaCode() {
         val root = System.getProperty("enfusion.corpus.root").orEmpty()
         if (root.isEmpty() || !File(root).isDirectory) {
@@ -321,7 +328,7 @@ class EnfusionFormatterTest : BasePlatformTestCase() {
             .take(150)
             .toList()
 
-        fun tokensPerLine(text: String) = text.lines().map { it.trim().replace(WHITESPACE_RUN, " ") }
+        fun tokensPerLine(text: String) = text.lines().map { it.trim() }
 
         val damaged = ArrayList<String>()
         for (file in files) {
@@ -342,8 +349,6 @@ class EnfusionFormatterTest : BasePlatformTestCase() {
     }
 
     private companion object {
-        val WHITESPACE_RUN = Regex("\\s+")
-
         /** A line's indentation in columns, a tab counting as the default four. */
         fun indentWidth(line: String): Int =
             line.takeWhile { it == '\t' || it == ' ' }.sumOf { if (it == '\t') 4 else 1 as Int }

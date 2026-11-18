@@ -84,6 +84,13 @@
                 language="EnfusionConfig"
                 implementationClass="io.github.lemyst.enfusion.cfg.EnfusionConfigBraceMatcher"/>
 
+        <!-- Indentation only, like the script formatter; the settings provider defaults to tabs. -->
+        <lang.formatter
+                language="EnfusionConfig"
+                implementationClass="io.github.lemyst.enfusion.format.EnfusionConfigFormattingModelBuilder"/>
+        <langCodeStyleSettingsProvider
+                implementation="io.github.lemyst.enfusion.format.EnfusionConfigCodeStyleSettingsProvider"/>
+
         <!-- Textures. Binary, so never opened as text; `.edds` and `.paa` are safe to claim by
              extension, since unlike `.c` nothing else uses them. The viewer replaces the
              binary-file placeholder. -->
