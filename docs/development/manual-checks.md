@@ -184,6 +184,8 @@ Opening a real DayZ mod. The examples below use a mod called MyMod.
 - `Ctrl+Alt+L` on a hand-written mod `config.cpp` with mixed indentation → class bodies and
   multi-line arrays indented with tabs, spacing and one-line arrays unchanged. On a vanilla
   `P:\DZ` config → no change at all. Enter after `class X: Y` and its `{` → one level deeper.
+- `Ctrl+Alt+L` on a vanilla script whose names are aligned with tabs, such as the fields at the
+  top of `5_mission\dayzintroscene.c` → the tabs stay tabs, and the names stay aligned.
 - *Settings → Editor → Code Style → Enforce Config* exists, with tabs on.
 
 ## Texture viewer

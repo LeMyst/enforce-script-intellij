@@ -67,7 +67,8 @@ class EnfusionConfigBlock(node: ASTNode) : AbstractBlock(node, null, null) {
         return Indent.getNormalIndent()
     }
 
-    override fun getSpacing(child1: Block?, child2: Block): Spacing = KEEP_AS_WRITTEN
+    /** Vanilla configs align values with tabs too: `units[]<tabs>= {};`. See [InlineWhitespace]. */
+    override fun getSpacing(child1: Block?, child2: Block): Spacing = InlineWhitespace.between(myNode, child1, child2, KEEP_AS_WRITTEN)
 
     override fun isLeaf(): Boolean = myNode.firstChildNode == null
 

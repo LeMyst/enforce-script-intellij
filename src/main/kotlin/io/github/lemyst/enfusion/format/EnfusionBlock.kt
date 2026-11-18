@@ -166,19 +166,18 @@ class EnfusionBlock(
         return previous?.elementType === EnfusionTypes.ELSE
     }
 
-    /**
-     * Permissive by construction: any amount of whitespace is acceptable, line breaks and blank lines
-     * are kept.
-     *
-     * Returning `null` here is *not* equivalent -- with no constraint at all the formatter
-     * regenerates the whitespace itself, which collapsed alignment tabs inside a line into spaces
-     * and dropped a blank first line. Stating a constraint the existing text already satisfies is
-     * what leaves it untouched.
-     */
     private fun directivesAtFirstColumn(): Boolean =
         settings.getCustomSettings(EnfusionCodeStyleSettings::class.java).PREPROCESSOR_AT_FIRST_COLUMN
 
-    override fun getSpacing(child1: Block?, child2: Block): Spacing? = KEEP_AS_WRITTEN
+    /**
+     * Inside a line, whitespace is read-only: see [InlineWhitespace]. Across lines, any amount is
+     * acceptable and line breaks and blank lines are kept.
+     *
+     * Returning `null` across lines is *not* equivalent: with no constraint at all the formatter
+     * regenerates the whitespace itself, which dropped a blank first line. Stating a constraint
+     * the existing text already satisfies is what leaves it untouched.
+     */
+    override fun getSpacing(child1: Block?, child2: Block): Spacing? = InlineWhitespace.between(myNode, child1, child2, KEEP_AS_WRITTEN)
 
     override fun isLeaf(): Boolean = myNode.firstChildNode == null
 

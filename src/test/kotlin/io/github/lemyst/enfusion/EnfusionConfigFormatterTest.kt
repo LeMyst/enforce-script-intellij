@@ -7,8 +7,8 @@ import java.io.File
 
 /**
  * The `config.cpp` / `mod.cpp` formatter: indentation only. The corpus tests reformat the configs
- * of `enfusionConfigRoots` and check that no token moves between lines and that nearly every line
- * keeps its indentation.
+ * of `enfusionConfigRoots` and check that nothing but indentation changes, alignment tabs inside a
+ * line included, and that nearly every line keeps its indentation.
  */
 class EnfusionConfigFormatterTest : BasePlatformTestCase() {
 
@@ -47,6 +47,12 @@ class EnfusionConfigFormatterTest : BasePlatformTestCase() {
     }
 
     /** Spacing and one-line arrays are left as written. */
+    fun testAlignmentTabsInsideALineAreKept() {
+        val source = "class CfgPatches\n{\n\tclass X\n\t{\n\t\tunits[]\t\t\t= {};\n\t\trequiredVersion\t= 0.1;\n\t};\n};"
+        assertEquals(source, reformat(source))
+        assertEquals("indentation still changes", source, reformat(source.replace("\n\t\tunits", "\nunits")))
+    }
+
     fun testSpacingIsKept() {
         val source = "class A : B\n{\n\tscope = 2;\n\tunits[]={\"X\" ,  \"Y\"};\n\tclass Fwd;\n};"
         assertEquals(source, reformat(source))
@@ -128,10 +134,10 @@ class EnfusionConfigFormatterTest : BasePlatformTestCase() {
     private fun configRoots(): List<File> = System.getProperty("enfusion.config.roots").orEmpty().split(';')
         .map(String::trim).filter(String::isNotEmpty).map(::File).filter(File::isDirectory)
 
-    private fun tokens(lines: List<String>) = lines.map { it.trim().replace(WHITESPACE_RUN, " ") }
+    /** Each line without its indentation and trailing whitespace: everything else must stay. */
+    private fun tokens(lines: List<String>) = lines.map { it.trim() }
 
     private companion object {
-        val WHITESPACE_RUN = Regex("\\s+")
         const val MAX_FILES_PER_ROOT = 400
 
         /** Vanilla's configs are machine-written from `config.bin` and uniform: all of them must hold. */

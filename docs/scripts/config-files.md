@@ -29,7 +29,8 @@ The `defines[]` of the project's configs feed `#ifdef` completion: see
 ## Formatter
 
 **Formatter** (`Ctrl+Alt+L`) for `config.cpp` and `mod.cpp`, **indentation only**, like the script
-one: spacing (`scope=2;` or `scope = 2;`) and line breaks are left as written, and so is an array
+one: spacing (`scope=2;` or `scope = 2;`, tabs aligning values included) and line breaks are left
+as written, and so is an array
 written on one line (`units[]={};`). One level deeper:
 
 - the contents of a class body;
