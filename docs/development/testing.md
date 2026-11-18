@@ -59,7 +59,7 @@ equivalent:
   to 2026.1. From 2026.2 neither is experimental, and a released IDE never changes them.
 - `InlayParameterHintsProvider`, with the `InlayInfo` and `HintInfo.MethodInfo` it returns, for
   the parameter-name hints. The platform marks the whole `com.intellij.codeInsight.hints` package
-  experimental. Only this API gives users an editable exclude list and *Do not show hints for
+  experimental, in every supported release up to 2026.3 (10 usages on each). Only this API gives users an editable exclude list and *Do not show hints for
   current method*; the declarative inlay API, which the `auto` type hints use, has neither. Its
   deprecated `getSettingsPreview()` is not implemented; the preview is the resource
   `inlayProviders/Parameters/preview.es`.
