@@ -9,6 +9,7 @@ import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project
 import com.intellij.util.xmlb.annotations.Tag
 import io.github.lemyst.enfusion.tools.detect.AddonBuild
+import io.github.lemyst.enfusion.tools.detect.AddonBuilderCommand
 import java.nio.file.Files
 import java.nio.file.Path
 
@@ -28,7 +29,7 @@ class AddonBuildState : BaseState() {
     fun toBuild(): AddonBuild? {
         val source = path(source) ?: return null
         val destination = path(destination) ?: return null
-        return AddonBuild(
+        val build = AddonBuild(
             source = source,
             destination = destination,
             prefix = prefix?.takeIf { it.isNotBlank() },
@@ -36,18 +37,9 @@ class AddonBuildState : BaseState() {
             packOnly = packOnly,
             clear = clear,
             temp = path(temp),
-            include = path(include),
-            exclude = path(exclude),
         )
+        return AddonBuilderCommand.withListSettings(build, include, exclude)
     }
-
-    /**
-     * The include list alone. A release build takes only the lists from the addon, and they can
-     * be saved without the output folder [toBuild] needs.
-     */
-    fun includePath(): Path? = path(include)
-
-    fun excludePath(): Path? = path(exclude)
 
     private fun path(value: String?): Path? =
         value?.trim()?.takeIf { it.isNotEmpty() }?.let { runCatching { Path.of(it) }.getOrNull() }

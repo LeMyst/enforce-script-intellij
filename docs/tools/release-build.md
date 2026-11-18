@@ -39,8 +39,8 @@ the `@MyMod` folder a mod ships, one configuration per mod:
     wrong or has no key fails the build.
 - **`mod.cpp` and extra files** (such as `LICENSE`) are copied into the mod's folder. `mod.cpp`
   starts as the one at the project's root.
-- **Only what changed:** an addon is built again only when its files, its prefix or the signing key
-  changed since the last build, or when its PBO or signature is missing. A copy is skipped when the
+- **Only what changed:** an addon is built again only when its files, its include or exclude list
+  (a list file's contents included), its prefix or the signing key changed since the last build, or when its PBO or signature is missing. A copy is skipped when the
   file is the same size and date. PBOs, signatures and keys no longer part of the mod are removed;
   other files in `addons\` are left alone.
 - **Not supported yet:** publishing to the Steam Workshop (planned with SteamCMD), creating a

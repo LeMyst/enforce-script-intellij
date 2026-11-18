@@ -91,8 +91,10 @@ class DayZModBuildHandler(
         Files.createDirectories(manifests)
         say("Building ${release.output}")
 
+        val builds = release.addons.associateWith(::addonBuild)
         val current = release.addons.associateWith { addon ->
-            DayZModReleasePlan.manifestOf(addon, DayZAddonPacking.manifest(DayZAddonPacking.files(addon.folder)), release.signKey, release.pboNameOf(addon))
+            val files = AddonBuilderCommand.listsRecord(builds.getValue(addon)) + DayZAddonPacking.manifest(DayZAddonPacking.files(addon.folder))
+            DayZModReleasePlan.manifestOf(addon, files, release.signKey, release.pboNameOf(addon))
         }
         val plan = DayZModReleasePlan.plan(
             release,
@@ -108,7 +110,7 @@ class DayZModBuildHandler(
         val failed = ArrayList<String>()
         for (addon in plan.build) {
             if (stopping) return false
-            if (buildAddon(addon, addonsDir)) {
+            if (buildAddon(addon, builds.getValue(addon), addonsDir)) {
                 Files.writeString(manifests.resolve(release.pboNameOf(addon) + ".manifest"), current.getValue(addon))
             } else {
                 failed += release.pboNameOf(addon)
@@ -143,24 +145,35 @@ class DayZModBuildHandler(
         return failed.isEmpty()
     }
 
-    /** Builds one addon, moves its PBO into `addons\` under its release name, and signs it. */
-    private fun buildAddon(addon: DayZAddonPacking.Addon, addonsDir: Path): Boolean {
-        val staging = shortFolder.resolve("pbo").resolve(release.pboNameOf(addon).removeSuffix(".pbo"))
-        staging.toFile().deleteRecursively()
-        Files.createDirectories(staging)
+    /**
+     * What Addon Builder is given for [addon]: the release build's own options, and the include and
+     * exclude lists saved for the addon, the one thing it shares with *Build PBO*.
+     */
+    private fun addonBuild(addon: DayZAddonPacking.Addon): AddonBuild {
         val saved = savedOptions(addon.folder)
         val build = AddonBuild(
             source = addon.folder,
-            destination = staging,
+            destination = shortFolder.resolve("pbo").resolve(release.pboNameOf(addon).removeSuffix(".pbo")),
             prefix = addon.prefix,
             packOnly = false,
             clear = true,
             temp = addonBuilderTemp,
-            include = saved?.includePath(),
-            exclude = saved?.excludePath(),
         )
+        return AddonBuilderCommand.withListSettings(build, saved?.include, saved?.exclude)
+    }
+
+    /** Builds one addon, moves its PBO into `addons\` under its release name, and signs it. */
+    private fun buildAddon(addon: DayZAddonPacking.Addon, build: AddonBuild, addonsDir: Path): Boolean {
+        val staging = build.destination
+        staging.toFile().deleteRecursively()
+        Files.createDirectories(staging)
+        val ready = AddonBuilderCommand.withListFiles(build, work.resolve("lists"))
+        AddonBuilderCommand.missingListFile(ready)?.let {
+            error("${release.pboNameOf(addon)}: the list file $it does not exist. Type patterns such as *.c;*.layout, or the path of a list file.")
+            return false
+        }
         say("Building ${release.pboNameOf(addon)} from ${addon.folder}")
-        val output = runTool(AddonBuilderCommand.commandLine(toolsBin, AddonBuilderCommand.withDefaultInclude(build, work)), addon.folder)
+        val output = runTool(AddonBuilderCommand.commandLine(toolsBin, ready), addon.folder)
         if (AddonBuilderCommand.result(output) != AddonBuilderCommand.Result.SUCCEEDED || !Files.isRegularFile(build.pbo)) {
             AddonBuilderCommand.tooLongCopy(output)?.let { error(AddonBuilderCommand.tooLongMessage(it)) }
             error("${release.pboNameOf(addon)} failed.")

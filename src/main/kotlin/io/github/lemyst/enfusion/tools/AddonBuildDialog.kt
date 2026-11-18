@@ -74,13 +74,13 @@ class AddonBuildDialog(
                     textFieldWithBrowseButton(FileChooserDescriptorFactory.singleFile().withTitle("Exclude List"), project)
                         .columns(COLUMNS_LARGE).align(AlignX.FILL)
                         .bindText({ entry.exclude ?: "" }, { entry.exclude = it.trim().ifEmpty { null } })
-                        .comment("A file of patterns left out of the PBO, like DayZ Tools' exclude.lst.")
+                        .comment("Left out of the PBO. Patterns such as *.psd;*.blend, or a file of them like DayZ Tools' exclude.lst.")
                 }
                 row("Include list:") {
                     textFieldWithBrowseButton(FileChooserDescriptorFactory.singleFile().withTitle("Include List"), project)
                         .columns(COLUMNS_LARGE).align(AlignX.FILL)
                         .bindText({ entry.include ?: "" }, { entry.include = it.trim().ifEmpty { null } })
-                        .comment("A file of patterns copied into the PBO as they are. Empty: scripts, layouts, imagesets, textures, materials, sounds and data files.")
+                        .comment("Copied into the PBO as they are. Patterns such as *.c;*.layout, or a file of them. Empty: scripts, layouts, imagesets, textures, materials, sounds and data files.")
                 }
             }
         }

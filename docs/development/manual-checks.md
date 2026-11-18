@@ -418,9 +418,11 @@ Opening a real DayZ mod. The examples below use a mod called MyMod.
 - With the run configuration's folder deep on disk (as in a sandbox IDE) → every addon still
   builds, scripts of 60 characters' depth included. The Steam API's two lines after each addon
   are not red.
-- Select an addon → *Addon Builder Lists…* → the include and exclude lists. Set an include list
-  without `*.c` and run → that PBO holds no scripts. *Build PBO with Options…* on the same addon
-  shows the same list.
+- Select an addon → *Addon Builder Lists…* → the include and exclude lists. Type `*.layout` as
+  the include list of an addon with scripts and run, with no file changed → that addon alone is
+  rebuilt, and its PBO holds its layouts but no scripts. *Build PBO with Options…* on the same
+  addon shows `*.layout`, and *Build PBO* packs the same.
+- Set the include list to a file that does not exist → that addon fails, naming the file.
 - Run again → *0 addon(s) to build*. Edit one script → that addon only.
 - Untick an addon and run → its PBO and signature are removed from `addons\`.
 - Start a server with `verifySignatures = 2` on the built mod → clients with it join.

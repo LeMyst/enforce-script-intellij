@@ -27,9 +27,10 @@ class EnfusionAddonBuilderTest : TestCase() {
         val folder = Files.createTempDirectory("addon-include")
         try {
             val build = AddonBuild(path("Work", "MyMod", "Scripts"), path("Work", "@MyMod", "Addons"))
-            val withList = AddonBuilderCommand.withDefaultInclude(build, folder)
+            val withList = AddonBuilderCommand.withListFiles(build, folder)
             val list = withList.include!!
-            assertEquals(folder.resolve("include.lst"), list)
+            assertEquals(folder, list.parent)
+            assertTrue(list.fileName.toString(), list.fileName.toString().startsWith("Scripts-"))
             val patterns = Files.readString(list).split(';')
             for (needed in listOf("*.c", "*.layout", "*.imageset", "*.csv", "*.edds", "*.paa", "*.rvmat")) {
                 assertTrue(needed, needed in patterns)
@@ -37,12 +38,74 @@ class EnfusionAddonBuilderTest : TestCase() {
             assertTrue("-include=$list" in AddonBuilderCommand.commandLine(bin, withList))
 
             val own = build.copy(include = path("Work", "mine.lst"))
-            assertSame("a list the user set is kept", own, AddonBuilderCommand.withDefaultInclude(own, folder))
+            assertSame("a list the user set is kept", own, AddonBuilderCommand.withListFiles(own, folder))
             val packOnly = build.copy(packOnly = true)
-            assertSame("pack only stores every file", packOnly, AddonBuilderCommand.withDefaultInclude(packOnly, folder))
+            assertSame("pack only stores every file", packOnly, AddonBuilderCommand.withListFiles(packOnly, folder))
         } finally {
             folder.toFile().deleteRecursively()
         }
+    }
+
+    /**
+     * The sandbox review typed `*.c` into the include field, which wanted a file: `*.c` is no path
+     * on Windows, so it was dropped and the default list packed everything. Patterns are taken as
+     * typed now, a file path as before.
+     */
+    fun testListFieldTakesPatternsOrAFile() {
+        assertEquals(AddonBuilderCommand.ListSetting.Patterns(listOf("*.c")), AddonBuilderCommand.listSetting("*.c"))
+        assertEquals(
+            AddonBuilderCommand.ListSetting.Patterns(listOf("*.c", "*.layout", "data\\*.json")),
+            AddonBuilderCommand.listSetting(" *.c; *.layout , data\\*.json; "),
+        )
+        val file = path("Work", "lists", "mine.lst")
+        assertEquals(AddonBuilderCommand.ListSetting.File(file), AddonBuilderCommand.listSetting(file.toString()))
+        assertNull(AddonBuilderCommand.listSetting("  "))
+        assertNull(AddonBuilderCommand.listSetting(";"))
+        assertNull(AddonBuilderCommand.listSetting(null))
+    }
+
+    fun testTypedPatternsBecomeListFiles() {
+        val folder = Files.createTempDirectory("addon-lists")
+        try {
+            val build = AddonBuild(path("Work", "MyMod", "GUI"), path("Work", "@MyMod", "Addons"))
+            val typed = AddonBuilderCommand.withListSettings(build, "*.c", "*.psd;*.blend")
+            val ready = AddonBuilderCommand.withListFiles(typed, folder)
+            assertEquals("*.c", Files.readString(ready.include!!))
+            assertEquals("*.psd;*.blend", Files.readString(ready.exclude!!))
+            assertNotSame(ready.include, ready.exclude)
+            val command = AddonBuilderCommand.commandLine(bin, ready)
+            assertTrue(command.toString(), "-include=${ready.include}" in command && "-exclude=${ready.exclude}" in command)
+
+            val other = AddonBuilderCommand.withListFiles(AddonBuilderCommand.withListSettings(build.copy(source = path("Work", "MyMod", "Scripts")), "*.c", null), folder)
+            assertFalse("each addon has its own file", other.include == ready.include)
+        } finally {
+            folder.toFile().deleteRecursively()
+        }
+    }
+
+    /** Addon Builder packs on without a list it cannot read, so the build stops first. */
+    fun testMissingListFile() {
+        val list = path("Work", "lists", "gone.lst")
+        val build = AddonBuild(path("Work", "MyMod", "GUI"), path("Work", "@MyMod", "Addons"), include = list)
+        assertEquals(list, AddonBuilderCommand.missingListFile(build) { false })
+        assertNull(AddonBuilderCommand.missingListFile(build) { true })
+        assertNull(AddonBuilderCommand.missingListFile(build.copy(include = null)) { false })
+    }
+
+    /** The sandbox review changed a list and the release build found nothing to rebuild. */
+    fun testListsAreRecordedForTheReleaseBuild() {
+        val build = AddonBuild(path("Work", "MyMod", "GUI"), path("Work", "@MyMod", "Addons"))
+        val default = AddonBuilderCommand.listsRecord(build)
+        assertTrue(default, AddonBuilderCommand.DEFAULT_INCLUDE.joinToString(";") in default)
+        val typed = AddonBuilderCommand.listsRecord(AddonBuilderCommand.withListSettings(build, "*.c", null))
+        val excluded = AddonBuilderCommand.listsRecord(AddonBuilderCommand.withListSettings(build, null, "*.c"))
+        assertEquals(3, setOf(default, typed, excluded).size)
+
+        val file = AddonBuilderCommand.withListSettings(build, path("Work", "mine.lst").toString(), null)
+        assertFalse(
+            "an edit inside the list file counts",
+            AddonBuilderCommand.listsRecord(file) { "*.c" } == AddonBuilderCommand.listsRecord(file) { "*.c;*.layout" },
+        )
     }
 
     /** The sandbox review: copies past Windows' 260 characters failed with a bare "Build failed". */

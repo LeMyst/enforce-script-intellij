@@ -34,7 +34,7 @@ class AddonListsDialog(private val project: Project, private val entry: AddonBui
                     .columns(COLUMNS_LARGE).align(AlignX.FILL)
                     .bindText({ entry.include ?: "" }, { entry.include = it.trim().ifEmpty { null } })
                     .comment(
-                        "A file of patterns copied into the PBO as they are, separated by ; or ,. Empty: " +
+                        "Copied into the PBO as they are. Patterns separated by ; or , such as *.c;*.layout, or a file of them. Empty: " +
                             AddonBuilderCommand.DEFAULT_INCLUDE.joinToString(";"),
                     )
             }
@@ -42,7 +42,7 @@ class AddonListsDialog(private val project: Project, private val entry: AddonBui
                 textFieldWithBrowseButton(FileChooserDescriptorFactory.singleFile().withTitle("Exclude List"), project)
                     .columns(COLUMNS_LARGE).align(AlignX.FILL)
                     .bindText({ entry.exclude ?: "" }, { entry.exclude = it.trim().ifEmpty { null } })
-                    .comment("A file of patterns left out of the PBO, like DayZ Tools' exclude.lst.")
+                    .comment("Left out of the PBO. Patterns such as *.psd;*.blend, or a file of them like DayZ Tools' exclude.lst.")
             }
             row {
                 comment("Saved for this addon in .idea/enfusion-builds.xml, where Build PBO keeps its options too.")

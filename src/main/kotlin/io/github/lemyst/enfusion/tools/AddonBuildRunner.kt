@@ -71,7 +71,14 @@ object AddonBuildRunner {
             indicator.fraction = index.toDouble() / builds.size
             Files.createDirectories(build.destination)
             val listFolder = Path.of(PathManager.getSystemPath(), "enfusion", "addon-builder")
-            val command = AddonBuilderCommand.commandLine(toolsBin, AddonBuilderCommand.withDefaultInclude(build, listFolder))
+            val ready = AddonBuilderCommand.withListFiles(build, listFolder)
+            // Addon Builder goes on without a list it cannot read, so its PBO would look fine.
+            AddonBuilderCommand.missingListFile(ready)?.let { missing ->
+                failed += build.pboName
+                console.print("✗ ${build.pboName}: the list file $missing does not exist. Type patterns such as *.c;*.layout, or the path of a list file.\n\n", ConsoleViewContentType.ERROR_OUTPUT)
+                continue
+            }
+            val command = AddonBuilderCommand.commandLine(toolsBin, ready)
             console.print("> ${command.joinToString(" ") { if (it.contains(' ')) "\"$it\"" else it }}\n", ConsoleViewContentType.SYSTEM_OUTPUT)
             val output = StringBuilder()
             val handler = OSProcessHandler(GeneralCommandLine(command).withWorkDirectory(build.source.toFile()))

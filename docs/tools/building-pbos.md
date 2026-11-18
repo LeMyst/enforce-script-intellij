@@ -23,6 +23,10 @@ the options first, and *Tools → DayZ → Build All PBOs* builds every addon of
   `*.xml`, `*.json`, `*.txt`, `*.html`, `*.cfg`, `*.jpg`). Addon Builder's own window has a
   shorter default, without stringtables. An include list you set replaces the plugin's; *pack
   only* stores every file and needs none.
+- **The lists** take patterns typed straight in, separated by `;` or `,` as in Addon Builder's
+  window (`*.c;*.layout`), or the path of a list file such as DayZ Tools' `exclude.lst`. A value
+  with `*`, `?` or `;` is read as patterns, anything else as a file. A list file that does not
+  exist stops the build with its path, since Addon Builder would pack on without it.
 - **Path length:** Addon Builder copies each file into its temp folder before packing, and the PBO
   to its output folder after. A copy longer than Windows' 260 characters fails with a bare *Build
   failed*, and the *Run* tab then names the copy and its length. The release build keeps both

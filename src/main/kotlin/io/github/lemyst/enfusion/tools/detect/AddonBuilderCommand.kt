@@ -25,6 +25,10 @@ data class AddonBuild(
     val include: Path? = null,
     /** `-exclude`: a file of patterns left out of the PBO. */
     val exclude: Path? = null,
+    /** Include patterns typed in the options, written to a file for `-include` before a build. */
+    val includePatterns: List<String>? = null,
+    /** Exclude patterns typed in the options, written to a file for `-exclude` before a build. */
+    val excludePatterns: List<String>? = null,
 ) {
     /** Addon Builder names the PBO after the source folder. */
     val pboName: String get() = source.fileName.toString() + ".pbo"
@@ -79,16 +83,77 @@ object AddonBuilderCommand {
     )
 
     /**
-     * [build] with [DEFAULT_INCLUDE] written into [folder] as its include list, when it sets none
-     * and is binarised. A pack-only build stores every file anyway.
+     * An include or exclude list as typed in the options: the patterns themselves, as Addon
+     * Builder's window takes them (`*.c;*.layout`), or the path of a list file, as its command line
+     * takes. Patterns are told by a wildcard or a `;`: a Windows path cannot hold `*` or `?`, and
+     * `*.c` read as a path was once dropped without a word, leaving the default list in its place.
      */
-    fun withDefaultInclude(build: AddonBuild, folder: Path): AddonBuild {
-        if (build.include != null || build.packOnly) return build
+    sealed interface ListSetting {
+        data class File(val path: Path) : ListSetting
+        data class Patterns(val patterns: List<String>) : ListSetting
+    }
+
+    fun listSetting(value: String?): ListSetting? {
+        val text = value?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        if (text.any { it == '*' || it == '?' || it == ';' }) {
+            // Addon Builder's help: "separator is ';' and ','".
+            val patterns = text.split(';', ',').map { it.trim() }.filter { it.isNotEmpty() }
+            return if (patterns.isEmpty()) null else ListSetting.Patterns(patterns)
+        }
+        return runCatching { Path.of(text) }.getOrNull()?.let { ListSetting.File(it) }
+    }
+
+    /** [build] with the include and exclude lists typed in the options, [include] and [exclude]. */
+    fun withListSettings(build: AddonBuild, include: String?, exclude: String?): AddonBuild {
+        val inc = listSetting(include)
+        val exc = listSetting(exclude)
+        return build.copy(
+            include = (inc as? ListSetting.File)?.path,
+            includePatterns = (inc as? ListSetting.Patterns)?.patterns,
+            exclude = (exc as? ListSetting.File)?.path,
+            excludePatterns = (exc as? ListSetting.Patterns)?.patterns,
+        )
+    }
+
+    /**
+     * [build] ready for its command line: typed patterns written into [folder] as list files, and
+     * [DEFAULT_INCLUDE] as its include list when it sets none and is binarised. A pack-only build
+     * stores every file anyway. The files are named after the addon's folder, so that two addons
+     * never share one.
+     */
+    fun withListFiles(build: AddonBuild, folder: Path): AddonBuild {
+        val include = build.includePatterns ?: DEFAULT_INCLUDE.takeIf { build.include == null && !build.packOnly }
+        val exclude = build.excludePatterns
+        if (include == null && exclude == null) return build
         Files.createDirectories(folder)
-        val file = folder.resolve("include.lst")
-        // Addon Builder's help: "separator is ';' and ','".
-        Files.writeString(file, DEFAULT_INCLUDE.joinToString(";"))
-        return build.copy(include = file)
+        val stem = build.source.fileName.toString() + "-" + Integer.toHexString(build.source.toString().lowercase().hashCode())
+        fun write(kind: String, patterns: List<String>): Path =
+            folder.resolve("$stem.$kind.lst").also { Files.writeString(it, patterns.joinToString(";")) }
+        return build.copy(
+            include = include?.let { write("include", it) } ?: build.include,
+            exclude = exclude?.let { write("exclude", it) } ?: build.exclude,
+            includePatterns = null,
+            excludePatterns = null,
+        )
+    }
+
+    /** A list file [build] names that is not there, which Addon Builder would not report. */
+    fun missingListFile(build: AddonBuild, exists: (Path) -> Boolean = Files::isRegularFile): Path? =
+        listOfNotNull(build.include, build.exclude).firstOrNull { !exists(it) }
+
+    /**
+     * The lists [build] packs with, as text for the release build's record of an addon: editing a
+     * list changes the PBO as much as editing a file does. A list file is read, so a change to its
+     * patterns counts, and the default list is spelled out, so a new default rebuilds too.
+     */
+    fun listsRecord(build: AddonBuild, read: (Path) -> String? = { runCatching { Files.readString(it) }.getOrNull() }): String {
+        fun describe(patterns: List<String>?, file: Path?, default: List<String>?): String = when {
+            patterns != null -> patterns.joinToString(";")
+            file != null -> "$file: " + (read(file) ?: "missing").replace("\r", "").replace('\n', ' ')
+            else -> default?.joinToString(";").orEmpty()
+        }
+        val include = describe(build.includePatterns, build.include, DEFAULT_INCLUDE.takeUnless { build.packOnly })
+        return "include=$include\nexclude=${describe(build.excludePatterns, build.exclude, null)}\n"
     }
 
     /**
