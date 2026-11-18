@@ -91,6 +91,46 @@ object AddonBuilderCommand {
         return build.copy(include = file)
     }
 
+    /**
+     * Windows' path limit, less its terminating NUL. Addon Builder copies each file it packs into
+     * its temp folder first, and a copy whose path is longer fails with a bare `Build failed`. A
+     * release build whose temp folder sat 200 characters deep, in a sandbox IDE's system folder,
+     * failed on every file more than about 60 characters into its addon.
+     */
+    const val MAX_PATH = 259
+
+    /**
+     * A temp folder for Addon Builder under [systemTemp], Windows' own temp folder, which is where
+     * Addon Builder works by default. It is short, unlike the IDE's system folder, so deep addon
+     * paths stay under [MAX_PATH]. [key] keeps builds apart.
+     */
+    fun shortTemp(systemTemp: Path, key: String): Path =
+        systemTemp.resolve("enfusion-ab").resolve(Integer.toHexString(key.hashCode()))
+
+    /**
+     * The copy Addon Builder was making when it stopped, when its path is past [MAX_PATH]. That is
+     * the last `Syncing file "…"` line with no `File sync done` after it, in the `[sync]=` folder
+     * Addon Builder named.
+     */
+    fun tooLongCopy(output: String): String? {
+        var folder: String? = null
+        var pending: String? = null
+        for (line in output.lineSequence()) {
+            SYNC_FOLDER.find(line)?.let { folder = it.groupValues[1].trim() }
+            SYNCING_FILE.find(line)?.let { pending = it.groupValues[1] }
+            if (line.contains("File sync done")) pending = null
+        }
+        val copy = (folder ?: return null).trimEnd('\\') + "\\" + (pending ?: return null)
+        return copy.takeIf { it.length > MAX_PATH }
+    }
+
+    /** What to say about [tooLongCopy]'s result. */
+    fun tooLongMessage(copy: String): String =
+        "Addon Builder could not copy a file into its temp folder: $copy is ${copy.length} characters, past Windows' limit of 260. Shorten the file's path in the addon."
+
+    private val SYNC_FOLDER = Regex("""\[sync]=(.+)$""")
+    private val SYNCING_FILE = Regex("""Syncing file "(.+)"""")
+
     /** The build's outcome from its output, the last verdict line winning. */
     fun result(output: String): Result {
         var result = Result.UNKNOWN

@@ -95,6 +95,9 @@ object AddonBuildRunner {
                 LocalFileSystem.getInstance().refreshNioFiles(listOf(build.pbo))
             } else {
                 failed += build.pboName
+                AddonBuilderCommand.tooLongCopy(output.toString())?.let {
+                    console.print(AddonBuilderCommand.tooLongMessage(it) + "\n", ConsoleViewContentType.ERROR_OUTPUT)
+                }
                 console.print("✗ ${build.pboName} failed\n\n", ConsoleViewContentType.ERROR_OUTPUT)
             }
         }

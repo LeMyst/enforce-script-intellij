@@ -23,6 +23,9 @@ the options first, and *Tools → DayZ → Build All PBOs* builds every addon of
   `*.xml`, `*.json`, `*.txt`, `*.html`, `*.cfg`, `*.jpg`). Addon Builder's own window has a
   shorter default, without stringtables. An include list you set replaces the plugin's; *pack
   only* stores every file and needs none.
+- **Path length:** Addon Builder copies each file into its temp folder before packing, and a copy
+  longer than Windows' 260 characters fails with a bare *Build failed*. The *Run* tab then names
+  the copy and its length. The release build keeps its temp folder short, under `%TEMP%`.
 - The build runs in the background, with Addon Builder's output in a *Run* tab and `File …, line N`
   config errors as links. Cancelling the task stops it.
 - Addon Builder exits with code 0 even when a build fails, so the result is read from its own last

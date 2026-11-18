@@ -35,11 +35,20 @@ import java.nio.file.StandardCopyOption
 class DayZModBuildHandler(
     private val release: DayZModRelease,
     private val toolsBin: Path,
-    /** The release build's own folder in the IDE's system folder: staging, temp and manifests. */
+    /** The release build's own folder in the IDE's system folder: staging and manifests. */
     private val work: Path,
     /** The saved *Build PBO* options of an addon folder, for its include and exclude lists. */
     private val savedOptions: (Path) -> AddonBuild?,
 ) : ProcessHandler() {
+
+    /**
+     * Not under [work]: Addon Builder copies every file there first, and the IDE's system folder
+     * left too few of Windows' 260 characters for a deep addon. See [AddonBuilderCommand.MAX_PATH].
+     */
+    private val addonBuilderTemp: Path = AddonBuilderCommand.shortTemp(
+        Path.of(System.getenv("TEMP") ?: System.getProperty("java.io.tmpdir")),
+        work.toString(),
+    )
 
     @Volatile
     private var stopping = false
@@ -142,13 +151,14 @@ class DayZModBuildHandler(
             prefix = addon.prefix,
             packOnly = false,
             clear = true,
-            temp = work.resolve("temp"),
+            temp = addonBuilderTemp,
             include = saved?.include,
             exclude = saved?.exclude,
         )
         say("Building ${release.pboNameOf(addon)} from ${addon.folder}")
         val output = runTool(AddonBuilderCommand.commandLine(toolsBin, AddonBuilderCommand.withDefaultInclude(build, work)), addon.folder)
         if (AddonBuilderCommand.result(output) != AddonBuilderCommand.Result.SUCCEEDED || !Files.isRegularFile(build.pbo)) {
+            AddonBuilderCommand.tooLongCopy(output)?.let { error(AddonBuilderCommand.tooLongMessage(it)) }
             error("${release.pboNameOf(addon)} failed.")
             return false
         }

@@ -45,6 +45,31 @@ class EnfusionAddonBuilderTest : TestCase() {
         }
     }
 
+    /** The sandbox review: copies past Windows' 260 characters failed with a bare "Build failed". */
+    fun testTooLongCopyIsNamed() {
+        val deep = "C:\\" + "d".repeat(200) + "\\temp\\client"
+        val output = """
+            [2026-01-01 10:00:00,000] [INFO ]: Syncing folders... [source]=P:\MyMod\Scripts\Client, [sync]=$deep
+            [2026-01-01 10:00:00,001] [INFO ]: Syncing file "3_Game\Short.c"
+            [2026-01-01 10:00:00,002] [INFO ]: File sync done
+            [2026-01-01 10:00:00,003] [INFO ]: Syncing file "3_Game\Some\Deep\Folder\AFileWithAVeryLongNameIndeed.c"
+            [2026-01-01 10:00:00,004] [ERROR]: Build failed
+        """.trimIndent()
+        val copy = "$deep\\3_Game\\Some\\Deep\\Folder\\AFileWithAVeryLongNameIndeed.c"
+        assertEquals(copy, AddonBuilderCommand.tooLongCopy(output))
+        assertTrue(AddonBuilderCommand.tooLongMessage(copy).contains("${copy.length} characters"))
+        assertNull("a short copy failed for another reason", AddonBuilderCommand.tooLongCopy(output.replace(deep, "C:\\temp\\client")))
+        assertNull("every copy finished", AddonBuilderCommand.tooLongCopy(output.substringBefore("[2026-01-01 10:00:00,003]")))
+    }
+
+    fun testShortTempFolder() {
+        val systemTemp = path("Users", "me", "AppData", "Local", "Temp")
+        val one = AddonBuilderCommand.shortTemp(systemTemp, "release one")
+        assertEquals(systemTemp.resolve("enfusion-ab"), one.parent)
+        assertEquals(one, AddonBuilderCommand.shortTemp(systemTemp, "release one"))
+        assertFalse(one == AddonBuilderCommand.shortTemp(systemTemp, "release two"))
+    }
+
     fun testMinimalCommandLine() {
         val source = path("Work", "MyMod", "Scripts")
         val destination = path("Work", "@MyMod", "Addons")
