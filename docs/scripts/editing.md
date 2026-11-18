@@ -21,7 +21,7 @@ clicked, writing the picked colour back in the notation it was read from:
 |---|---|---|
 | Layouts | `color 0.141 0.141 0.141 1`, `"text color"`, `"disabled text color"`, `"shadow color"`, `"outline color"` and any other `"… color"` | linear channels, three decimals as vanilla writes them; three channels stay three |
 | `.styles` | `Color="4294967295"`, an ARGB integer | the integer |
-| Script | `ARGB(255, 242, 38, 19)` and `ARGBF(1, 0.95, 0.15, 0.07)` with four literal arguments | the same call, bytes or two decimals |
+| Script | `ARGB(255, 242, 38, 19)` and `ARGBF(1, 0.95, 0.15, 0.07)` with literal colour channels; a computed alpha (`ARGB(m_Alpha, 242, 199, 68)`) is shown opaque | the same call, bytes or two decimals; a computed alpha is kept as written |
 | Script | `const int COLOR_RED = 0xFFF22613;`, a constant whose name says colour | `0xAARRGGBB` |
 | Configs and script strings | procedural textures, `"#(argb,8,8,3)color(0.5,0.5,0.5,1,co)"` | the four channels |
 

@@ -63,6 +63,40 @@ class EnfusionColorTest : BasePlatformTestCase() {
         assertEquals("int b = ARGBF(1, 0, 0.5, 1);", pick(floats, Color(0, 128, 255, 255)))
     }
 
+    /**
+     * The picker passes the swatch's original element on every change, though the first write may
+     * have replaced it: the last colour picked is the one written, whatever the notation.
+     */
+    fun testEveryPickerChangeIsWritten() {
+        val cases = listOf(
+            Triple("a.styles", "<S><Style Color=\"4294967295\" /></S>", "<S><Style Color=\"4278255360\" /></S>"),
+            Triple("b.es", "const int COLOR_RED = 0xFFF22613;", "const int COLOR_RED = 0xFF00FF00;"),
+            Triple("c.es", "string t = \"#(argb,8,8,3)color(1,0,0,1,co)\";", "string t = \"#(argb,8,8,3)color(0,1,0,1,co)\";"),
+            Triple("d.es", "int a = ARGB(255, 242, 38, 19);", "int a = ARGB(255, 0, 255, 0);"),
+            Triple("e.layout", "PanelWidgetClass p {\n color 1 0 0 1\n}", "PanelWidgetClass p {\n color 0 1 0 1\n}"),
+        )
+        for ((name, text, expected) in cases) {
+            val file = myFixture.configureByText(name, text)
+            val (leaf, _) = colors(file).single()
+            WriteCommandAction.runWriteCommandAction(project) {
+                provider.setColorTo(leaf, Color(0, 0, 255, 255))
+                provider.setColorTo(leaf, Color(0, 255, 0, 255))
+            }
+            assertEquals(name, expected, file.text)
+        }
+    }
+
+    /** A fade's alpha is computed; the colour is still shown, opaque, and the alpha kept as written. */
+    fun testComputedAlphaKeepsItsExpression() {
+        val file = myFixture.configureByText("a.es", "int a = ARGB(m_Alpha * 255, 242, 199, 68);")
+        assertEquals(listOf(Color(242, 199, 68, 255)), colors(file).map { it.second })
+        assertEquals("int a = ARGB(m_Alpha * 255, 0, 128, 255);", pick(file, Color(0, 128, 255, 40)))
+        val floats = myFixture.configureByText("b.es", "int b = ARGBF(a, 1, 1, 1);")
+        assertEquals("int b = ARGBF(a, 0, 0.5, 1);", pick(floats, Color(0, 128, 255, 255)))
+        val channel = myFixture.configureByText("c.es", "int c = ARGB(255, r, 199, 68);")
+        assertEquals(emptyList<Color>(), colors(channel).map { it.second })
+    }
+
     /** A colour constant gets a swatch; a hex flag or mask does not. */
     fun testHexColourConstants() {
         val file = myFixture.configureByText(

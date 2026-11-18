@@ -1,8 +1,10 @@
 package io.github.lemyst.enfusion.colors
 
 import com.intellij.openapi.editor.ElementColorProvider
+import com.intellij.openapi.util.Key
 import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiElement
+import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiWhiteSpace
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.psi.xml.XmlAttribute
@@ -20,8 +22,9 @@ import java.awt.Color
  * - **Layouts:** `color r g b a` and the quoted `"text color"`, `"shadow color"`, … properties.
  *   The channels are linear and shown in sRGB, as Workbench and the layout preview show them.
  * - **`.styles`:** `Color="4294967295"`, an ARGB integer.
- * - **Script:** `ARGB(a, r, g, b)` and `ARGBF(a, r, g, b)` with four literal arguments, and the
- *   `0xAARRGGBB` initializer of a `const int` named for a colour (`COLOR_RED`).
+ * - **Script:** `ARGB(a, r, g, b)` and `ARGBF(a, r, g, b)` with literal colour channels (the
+ *   alpha may be any expression), and the `0xAARRGGBB` initializer of a `const int` named for a
+ *   colour (`COLOR_RED`).
  * - **Procedural textures**, in configs and script strings: `#(argb,8,8,3)color(r,g,b,a,co)`.
  *
  * The swatch sits on the first token of each notation, which is a leaf, as the platform expects.
@@ -30,15 +33,35 @@ class EnColorProvider : ElementColorProvider {
 
     override fun getColorFrom(element: PsiElement): Color? = EnColorNotations.find(element)?.color
 
+    /**
+     * The picker calls this for every change, always with the element its swatch was made for. A
+     * write that replaces that very token (a `.styles` value, a hex constant, a string) leaves it
+     * invalid for the next call, so it is found again where it started. Every write lands at or
+     * after the swatch's own start, so that offset does not move while the picker is open.
+     */
     override fun setColorTo(element: PsiElement, color: Color) {
-        val found = EnColorNotations.find(element) ?: return
-        val file = element.containingFile ?: return
-        val documents = PsiDocumentManager.getInstance(element.project)
+        val anchor = if (element.isValid) {
+            val file = element.containingFile ?: return
+            Anchor(file, element.textRange.startOffset).also { element.putUserData(ANCHOR, it) }
+        } else {
+            element.getUserData(ANCHOR) ?: return
+        }
+        val file = anchor.file.takeIf { it.isValid } ?: return
+        val documents = PsiDocumentManager.getInstance(file.project)
         val document = documents.getDocument(file) ?: return
         documents.doPostponedOperationsAndUnblockDocument(document)
+        documents.commitDocument(document)
+        val leaf = if (element.isValid) element else file.findElementAt(anchor.offset) ?: return
+        val found = EnColorNotations.find(leaf) ?: return
         val range = found.range
         document.replaceString(range.startOffset, range.endOffset, found.write(color))
         documents.commitDocument(document)
+    }
+
+    private class Anchor(val file: PsiFile, val offset: Int)
+
+    private companion object {
+        val ANCHOR = Key.create<Anchor>("enfusion.color.anchor")
     }
 }
 
@@ -96,15 +119,25 @@ internal object EnColorNotations {
         val argList = call.node.findChildByType(EnfusionTypes.ARG_LIST)?.psi ?: return null
         val args = argList.children.filter { it !is PsiWhiteSpace }
         if (args.size != 4) return null
-        val numbers = args.map { arg -> signedNumber(arg) ?: return null }
-        val range = com.intellij.openapi.util.TextRange(args.first().textRange.startOffset, args.last().textRange.endOffset)
+        val rgb = args.drop(1).map { arg -> signedNumber(arg) ?: return null }
+        // A fade computes the alpha at run time (`ARGB(m_Alpha, 242, 199, 68)`), yet the colour is
+        // still known. It is shown opaque, and the picker writes the three channels around the
+        // alpha expression, which stays as written.
+        val alpha = signedNumber(args[0])
+        val first = if (alpha != null) args[0] else args[1]
+        val range = com.intellij.openapi.util.TextRange(first.textRange.startOffset, args.last().textRange.endOffset)
         return if (name == "ARGB") {
-            val (a, r, g, b) = numbers.map { it.toInt().coerceIn(0, 255) }
-            EnFoundColor(Color(r, g, b, a), range) { "${it.alpha}, ${it.red}, ${it.green}, ${it.blue}" }
+            val (r, g, b) = rgb.map { it.toInt().coerceIn(0, 255) }
+            val a = alpha?.toInt()?.coerceIn(0, 255) ?: 255
+            EnFoundColor(Color(r, g, b, a), range) { picked ->
+                listOfNotNull(picked.alpha.takeIf { alpha != null }, picked.red, picked.green, picked.blue).joinToString(", ")
+            }
         } else {
-            val (a, r, g, b) = numbers.map { it.coerceIn(0.0, 1.0).toFloat() }
-            EnFoundColor(Color(r, g, b, a), range) {
-                listOf(it.alpha, it.red, it.green, it.blue).joinToString(", ") { c -> EnColorMath.decimal(c / 255.0, 2) }
+            val (r, g, b) = rgb.map { it.coerceIn(0.0, 1.0).toFloat() }
+            val a = alpha?.coerceIn(0.0, 1.0)?.toFloat() ?: 1f
+            EnFoundColor(Color(r, g, b, a), range) { picked ->
+                listOfNotNull(picked.alpha.takeIf { alpha != null }, picked.red, picked.green, picked.blue)
+                    .joinToString(", ") { c -> EnColorMath.decimal(c / 255.0, 2) }
             }
         }
     }

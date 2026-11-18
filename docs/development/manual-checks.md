@@ -432,6 +432,7 @@ Opening a real DayZ mod. The examples below use a mod called MyMod.
   the preview shows. Click one in a mod layout, pick another colour → the four numbers change
   (linear, three decimals) and the preview updates.
 - In a script, `ARGB(255, 242, 38, 19)` → a red swatch; pick a colour → the four arguments change.
+  `ARGB(m_Alpha, 242, 199, 68)` → a yellow swatch; pick a colour → `m_Alpha` stays.
   `ARGBF(1, 0, 0.5, 1)` → light blue. `const int COLOR_RED = 0xFFF22613;` → red, and a
   `const int` flag such as `0x00000400` → no swatch.
 - In a config, `"#(argb,8,8,3)color(0.5,0.5,0.5,1,co)"` → grey.
