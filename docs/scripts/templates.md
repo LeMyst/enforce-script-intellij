@@ -20,6 +20,14 @@ where they can be edited and new ones added with the same scopes.
 | `onrpc` | class body | an `OnRPC(PlayerIdentity sender, int rpc_type, ParamsReadContext ctx)` override with its `super` call and a `switch` on the RPC type |
 | `ifs` / `ifc` | anywhere | `#ifdef SERVER` / `#ifndef SERVER` … `#endif`; also in *Surround With* (`Ctrl+Alt+T`) |
 
+To try them:
+- **Expand one:** on an empty line outside any class, type `modc` and press `Tab`. Type the
+  class name, with completion, then `Tab` again to reach the body.
+- **List the ones offered here:** `Ctrl+J` (*Code → Insert Live Template*) lists those that fit
+  at the caret: `onrpc` inside a class body, `modc` outside any class.
+- **Wrap code:** select a few lines, press `Ctrl+Alt+T` (*Code → Surround With*) and pick `ifs`
+  to put them between `#ifdef SERVER` and `#endif`.
+
 The scopes are *File scope*, *Class body* and *Statement*, under the *Enforce Script* context, and
 never inside a comment or a string. The scope is read from the code before the caret rather than
 from the parse, so a half-written member, which the grammar cannot recover from, still counts as
