@@ -18,8 +18,8 @@ They are set under **Settings → Languages & Frameworks → Enforce Script**, a
 
 **Vanilla comes from the work drive.** On first open of a DayZ addon (a project containing a
 `config.cpp`), the plugin indexes vanilla DayZ from the work drive: `P:\scripts`, the layouts,
-imagesets and stringtable that string literals point at (`P:\gui\layouts`, `P:\gui\imagesets`,
-`P:\languagecore`), and the configs in the unpacked game data (`P:\DZ`). The letter is the one in
+imagesets, widget styles and stringtable that string literals and the layout preview use
+(`P:\gui\layouts`, `P:\gui\imagesets`, `P:\gui\looknfeel`, `P:\languagecore`), and the configs in the unpacked game data (`P:\DZ`). The letter is the one in
 [DayZ Installation](dayz-installation.md), so it follows the machine rather than the project. A
 tree that is not there is skipped without a warning, since the drive may simply not be mounted, and
 `P:\scripts` must hold `3_game` to count.
@@ -41,6 +41,9 @@ folder is added to the list by hand.
 
 A root can also be a packed `.pbo` file, or a folder of them such as `!Workshop`: see
 [Packed `.pbo` roots](pbo-roots.md).
+
+The project's `.claude/worktrees` folder is never indexed: git worktrees kept there hold whole
+copies of the mod, and every class would be found twice.
 
 ## Community Framework stub
 

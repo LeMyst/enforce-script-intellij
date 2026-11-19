@@ -19,11 +19,13 @@ config worth opening:
 `displayName="$STR_…"` (or `"#STR_…"`) and `ghostIcon="set:… image:…"` work through the
 *existing* stringtable and imageset providers (see [String references](string-references.md)).
 
-Vanilla's own configs are opt-in: add the unpacked game data (`P:\DZ`) to the roots and only its 207
-configs are indexed, but they sit inside 24 GB of unpacked game that must be walked once, so the
+Vanilla's own configs are opt-in: add the unpacked game data (`P:\DZ`) to the roots, or the game's
+`Addons` folder as a [PBO root](../setup/pbo-roots.md). From `P:\DZ` only its 207 configs are
+indexed, but they sit inside 24 GB of unpacked game that must be walked once, so the
 settings page warns before adding it. See [Library roots](../setup/library-roots.md).
 
-The `defines[]` of the project's configs feed `#ifdef` completion: see
+The `CfgMods` `defines[]` of every indexed config, the project's and its dependency mods', feed
+`#ifdef` completion: see
 [Completion](completion.md#ifdef-flags).
 
 ## Formatter

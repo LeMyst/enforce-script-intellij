@@ -35,6 +35,13 @@ tooling works on Windows, where DayZ Tools runs.
 - **[Inspections](https://lemyst.github.io/enforce-script-intellij/scripts/inspections.html)**
   for what the engine reports only at build time or not at all, such as a missing `override`, a
   dispatch string naming no method, or a name from a later script module.
+- **Editing aids:**
+  [Quick Documentation](https://lemyst.github.io/enforce-script-intellij/scripts/navigation.html#quick-documentation),
+  [inlay hints](https://lemyst.github.io/enforce-script-intellij/scripts/completion.html),
+  [Override Methods](https://lemyst.github.io/enforce-script-intellij/scripts/generating-code.html),
+  [live and file templates](https://lemyst.github.io/enforce-script-intellij/scripts/templates.html),
+  [formatters and colour swatches](https://lemyst.github.io/enforce-script-intellij/scripts/editing.html), and gutter icons for what
+  overrides a class or method.
 - **[Rename](https://lemyst.github.io/enforce-script-intellij/scripts/rename.html)** that
   keeps `modded class` layers, overrides and `FindAnyWidget` strings in step, and never rewrites
   vanilla.
@@ -44,7 +51,7 @@ tooling works on Windows, where DayZ Tools runs.
   beside the text, drawn in the game's widget styles.
 - **[Texture viewer](https://lemyst.github.io/enforce-script-intellij/game-files/textures.html)**
   for `.edds` and `.paa`, with previews on hover and in the gutter, and
-  [imageset packing](https://lemyst.github.io/enforce-script-intellij/game-files/imagesets.html).
+  [imageset packing and extraction](https://lemyst.github.io/enforce-script-intellij/game-files/imagesets.html).
 - **[Stringtable editor](https://lemyst.github.io/enforce-script-intellij/game-files/stringtables.html)**
   that shows what each language still needs translated.
 - **[Dependencies from PBOs](https://lemyst.github.io/enforce-script-intellij/setup/pbo-roots.html)**:
@@ -56,7 +63,8 @@ tooling works on Windows, where DayZ Tools runs.
   [game logs](https://lemyst.github.io/enforce-script-intellij/tools/game-logs.html),
   [checking scripts with the engine](https://lemyst.github.io/enforce-script-intellij/tools/check-scripts.html),
   [building PBOs](https://lemyst.github.io/enforce-script-intellij/tools/building-pbos.html),
-  [the release build](https://lemyst.github.io/enforce-script-intellij/tools/release-build.html)
+  [the release build](https://lemyst.github.io/enforce-script-intellij/tools/release-build.html),
+  [Workshop publishing](https://lemyst.github.io/enforce-script-intellij/tools/release-build.html#publishing-to-the-steam-workshop)
   and [new mods and addons](https://lemyst.github.io/enforce-script-intellij/tools/new-mod.html).
 
 ## Feedback

@@ -52,8 +52,9 @@ the options first, and *Tools → DayZ → Build All PBOs* builds every addon of
   line (`Build Successful` / `Build failed`), and the `.pbo` must exist.
 - A signed build is checked for its `.bisign` next to the PBO and for the matching `.bikey` in the
   mod's `Keys` folder next to `Addons`, which servers need; a missing one is a warning.
-- **Not supported:** a native packer that works without DayZ Tools (Addon Builder is required), and
-  building before a run configuration starts.
+- **Not supported:** a binarised or signed PBO without DayZ Tools: *Build PBO* needs Addon Builder.
+  A [DayZ run configuration](running-dayz.md) packs the project's addons itself at launch,
+  unbinarised.
 
 To build the whole `@MyMod` folder a mod ships, signed and checked, see
 [Building the mod for release](release-build.md).

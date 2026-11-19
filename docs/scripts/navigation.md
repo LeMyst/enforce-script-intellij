@@ -104,7 +104,8 @@ texture previews stay on their strings; see [String references](string-reference
 ## Go to Class and Go to Symbol
 
 **Go to Class** (`Ctrl+N`) over classes, enums and typedefs; **Go to Symbol**
-(`Ctrl+Shift+Alt+N`) over methods, fields, globals and enum constants.
+(`Ctrl+Shift+Alt+N`) over methods, fields, globals and enum constants, and over `config.cpp`
+classes, which stay out of Go to Class since there are tens of thousands of them.
 
 ## Find Usages
 

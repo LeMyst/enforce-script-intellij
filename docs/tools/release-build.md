@@ -64,8 +64,10 @@ line, so SteamCMD's `workshop_build_item` is the scriptable way.
   filled in, so the next one updates it. *Visibility*, *Title*, *Description* and *Preview image*
   are sent only when set, so an update leaves the item's page as it is.
 - **The change note** is one entry of the item's *Change Notes* tab on the Workshop: the *Change
-  note* field, or, when it is empty, the first section of a changelog file (a `CHANGELOG.md`'s
-  newest `## 1.2.0` section, its heading left out).
+  note* field, or, when it is empty, the text under a changelog file's first heading, up to the
+  next heading of the same level, the heading left out. A `CHANGELOG.md` that opens with a
+  `# Changelog` title gives all of it; the newest `## 1.2.0` section alone is used only when it is
+  the file's first heading.
 - **Before anything runs**, a confirmation names the item, the folder with its file count and
   size, the visibility and the change note.
 - **The login:** only the *Steam account* name is stored. SteamCMD opens in a console window of its

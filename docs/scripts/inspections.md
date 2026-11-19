@@ -23,7 +23,8 @@ under *Settings → Editor → Inspections → Enforce Script*:
 | *Malformed stringtable row* | see [Stringtables](../game-files/stringtables.md#malformed-rows) |
 | *Base class not declared in this scope* | a `config.cpp` class whose base Addon Builder would not find; see [Config files](config-files.md#undeclared-base-classes) |
 
-The two `override` ones and the `super` one carry quick fixes. Each is gated so that a class whose parent the plugin
+The two `override` ones, the `super` one, the stringtable-key one (*Create stringtable row*) and
+the config base-class one (*Add 'class Apple;'*) carry quick fixes. Each is gated so that a class whose parent the plugin
 never indexed produces no report at all, and the duplicate-local rule is measured against 120
 vanilla files to prove it stays silent on code that compiles.
 

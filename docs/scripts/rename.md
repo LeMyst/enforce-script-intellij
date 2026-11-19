@@ -13,6 +13,6 @@ patches, an `override` and what it overrides, and a constructor named after its 
 It also crosses into strings — renaming a widget in a `.layout` updates every `FindAnyWidget("…")`
 that names it.
 
-A rename whose family reaches vanilla is **refused with an explanation** rather than half-applied,
-since the game's extracted source on `P:` is a library here but is an ordinary writable file on
-disk.
+A rename whose family reaches a library (vanilla, a dependency mod or the bundled CF stub) is
+**refused with an explanation** rather than half-applied, since those sources are libraries here
+but ordinary writable files on disk.

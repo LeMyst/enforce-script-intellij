@@ -21,8 +21,9 @@ release, and targets Java 21 bytecode because 2025.2 runs on JBR 21. No JDK need
 ./gradlew buildPlugin    # produce the installable zip in build/distributions/
 ```
 
-The lexer is generated from `src/main/grammars/EnfusionLexer.flex` into `src/gen/` (gitignored) by the
-`generateEnfusionLexer` task, which every compile task depends on.
+The three lexers and three parsers are generated from the `.flex` and `.bnf` files in
+`src/main/grammars/` into `src/gen/` (gitignored) by the `generateEnfusion*Lexer` and
+`generateEnfusion*Parser` tasks, which every compile task depends on.
 
 ## Working from inside IntelliJ
 

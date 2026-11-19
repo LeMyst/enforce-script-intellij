@@ -68,8 +68,8 @@ Editor → Inlay Hints → Types*.
 
 ## `#ifdef` flags
 
-**`#ifdef` completion** over the engine's flags *plus* every flag the project's `config.cpp` files
-declare in `defines[]` — `MYMOD`, `MYMOD_PARTY`, `MYMOD_DEBUG`. Those exist nowhere but a
+**`#ifdef` completion** over the engine's flags *plus* every flag declared in `CfgMods` →
+`defines[]` of any indexed `config.cpp`, the project's and its dependency mods' — `MYMOD`, `MYMOD_PARTY`, `MYMOD_DEBUG`. Those exist nowhere but a
 config array, and a mistyped one silently disables the code it guards with no error at build time
 or after.
 
